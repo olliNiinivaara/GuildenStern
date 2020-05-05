@@ -26,6 +26,8 @@ proc startServer(port: int) =
   server.registerHttphandler(onRequest, [])
   serve[GuildenVars](server, port)
 
+proc startServer8080*() = startServer(8080)
+
 when ismainmodule:
   let port = 8080
   echo "GuildenServer listening on port ", port

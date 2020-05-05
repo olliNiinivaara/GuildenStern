@@ -1,17 +1,9 @@
 # nim c -r --d:danger --threads:on --d:threadsafe -d:WEAVE_NUM_THREADS=4 tester.nim
 
 import asyncdispatch, httpclient
-
+from guildenstern import signalSIGINT
 import guildentest
-
-proc tests() {.async.} =
-  let client = newAsyncHttpClient()
-  let resp = await client.get("http://localhost:8080/plaintext")
-  doAssert resp.code == Http200
-  let body = await resp.body
-  doAssert body == "Hello, World!"
-  echo body
-
+from os import sleep
 
 proc testing() {.async.} =
   let c1 = newAsyncHttpClient()
@@ -33,15 +25,15 @@ proc testing() {.async.} =
   echo "b4 ", await b4.body
   echo "b2 ", await b2.body
   echo "b3 ", await b3.body
-  
-var serverthread: Thread[void]
-createThread(serverthread, startServer)
 
-proc startClient() =
-  waitFor testing()
+var serverthread: Thread[void]
+createThread(serverthread, startServer8080)
+
+proc startClient() = waitFor testing()
 
 var clientthread: Thread[void]
+sleep(1000)
 createThread(clientthread, startClient)
 
 joinThread clientthread
-stopServer()
+signalSIGINT()
