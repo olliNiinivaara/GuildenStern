@@ -3,7 +3,7 @@
 # nim c -r --d:danger --threads:on --d:threadsafe -d:WEAVE_NUM_THREADS=4 guildentest.nim
 #
 # weave and statistics:
-# nim c --d:danger --threads:on --d:threadsafe -d:WEAVE_NUM_THREADS=4 -d:WV_metrics -d:WV_profile guildentest.nim ; ./guildentest
+# nim c --d:danger --threads:on --d:threadsafe -d:WEAVE_NUM_THREADS=4 -d:WV_metrics -d:WV_profile -d:CpuFreqMhz=1200 guildentest.nim ; ./guildentest
 #
 # single-threaded:
 # nim c -r --d:danger guildentest.nim
