@@ -49,10 +49,10 @@ proc bytesRecv(fd: posix.SocketHandle, buffer: ptr char, size: int): int =
   return recv(fd, buffer, size, 0.cint)
 
 
-proc recvHeader(c: GuildenVars): (Opcode , int) =
-  if c.fd.bytesRecv(c.wsrecvheader[0].addr, 2) != 2: raise newException(WebSocketError, "No data received")
-  let b0 = c.wsrecvheader[0].uint8
-  let b1 = c.wsrecvheader[1].uint8
+proc recvHeader(gv: GuildenVars): (Opcode , int) =
+  if gv.fd.bytesRecv(gv.wsrecvheader[0].addr, 2) != 2: raise newException(WebSocketError, "No data received")
+  let b0 = gv.wsrecvheader[0].uint8
+  let b1 = gv.wsrecvheader[1].uint8
   result[0] = (b0 and 0x0f).Opcode
   if b0[1] or b0[2] or b0[3]: raise newException(WebSocketError, "WebSocket Protocol mismatch")
 
@@ -60,38 +60,38 @@ proc recvHeader(c: GuildenVars): (Opcode , int) =
 
   let headerLen = uint(b1 and 0x7f)
   if headerLen == 0x7e: # Length must be 7+16 bits.
-    var lenstrlen = c.fd.bytesRecv(c.wsrecvheader[0].addr, 2)
+    var lenstrlen = gv.fd.bytesRecv(gv.wsrecvheader[0].addr, 2)
     if lenstrlen != 2: raise newException(WebSocketError, "Socket closed")
-    expectedLen = nativesockets.htons(cast[ptr uint16](c.wsrecvheader[0].addr)[]).int
+    expectedLen = nativesockets.htons(cast[ptr uint16](gv.wsrecvheader[0].addr)[]).int
   elif headerLen == 0x7f: # Length must be 7+64 bits.
-    var lenstrlen = c.fd.bytesRecv(c.wsrecvheader[0].addr, 8)
+    var lenstrlen = gv.fd.bytesRecv(gv.wsrecvheader[0].addr, 8)
     if lenstrlen != 8: raise newException(WebSocketError, "Socket closed")
-    expectedLen = nativesockets.htonl(cast[ptr uint32](c.wsrecvheader[4].addr)[]).int
+    expectedLen = nativesockets.htonl(cast[ptr uint32](gv.wsrecvheader[4].addr)[]).int
   else: # Length must be 7 bits.
     expectedLen = headerLen.int
 
-  let maskKeylen = c.fd.bytesRecv(c.wsrecvheader[0].addr, 4)
+  let maskKeylen = gv.fd.bytesRecv(gv.wsrecvheader[0].addr, 4)
   if maskKeylen != 4: raise newException(WebSocketError, "Socket closed")
 
-  if c.recvbuffer.getPosition() + expectedLen > MaxRequestLength:
-    raise newException(WebSocketError, "Maximum request size bound to be exceeded: " & $(c.recvbuffer.getPosition() + expectedLen))
+  if gv.recvbuffer.getPosition() + expectedLen > MaxRequestLength:
+    raise newException(WebSocketError, "Maximum request size bound to be exceeded: " & $(gv.recvbuffer.getPosition() + expectedLen))
 
   result[1] = expectedLen
 
 
-proc recvFrame(c: GuildenVars): OpCode =
+proc recvFrame(gv: GuildenVars): OpCode =
   var expectedlen: int  
-  (result , expectedlen) = recvHeader(c)
+  (result , expectedlen) = gv.recvHeader()
   if result == Opcode.Close: return
-  var recvbufferlen = c.recvbuffer.getPosition()
+  var recvbufferlen = gv.recvbuffer.getPosition()
   var trials = 0
   while true:
-    let ret = recv(c.fd, addr c.recvbuffer.data[recvbufferlen], expectedlen - recvbufferlen, 0.cint)
+    let ret = recv(gv.fd, addr gv.recvbuffer.data[recvbufferlen], expectedlen - recvbufferlen, 0.cint)
     if ret > 0:
       trials = 0
       recvbufferlen += ret
       if recvbufferlen == expectedlen:
-        try: c.recvbuffer.setPosition(expectedlen) # - 1 ?
+        try: gv.recvbuffer.setPosition(expectedlen) # - 1 ?
         except: echo("recvbuffer setPosition error")
         return
       continue
@@ -105,17 +105,17 @@ proc recvFrame(c: GuildenVars): OpCode =
     sleep(100 + trials * 100) # TODO: real backoff strategy
 
  
-proc readFromWs*(c: GuildenVars): Opcode =
+proc readFromWs*(gv: GuildenVars): Opcode =
   try:
-    result = recvFrame(c)
+    result = gv.recvFrame()
     if result == Close: return Close
-    while result == Cont: result = recvFrame(c)
-    let len = c.recvbuffer.getPosition()
-    for i in 0 ..< len: c.recvbuffer.data[i] = (c.recvbuffer.data[i].uint8 xor c.wsrecvheader[i mod 4].uint8).char
+    while result == Cont: result = gv.recvFrame()
+    let len = gv.recvbuffer.getPosition()
+    for i in 0 ..< len: gv.recvbuffer.data[i] = (gv.recvbuffer.data[i].uint8 xor gv.wsrecvheader[i mod 4].uint8).char
   except:
-    try: c.recvbuffer.setPosition(0)
+    try: gv.recvbuffer.setPosition(0)
     except: discard
-    c.currentexceptionmsg = "websocket receive: " & getCurrentExceptionMsg()
+    gv.currentexceptionmsg = "websocket receive: " & getCurrentExceptionMsg()
     result = Fail
 
 {.pop.}

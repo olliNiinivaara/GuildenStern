@@ -13,16 +13,17 @@ from httpcore import Http200, Http404
 
 import guildenstern
 
-proc onRequest(c: GuildenVars) =
-  if c.isMethod "GET":
-    if c.isPath "/plaintext":
+proc onRequest(gv: GuildenVars) =
+  if gv.isMethod "GET":
+    if gv.isPath "/plaintext":
       const data = "Hello, World!"
       const headers = "Content-Type: text/plain"
-      c.reply(Http200, data, headers)
-    else: c.replyCode(Http404)
+      gv.reply(Http200, data, headers)
+    else: gv.replyCode(Http404)
 
 proc startServer(port: int) =
   let server = new GuildenServer
+  # server.turbo = true
   server.registerHttphandler(onRequest, [])
   serve[GuildenVars](server, port)
 

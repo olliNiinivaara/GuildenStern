@@ -19,63 +19,64 @@ const
 template initData(kind: FdKind): Data = Data(fdKind: kind, clientid: NullHandle.Clientid)
 
 template processHttp() =
-  if readFromHttp(c):
+  if readFromHttp(gv):
     try:
-      if c.gs.serverstate == Maintenance and c.gs.errorHandler != nil:
-        c.gs.errorHandler(c, "")
+      if gv.gs.serverstate == Maintenance and gv.gs.errorHandler != nil:
+        gv.gs.errorHandler(gv, "")
       else:
-        c.gs.httpHandler(c)
-        if c.currentexceptionmsg != "":
-          if c.gs.errorHandler != nil: c.gs.errorHandler(c, "processHttp: " & c.currentexceptionmsg)
+        gv.gs.httpHandler(gv)
+        if gv.currentexceptionmsg != "":
+          if gv.gs.errorHandler != nil: gv.gs.errorHandler(gv, "processHttp: " & gv.currentexceptionmsg)
           return        
-        if c.clientid.int32 != NullHandle:
-          if wsHandshake(c):
+        if gv.clientid.int32 != NullHandle:
+          if wsHandshake(gv):
             data.fdKind = Ws
-            data.clientid = c.clientid
-        if c.currentexceptionmsg != "" and
-          c.gs.errorHandler != nil: c.gs.errorHandler(c, c.currentexceptionmsg)
+            data.clientid = gv.clientid
+        if gv.currentexceptionmsg != "" and
+          gv.gs.errorHandler != nil: gv.gs.errorHandler(gv, gv.currentexceptionmsg)
     except:
-      c.currentexceptionmsg = getCurrentExceptionMsg()
-      if c.gs.errorHandler != nil: c.gs.errorHandler(c, "processHttp: " & c.currentexceptionmsg)
+      gv.currentexceptionmsg = getCurrentExceptionMsg()
+      if gv.gs.errorHandler != nil: gv.gs.errorHandler(gv, "processHttp: " & gv.currentexceptionmsg)
     finally:
-      if c.fd.int32 != NullHandle and c.gs.selector.contains(c.fd):
-        try: c.gs.selector.updateHandle(c.fd, {Event.Read})
+      if gv.fd.int32 != NullHandle and gv.gs.selector.contains(gv.fd):
+        try: gv.gs.selector.updateHandle(gv.fd, {Event.Read})
         except:
-          c.currentexceptionmsg = getCurrentExceptionMsg()
-          if c.gs.errorHandler != nil:
-            c.gs.errorHandler(c, "updateHandle: " & c.currentexceptionmsg)
+          gv.currentexceptionmsg = getCurrentExceptionMsg()
+          if gv.gs.errorHandler != nil:
+            gv.gs.errorHandler(gv, "updateHandle: " & gv.currentexceptionmsg)
   else:
-    if c.gs.errorHandler != nil and c.currentexceptionmsg != "": c.gs.errorHandler(c, c.currentexceptionmsg)
-    c.gs.closeFd(fd)
+    if gv.gs.errorHandler != nil and gv.currentexceptionmsg != "": gv.gs.errorHandler(gv, gv.currentexceptionmsg)
+    gv.gs.closeFd(fd)
 
 
-proc disconnectWs(c: GuildenVars, closedbyclient: bool) =
-  c.gs.closeFd(c.fd)
+proc disconnectWs(gv: GuildenVars, closedbyclient: bool) =
+  gv.gs.closeFd(gv.fd)
   {.gcsafe.}:
-    if c.gs.wsdisconnectHandler != nil: c.gs.wsdisconnectHandler(c, closedbyclient)
+    if gv.gs.wsdisconnectHandler != nil: gv.gs.wsdisconnectHandler(gv, closedbyclient)
 
 
 template processWs() =
-  let opcode = readFromWs(c)
+  let opcode = readFromWs(gv)
   if opcode != Opcode.Text:
-    if c.currentexceptionmsg != "" and c.gs.errorHandler != nil: c.gs.errorHandler(c, c.currentexceptionmsg)
-    c.disconnectWs(opcode == Opcode.Close)
+    if gv.currentexceptionmsg != "" and gv.gs.errorHandler != nil: gv.gs.errorHandler(gv, gv.currentexceptionmsg)
+    gv.disconnectWs(opcode == Opcode.Close)
   else:
     try:      
-      if c.gs.serverstate == Maintenance and c.gs.errorHandler != nil: c.gs.errorHandler(c, "")
+      if gv.gs.serverstate == Maintenance and gv.gs.errorHandler != nil: gv.gs.errorHandler(gv, "")
       else:
-        c.gs.wsHandler(c)
-        if c.currentexceptionmsg != "" and
-          c.gs.errorHandler != nil: c.gs.errorHandler(c, c.currentexceptionmsg)
-        if c.fd.int32 != NullHandle and c.gs.selector.contains(c.fd):
-          try: c.gs.selector.updateHandle(c.fd, {Event.Read})
+        gv.gs.wsHandler(gv)
+        if gv.currentexceptionmsg != "" and
+          gv.gs.errorHandler != nil: gv.gs.errorHandler(gv, gv.currentexceptionmsg)
+        if gv.fd.int32 != NullHandle and gv.gs.selector.contains(gv.fd):
+          try: gv.gs.selector.updateHandle(gv.fd, {Event.Read})
           except:
-            c.currentexceptionmsg = getCurrentExceptionMsg()
-            if c.gs.errorHandler != nil:
-              c.gs.errorHandler(c, "updateHandle: " & c.currentexceptionmsg)
+            gv.currentexceptionmsg = getCurrentExceptionMsg()
+            if gv.gs.errorHandler != nil:
+              gv.gs.errorHandler(gv, "updateHandle: " & gv.currentexceptionmsg)
     except:
-      if c.gs.errorHandler != nil: c.gs.errorHandler(c, "processWs: " & getCurrentexceptionMsg())    
-      c.disconnectWs(false)
+      if gv.gs.errorHandler != nil: gv.gs.errorHandler(gv, "processWs: " & getCurrentexceptionMsg())    
+      gv.disconnectWs(false)
+
 
 proc process[T: GuildenVars](gs: ptr GuildenServer, threadcontexts: ptr array[WEAVE_NUM_THREADS, T], fd: posix.SocketHandle, data: ptr Data) {.gcsafe, raises: [].} =
   if gs.serverstate == Shuttingdown: return
@@ -94,18 +95,18 @@ proc process[T: GuildenVars](gs: ptr GuildenServer, threadcontexts: ptr array[WE
           t.inc
         release(gs.ctxlock)
         assert(t != WEAVE_NUM_THREADS)
-    template c: untyped = threadcontexts[t]
-    c.currentexceptionmsg.setLen(0)
-    c.path = 0
-    c.pathlen = 0
-    c.methlen = 0
-    c.bodystartpos = 0
+    template gv: untyped = threadcontexts[t]
+    gv.currentexceptionmsg.setLen(0)
+    gv.path = 0
+    gv.pathlen = 0
+    gv.methlen = 0
+    gv.bodystartpos = 0
     try:
-      c.sendbuffer.setPosition(0)
-      c.recvbuffer.setPosition(0)
+      gv.sendbuffer.setPosition(0)
+      gv.recvbuffer.setPosition(0)
     except: (echo "Nim internal error"; return)
-    c.fd = fd
-    c.clientid = data.clientid
+    gv.fd = fd
+    gv.clientid = data.clientid
   discard gs.inflight.atomicinc
   try:
     if data.fdKind == Http: processHttp() else: processWs()
@@ -144,7 +145,7 @@ template handleEvent() =
   else: process[T](unsafeAddr gs, unsafeAddr threadcontexts, fd, data)
 
 
-proc initContext(context: GuildenVars, gs: GuildenServer) =
+proc initGuildenVars(context: GuildenVars, gs: GuildenServer) =
   context.gs = gs
   context.sendbuffer = newStringStream()
   context.sendbuffer.data.setLen(MaxResponseLength)
@@ -160,8 +161,8 @@ proc eventLoop[T: GuildenVars](gs: GuildenServer) {.gcsafe, raises: [].} =
   var threadcontexts: array[WEAVE_NUM_THREADS, T]
   for t in 0 ..<  WEAVE_NUM_THREADS:
     threadcontexts[t] = new T
-    threadcontexts[t].initContext()
-    initContext(threadcontexts[t], gs)
+    threadcontexts[t].initGuildenVars()
+    initGuildenVars(threadcontexts[t], gs)
 
   while true:
     var ret: int
@@ -237,8 +238,6 @@ proc serve*[T: GuildenVars](gs: GuildenServer, port: int) =
   doAssert(gs.httpHandler != nil, "No http handler registered")
   when compileOption("threads"):
     doAssert(defined(threadsafe), "Selectors module requires compiling with -d:threadsafe")
-    # doAssert(defined(WEAVE_NUM_THREADS), "Weave module requires compiling with -d:WEAVE_NUM_THREADS=n")
-    #when defined(fulldebug):
     echo "WEAVE_NUM_THREADS: ", WEAVE_NUM_THREADS
     initLock(gs.ctxlock)
     init(Weave)

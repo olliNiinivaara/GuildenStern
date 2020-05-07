@@ -40,24 +40,24 @@ proc joinHeaders(headers: openArray[seq[string]]): string {.inline.} =
       result.add(headers[x][y])
 
 
-proc reply*(c: GuildenVars, code: HttpCode, body: string, headers="") {.inline.} =
-  discard doReply(c.fd, code,  body, headers)
+proc reply*(gv: GuildenVars, code: HttpCode, body: string, headers="") {.inline.} =
+  discard doReply(gv.fd, code,  body, headers)
 
 
-proc reply*(c: GuildenVars, code: HttpCode, body: string, headers: openArray[string]) {.inline.} =
-  discard doReply(c.fd, code,  body, headers.join("\c\L"))
+proc reply*(gv: GuildenVars, code: HttpCode, body: string, headers: openArray[string]) {.inline.} =
+  discard doReply(gv.fd, code,  body, headers.join("\c\L"))
 
 
-proc reply*(c: GuildenVars, code: HttpCode, body: string, headers: seq[string]) {.inline.} =
-  discard doReply(c.fd, code,  body, headers.join("\c\L"))
+proc reply*(gv: GuildenVars, code: HttpCode, body: string, headers: seq[string]) {.inline.} =
+  discard doReply(gv.fd, code,  body, headers.join("\c\L"))
 
 
-proc reply*(c: GuildenVars, code: HttpCode, body: string,  headers: openArray[seq[string]]) {.inline.} =
-  discard doReply(c.fd, code,  body, joinHeaders(headers))
+proc reply*(gv: GuildenVars, code: HttpCode, body: string,  headers: openArray[seq[string]]) {.inline.} =
+  discard doReply(gv.fd, code,  body, joinHeaders(headers))
 
 
-proc reply*(c: GuildenVars, body: string, code=Http200) {.inline.} =
-  discard doReply(c.fd, code, body)
+proc reply*(gv: GuildenVars, body: string, code=Http200) {.inline.} =
+  discard doReply(gv.fd, code, body)
 
 # HeadersOnly??
 
@@ -68,41 +68,41 @@ proc doReplyHeaders*(fd: posix.SocketHandle, code: HttpCode=Http200, headers="")
   return writeToHttp(fd, head)
   
 
-proc replyHeaders*(c: GuildenVars, headers: openArray[string], code: HttpCode=Http200) {.inline.} =
-  discard doReplyHeaders(c.fd, code, headers.join("\c\L"))
+proc replyHeaders*(gv: GuildenVars, headers: openArray[string], code: HttpCode=Http200) {.inline.} =
+  discard doReplyHeaders(gv.fd, code, headers.join("\c\L"))
 
 
-proc replyHeaders*(c: GuildenVars, headers: seq[string], code: HttpCode=Http200) {.inline.} =
-  discard doReplyHeaders(c.fd, code, headers.join("\c\L"))
+proc replyHeaders*(gv: GuildenVars, headers: seq[string], code: HttpCode=Http200) {.inline.} =
+  discard doReplyHeaders(gv.fd, code, headers.join("\c\L"))
 
 
-proc replyHeaders*(c: GuildenVars, headers: openArray[seq[string]], code: HttpCode=Http200) {.inline.} =
-  discard doReplyHeaders(c.fd, code, joinHeaders(headers))
+proc replyHeaders*(gv: GuildenVars, headers: openArray[seq[string]], code: HttpCode=Http200) {.inline.} =
+  discard doReplyHeaders(gv.fd, code, joinHeaders(headers))
 
 # varri poissa käytöstä
 
-proc doReply*(c: GuildenVars, code: HttpCode=Http200, headers=""): bool =
-  let length = c.sendbuffer.getPosition()
+proc doReply*(gv: GuildenVars, code: HttpCode=Http200, headers=""): bool =
+  let length = gv.sendbuffer.getPosition()
   let headers = if likely(headers.len == 0): "HTTP/1.1 " & $code & "\c\L" & "Content-Length: " & $length & "\c\L\c\L"
   else: "HTTP/1.1 " & $code & "\c\L" & "Content-Length: " & $length & "\c\L" & headers & "\c\L\c\L"
-  c.currentexceptionmsg = writeToHttp(c.fd, headers)
-  if c.currentexceptionmsg == "": c.currentexceptionmsg = writeToHttp(c.fd, c.sendbuffer.data, length)
-  return c.currentexceptionmsg == ""
+  gv.currentexceptionmsg = writeToHttp(gv.fd, headers)
+  if gv.currentexceptionmsg == "": gv.currentexceptionmsg = writeToHttp(gv.fd, gv.sendbuffer.data, length)
+  return gv.currentexceptionmsg == ""
 
 
-proc reply*(c: GuildenVars, headers: openArray[string]) {.inline.} =
-  discard doReply(c, Http200, headers.join("\c\L"))
+proc reply*(gv: GuildenVars, headers: openArray[string]) {.inline.} =
+  discard doReply(gv, Http200, headers.join("\c\L"))
 
 
-proc reply*(c: GuildenVars, headers: seq[string]) {.inline.} =
-  discard doreply(c, Http200, headers.join("\c\L"))
+proc reply*(gv: GuildenVars, headers: seq[string]) {.inline.} =
+  discard doreply(gv, Http200, headers.join("\c\L"))
 
 
-proc reply*(c: GuildenVars, headers: openArray[seq[string]]) {.inline.} =
-  discard doreply(c, Http200, joinHeaders(headers))
+proc reply*(gv: GuildenVars, headers: openArray[seq[string]]) {.inline.} =
+  discard doreply(gv, Http200, joinHeaders(headers))
 
 
-proc replyCode*(c: GuildenVars, code: HttpCode) {.inline.} =
-  discard doReplyHeaders(c.fd, code)
+proc replyCode*(gv: GuildenVars, code: HttpCode) {.inline.} =
+  discard doReplyHeaders(gv.fd, code)
 
 {.pop.}
