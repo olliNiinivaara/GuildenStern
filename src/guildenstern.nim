@@ -100,6 +100,7 @@ else:
     ## Give type of GuildenVars so that you can use your own customized request context.
     ## (Note: method call syntax does not work, see `#14254 <https://github.com/nim-lang/Nim/issues/14254>`_)
     ## Give tcp port as parameter.
+    ## 
     ## **Example:**
     ##
     ## .. code-block:: Nim
@@ -109,7 +110,7 @@ else:
     ##  type
     ##    MyGuildenServer = ref object of GuildenServer
     ##      customserverproperty: string
-
+    ##
     ##    MyGuildenVars = ref object of GuildenVars
     ##      customcontextproperty: string
     ##   
