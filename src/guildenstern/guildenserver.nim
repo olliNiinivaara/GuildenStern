@@ -4,7 +4,6 @@ from net import Port
 from os import getCurrentProcessId
 from posix import kill, SIGINT
 from streams import StringStream, getPosition
-from locks import Lock
 
 
 const
@@ -44,7 +43,6 @@ type
     timerHandler*: proc() {.gcsafe, raises: [].}
     errorHandler*: proc(gv: GuildenVars, msg: string) {.gcsafe, raises: [].}
     shutdownHandler*: proc() {.gcsafe, raises: [].}
-    ctxlock*: Lock
 
   
   GuildenVars* {.inheritable.} = ref object

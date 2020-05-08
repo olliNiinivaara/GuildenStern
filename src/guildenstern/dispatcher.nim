@@ -6,10 +6,8 @@ import selectors, net, nativesockets, os, httpcore, posix, streams
 import private/[httpin, wsin]
 from wsout import wsHandshake
 
-
 when compileOption("threads"):
   import weave
-  import locks # because getThreadId not in 0 ..< WEAVE_NUM_THREADS
 
 const
   WEAVE_NUM_THREADS {.intdefine.} = 1
@@ -81,21 +79,10 @@ template processWs() =
 proc process[T: GuildenVars](gs: ptr GuildenServer, threadcontexts: ptr array[WEAVE_NUM_THREADS, T], fd: posix.SocketHandle, data: ptr Data) {.gcsafe, raises: [].} =
   if gs.serverstate == Shuttingdown: return
   {.gcsafe.}:
-    var t = 0
     when compileOption("threads"):
-      let id = weave.getThreadid()
-      while t < WEAVE_NUM_THREADS:
-        if threadcontexts[t].threadid == id: break
-        t.inc
-      if(unlikely) t == WEAVE_NUM_THREADS:
-        acquire(gs.ctxlock)
-        t = 0
-        while t < WEAVE_NUM_THREADS:
-          if threadcontexts[t].threadid == -1: (threadcontexts[t].threadid = id ; break)
-          t.inc
-        release(gs.ctxlock)
-        assert(t != WEAVE_NUM_THREADS)
-    template gv: untyped = threadcontexts[t]
+      template gv: untyped = threadcontexts[Weave.getThreadid() - 1]
+    else:
+      template gv: untyped = threadcontexts[0] 
     gv.currentexceptionmsg.setLen(0)
     gv.path = 0
     gv.pathlen = 0
@@ -238,8 +225,6 @@ proc serve*[T: GuildenVars](gs: GuildenServer, port: int) =
   doAssert(gs.httpHandler != nil, "No http handler registered")
   when compileOption("threads"):
     doAssert(defined(threadsafe), "Selectors module requires compiling with -d:threadsafe")
-    echo "WEAVE_NUM_THREADS: ", WEAVE_NUM_THREADS
-    initLock(gs.ctxlock)
     init(Weave)
   let server = newSocket()
   server.setSockOpt(OptReuseAddr, true)
@@ -261,7 +246,6 @@ proc serve*[T: GuildenVars](gs: GuildenServer, port: int) =
   gs.serverstate = ShuttingDown
   when compileOption("threads"):
     exit(Weave)
-    release gs.ctxlock
   echo ""      
   {.gcsafe.}:
     if gs.shutdownHandler != nil: gs.shutdownHandler()
