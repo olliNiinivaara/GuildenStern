@@ -51,9 +51,6 @@ else:
       ## | This is available in GuildenVars via ``gs`` property.
       ## | Inherit and add custom properties as needed.
       tcpport*: Port ## set when calling `serve`
-      turbo*: bool ##
-        ## false (default) = listener mode: low CPU churn
-        ## true = loadbalancing mode: high throughput
 
     GuildenVars* {.inheritable.} = ref object
       ## | Contains thread-local variables, acting as the context for an incoming request.
@@ -72,15 +69,6 @@ else:
     
   const
     NullHandle = (-2147483647)
-
-    WEAVE_NUM_THREADS* {.intdefine.} = 1
-      ## Compile time define pragma; set this to number of your cores or you'll be in trouble
-
-    LOADBALANCE_FREQUENCY* {.intdefine.} = 20
-      ## | Compile time define pragma to set main request listener's timeout interval in milliseconds.
-      ## | Lowering the value will increase throughput.
-      ## | Rising the value will conserve CPU cycles, leading to environmental and economic savings.
-      ## | When server ``turbo`` is on, or request(s) already being processed, this value is ignored and 0 is used.
 
     MaxHttpHeaderFields* {.intdefine.} = 25
       ## Compile time define pragma to set maximum number of captured http headers.

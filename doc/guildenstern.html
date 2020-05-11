@@ -102,10 +102,7 @@ function main() {
   <ul class="simple simple-toc-section">
       <li><a class="reference" href="#GuildenServer"
     title="GuildenServer {.inheritable.} = ref object
-  tcpport*: Port               ## set when calling `serve`
-  turbo*: bool                 ## 
-             ##  false (default) = listener mode: low CPU churn
-             ##  true = loadbalancing mode: high throughput"><wbr />Guilden<wbr />Server<span class="attachedType"></span></a></li>
+  tcpport*: Port               ## set when calling `serve`"><wbr />Guilden<wbr />Server<span class="attachedType"></span></a></li>
   <li><a class="reference" href="#GuildenVars"
     title="GuildenVars {.inheritable.} = ref object
   gs*: GuildenServer
@@ -122,11 +119,7 @@ function main() {
 <li>
   <a class="reference reference-toplevel" href="#10" id="60">Consts</a>
   <ul class="simple simple-toc-section">
-      <li><a class="reference" href="#WEAVE_NUM_THREADS"
-    title="WEAVE_NUM_THREADS = 1"><wbr />WEAVE_<wbr />NUM_<wbr />THREADS<span class="attachedType"></span></a></li>
-  <li><a class="reference" href="#LOADBALANCE_FREQUENCY"
-    title="LOADBALANCE_FREQUENCY = 20"><wbr />LOADBALANCE_<wbr />FREQUENCY<span class="attachedType"></span></a></li>
-  <li><a class="reference" href="#MaxHttpHeaderFields"
+      <li><a class="reference" href="#MaxHttpHeaderFields"
     title="MaxHttpHeaderFields = 25"><wbr />Max<wbr />Http<wbr />Header<wbr />Fields<span class="attachedType"></span></a></li>
   <li><a class="reference" href="#MaxHttpHeaderValueLength"
     title="MaxHttpHeaderValueLength = 200"><wbr />Max<wbr />Http<wbr />Header<wbr />Value<wbr />Length<span class="attachedType"></span></a></li>
@@ -228,9 +221,6 @@ function main() {
 <a id="GuildenServer"></a>
 <dt><pre><a href="guildenstern.html#GuildenServer"><span class="Identifier">GuildenServer</span></a> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">inheritable</span></span><span class="Other">.}</span></span> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
   <span class="Identifier">tcpport</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Port</span>               <span class="Comment">## set when calling `serve`</span>
-  <span class="Identifier">turbo</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>                 <span class="Comment">## </span>
-             <span class="Comment">##  false (default) = listener mode: low CPU churn</span>
-             <span class="Comment">##  true = loadbalancing mode: high throughput</span>
   </pre></dt>
 <dd>
 
@@ -263,20 +253,6 @@ function main() {
 <div class="section" id="10">
 <h1><a class="toc-backref" href="#10">Consts</a></h1>
 <dl class="item">
-<a id="WEAVE_NUM_THREADS"></a>
-<dt><pre><a href="guildenstern.html#WEAVE_NUM_THREADS"><span class="Identifier">WEAVE_NUM_THREADS</span></a> <span class="Other">=</span> <span class="DecNumber">1</span></pre></dt>
-<dd>
-
-Compile time define pragma; set this to number of your cores or you'll be in trouble
-
-</dd>
-<a id="LOADBALANCE_FREQUENCY"></a>
-<dt><pre><a href="guildenstern.html#LOADBALANCE_FREQUENCY"><span class="Identifier">LOADBALANCE_FREQUENCY</span></a> <span class="Other">=</span> <span class="DecNumber">20</span></pre></dt>
-<dd>
-
-<p>Compile time define pragma to set main request listener's timeout interval in milliseconds.<br />Lowering the value will increase throughput.<br />Rising the value will conserve CPU cycles, leading to environmental and economic savings.<br />When server <tt class="docutils literal"><span class="pre">turbo</span></tt> is on, or request(s) already being processed, this value is ignored and 0 is used.<br /></p>
-
-</dd>
 <a id="MaxHttpHeaderFields"></a>
 <dt><pre><a href="guildenstern.html#MaxHttpHeaderFields"><span class="Identifier">MaxHttpHeaderFields</span></a> <span class="Other">=</span> <span class="DecNumber">25</span></pre></dt>
 <dd>
@@ -322,7 +298,8 @@ Compile time define pragma to  set sockets timeout SO_RCVTIMEO, <a class="refere
 <dd>
 
 <p>Starts the server main loop which runs until SIGINT is received.</p>
-<p>Give type of GuildenVars so that you can use your own customized request context. (Note: method call syntax does not work, see <a class="reference external" href="https://github.com/nim-lang/Nim/issues/14254">#14254</a>) Give tcp port as parameter.</p>
+<p>Give type of GuildenVars so that you can use your own customized request context. (Note: method call syntax does not work, see <a class="reference external" href="https://github.com/nim-lang/Nim/issues/14254">#14254</a>)</p>
+<p>Give tcp port as parameter.</p>
 <p><strong>Example:</strong></p>
 <pre class="listing"><span class="Keyword">import</span> <span class="Identifier">guildenstern</span>
 
@@ -572,7 +549,7 @@ Responds with contents of sendbuffer
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2020-05-07 10:33:51 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2020-05-11 11:16:14 UTC</small>
       </div>
     </div>
   </div>

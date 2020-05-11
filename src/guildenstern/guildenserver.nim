@@ -31,12 +31,10 @@ type
   GuildenServer* {.inheritable.} = ref object
     tcpport*: Port
     serverstate*: ServerState
-    turbo*: bool
-    threadcount*: int
+    processstart*: float
     headerfieldarray* : array[MaxHttpHeaderFields, string]
     lastheader*: int
     selector*: Selector[Data]
-    inflight*: int
     httpHandler*: proc(gv: GuildenVars) {.gcsafe, raises: [].}
     wsHandler*: proc(gv: GuildenVars) {.gcsafe, raises: [].}
     wsdisconnectHandler*: proc(gv: GuildenVars, closed: bool) {.gcsafe, raises: [].}

@@ -82,22 +82,23 @@ proc readFromHttp*(gv: GuildenVars): bool {.gcsafe, raises:[] .} =
   var expectedlength = MaxRequestLength + 1
   while true:
     let ret = recv(gv.fd, addr gv.recvbuffer.data[recvbufferlen], expectedlength - recvbufferlen, 0.cint)
+    if gv.gs.serverstate == Shuttingdown: return false
     if ret == 0:
       let lastError = osLastError().int    
       if lastError == 0 and recvbufferlen > 0: return true
       if lastError == 0 or lastError == 2 or lastError == 9 or lastError == 104: return false
       trials.inc
-      if trials < 6: 
+      if trials <= 3: 
         echo "nothing received, backoff triggered"
         sleep(100 + trials * 100)
         continue
         # TODO: real backoff strategy
-    if trials > 5 or ret == -1:
+    if trials >= 4 or ret == -1:
       let lastError = osLastError().int
       if lastError == 0 or lastError == 2 or lastError == 9 or lastError == 104: return false 
       gv.currentexceptionmsg = "http receive: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError))
       return false
-
+      
     recvbufferlen += ret
     if recvbufferlen == MaxRequestLength + 1:
       gv.currentexceptionmsg = "http receive: Max request size exceeded"

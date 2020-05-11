@@ -1,5 +1,5 @@
 import nativesockets, net, posix, streams, os
-from ../guildenserver import MaxRequestLength, GuildenVars
+from ../guildenserver import ServerState, MaxRequestLength, GuildenVars
 
 type
   WebSocketError* = object of CatchableError
@@ -87,6 +87,7 @@ proc recvFrame(gv: GuildenVars): OpCode =
   var trials = 0
   while true:
     let ret = recv(gv.fd, addr gv.recvbuffer.data[recvbufferlen], expectedlen - recvbufferlen, 0.cint)
+    if gv.gs.serverstate == Shuttingdown: return Fail
     if ret > 0:
       trials = 0
       recvbufferlen += ret
@@ -97,7 +98,7 @@ proc recvFrame(gv: GuildenVars): OpCode =
       continue
     let lastError = osLastError()
     if ret < 0: raise newException(WebSocketError, $lastError & " = " & osErrorMsg(lastError))
-    if trials > 5: raise newException(WebSocketError, "Socket unrepsonsive")
+    if trials >= 4: raise newException(WebSocketError, "Socket unrepsonsive")
     if lastError == 0.OsErrorCode or lastError == 2.OsErrorCode or lastError == 9.OsErrorCode or lastError == 104.OsErrorCode:
       raise newException(WebSocketError, $lastError & " = " & osErrorMsg(lastError))
     trials.inc

@@ -33,6 +33,7 @@ proc writeWs(gv: GuildenVars, toSocket = NullHandle.SocketHandle, text: StringSt
     while bytesSent < datalen:
       try:
         ret = send(fd, addr stream.data[sent], datalen, 0)
+        if gv.gs.serverstate == Shuttingdown: return false
       except:
         gv.currentexceptionmsg = "websocket write: " & getCurrentExceptionMsg()
         return false
@@ -41,7 +42,7 @@ proc writeWs(gv: GuildenVars, toSocket = NullHandle.SocketHandle, text: StringSt
         return false
       if ret == 0:
         trials = trials + 1
-        if trials < 5:
+        if trials <= 4:
            sleep(100 + 100*trials)
            echo "backoff triggered"
            continue
@@ -130,7 +131,7 @@ proc wsHandshake*(gv: GuildenVars): bool =
     responce.add("Upgrade: webSocket\c\L")
 
     responce.add "\c\L"
-    gv.currentexceptionmsg = gv.fd.writeToHttp(responce)
+    gv.currentexceptionmsg = writeToHttp(gv.gs,  gv.fd, responce)
     return gv.currentexceptionmsg == ""
   except:
     gv.replyCode(Http400)

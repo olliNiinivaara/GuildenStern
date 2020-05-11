@@ -5,14 +5,17 @@ import guildenserver
 import selectors, net, nativesockets, os, httpcore, posix, streams
 import private/[httpin, wsin]
 from wsout import wsHandshake
+from times import epochTime
 
 when compileOption("threads"):
   import weave
+  from weave/contexts import workforce
+  from weave/config import WV_MaxWorkers
 
 const
-  WEAVE_NUM_THREADS {.intdefine.} = 1
-  LOADBALANCE_FREQUENCY {.intdefine.} = 20
-
+  MAXTHREADCONTEXTS = 255 # Weave's WV_MaxWorkers
+  SELECTOR_TIMEOUT = 10000
+var THREADCOUNT = 1 # read at start from Weave's workforce()
 
 template initData(kind: FdKind): Data = Data(fdKind: kind, clientid: NullHandle.Clientid)
 
@@ -76,7 +79,7 @@ template processWs() =
       gv.disconnectWs(false)
 
 
-proc process[T: GuildenVars](gs: ptr GuildenServer, threadcontexts: ptr array[WEAVE_NUM_THREADS, T], fd: posix.SocketHandle, data: ptr Data) {.gcsafe, raises: [].} =
+proc process[T: GuildenVars](gs: ptr GuildenServer, threadcontexts: ptr array[MAXTHREADCONTEXTS, T], fd: posix.SocketHandle, data: ptr Data) {.gcsafe, raises: [].} =
   if gs.serverstate == Shuttingdown: return
   {.gcsafe.}:
     when compileOption("threads"):
@@ -94,10 +97,8 @@ proc process[T: GuildenVars](gs: ptr GuildenServer, threadcontexts: ptr array[WE
     except: (echo "Nim internal error"; return)
     gv.fd = fd
     gv.clientid = data.clientid
-  discard gs.inflight.atomicinc
-  try:
-    if data.fdKind == Http: processHttp() else: processWs()
-  finally: discard gs.inflight.atomicinc(-1)
+  gs.processstart = epochTime()  
+  if data.fdKind == Http: processHttp() else: processWs()
 
 
 template handleAccept() =
@@ -127,7 +128,7 @@ template handleEvent() =
       echo "updateHandle error: " & getCurrentExceptionMsg()
       continue
     try:
-      spawn process[T](unsafeAddr gs, unsafeAddr threadcontexts, fd, data)
+      spawn process[T](unsafeAddr gs, addr threadcontexts, fd, data)
     except: break
   else: process[T](unsafeAddr gs, unsafeAddr threadcontexts, fd, data)
 
@@ -144,81 +145,76 @@ proc initGuildenVars(context: GuildenVars, gs: GuildenServer) =
 
 proc eventLoop[T: GuildenVars](gs: GuildenServer) {.gcsafe, raises: [].} =
   var eventbuffer: array[1, ReadyKey]
-
-  var threadcontexts: array[WEAVE_NUM_THREADS, T]
-  for t in 0 ..<  WEAVE_NUM_THREADS:
+  when compileOption("threads"):
+    THREADCOUNT = workforce()
+    assert(THREADCOUNT <= WV_MaxWorkers)
+    when defined(fulldebug): echo "THREADCOUNT: ", THREADCOUNT
+  var threadcontexts: array[MAXTHREADCONTEXTS, T]
+  for t in 0 ..<  THREADCOUNT:
     threadcontexts[t] = new T
-    threadcontexts[t].initGuildenVars()
-    initGuildenVars(threadcontexts[t], gs)
+    threadcontexts[t].initGuildenVars(gs)
 
   while true:
-    var ret: int
-    {.push assertions: on.} # otherwise selectInto could panic # TODO: minimal repro & raise Nim-lang issue?
-    var backoff: int
-    var speeding: int
     try:
-      if gs.turbo: backoff = 0
+      var ret: int
+      var backoff: int
+      let now = epochTime()
+      if now - gs.processstart < 1: backoff = 0
       else:
-        if gs.inflight < 0: # TODO: remove when sure that never triggered
-          echo "flight went below ground zero!"
-          gs.inflight = 0
-        backoff = if gs.inflight < 1: LOADBALANCE_FREQUENCY else: 0
-      when defined(fulldebug):
-        if gs.inflight > 1: echo "inflight: ", gs.inflight
-      ret = gs.selector.selectInto(backoff, eventbuffer)
-      if gs.serverstate == Shuttingdown: break
-      if ret != 1:
         when compileOption("threads"):
-          try: loadBalance(Weave)
-          except: discard
-          if not gs.turbo: # TODO: remove when sure that never triggered
-            speeding.inc
-            if speeding > 10000:
-              echo "caught speeding!"
-              speeding = 0
-              gs.inflight = 0 
-        continue
-    except: continue
-    speeding = 0
-    if eventbuffer[0].events.len == 0:
-      when compileOption("threads"):
-        try: syncRoot(Weave)
-        except: discard
-      continue
-    {.pop.}
-
-    let event = eventbuffer[0]
-    if Event.Signal in event.events: break
-    if Event.Timer in event.events:
-      {.gcsafe.}: gs.timerHandler()
-      continue
-    let fd = posix.SocketHandle(event.fd)
-    var data: ptr Data        
-    try:
-      {.push warning[ProveInit]: off.}
-      data = addr(gs.selector.getData(fd))
-      {.pop.}
-    except:
-      echo "selector.getData: " & getCurrentExceptionMsg()
-      break
-
-    if Event.Error in event.events:
-      case data.fdKind
-      of Server: echo "server error: " & osErrorMsg(event.errorCode)
-      of Http:
-        if event.errorCode.cint != ECONNRESET: echo "http error: " & osErrorMsg(event.errorCode)
-        gs.closeFd(fd)
-      of Ws: echo "ws error: " & osErrorMsg(event.errorCode)
-      else: discard
-      continue
-
-    if Event.Read notin event.events:
+          if now - gs.processstart < 2:
+            try: syncRoot(Weave)
+            except: discard
+        backoff = SELECTOR_TIMEOUT
       try:
-        if gs.selector.contains(fd): gs.selector.unregister(fd)
-        nativesockets.close(fd)
-      except: discard
-      finally: continue
-    handleEvent() 
+        {.push assertions: on.} # otherwise selectInto could panic # TODO: Nim-lang issue?
+        ret = gs.selector.selectInto(backoff, eventbuffer)
+        {.pop.}
+      except: discard    
+      if gs.serverstate == Shuttingdown: break
+      if ret != 1 or eventbuffer[0].events.len == 0:
+        when compileOption("threads"):
+          loadBalance(Weave)
+        else:
+          sleep(0) # 4 x speedup
+        continue
+      
+      let event = eventbuffer[0]
+      if Event.Signal in event.events: break
+      if Event.Timer in event.events:
+        {.gcsafe.}: gs.timerHandler()
+        continue
+      let fd = posix.SocketHandle(event.fd)
+      var data: ptr Data        
+      try:
+        {.push warning[ProveInit]: off.}
+        data = addr(gs.selector.getData(fd))
+        {.pop.}
+        if data == nil: continue
+      except:
+        echo "selector.getData: " & getCurrentExceptionMsg()
+        break
+
+      if Event.Error in event.events:
+        case data.fdKind
+        of Server: echo "server error: " & osErrorMsg(event.errorCode)
+        of Http:
+          if event.errorCode.cint != ECONNRESET: echo "http error: " & osErrorMsg(event.errorCode)
+          gs.closeFd(fd)
+        of Ws: echo "ws error: " & osErrorMsg(event.errorCode)
+        else: discard
+        continue
+
+      if Event.Read notin event.events:
+        try:
+          if gs.selector.contains(fd): gs.selector.unregister(fd)
+          nativesockets.close(fd)
+        except: discard
+        finally: continue
+      handleEvent()
+    except:
+      echo "fail: ", getCurrentExceptionMsg()
+      continue
 
 
 proc serve*[T: GuildenVars](gs: GuildenServer, port: int) =
