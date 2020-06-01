@@ -3,7 +3,7 @@ from nativesockets import SocketHandle, close
 from net import Port
 from os import getCurrentProcessId
 from posix import kill, SIGINT
-from streams import StringStream, getPosition
+from streams import StringStream, getPosition, write
 
 
 const
@@ -45,7 +45,6 @@ type
   
   GuildenVars* {.inheritable.} = ref object
     gs*: GuildenServer
-    threadid*: int
     fd*: SocketHandle
     clientid*: Clientid
     path*: int
@@ -58,10 +57,6 @@ type
     bodystartpos* : int   
     sendbuffer* : StringStream
     currentexceptionmsg* : string
-
-
-proc initGuildenVars*(gv: GuildenVars) =  
-  gv.threadid = -1
 
     
 proc `$`*(x: posix.SocketHandle): string {.inline.} = $(x.cint)
@@ -102,11 +97,11 @@ proc registerShutdownhandler*(gs: GuildenServer, callback: proc() {.gcsafe, nimc
   gs.shutdownHandler = callback
 
 
-proc upgradeHttpToWs*(gv: ref object, clientid: Clientid) =
+proc upgradeHttpToWs*(gv: ref object, clientid: Clientid = (-1).Clientid) =
   (GuildenVars)(gv).clientid = clientid
 
 
-proc closeFd*(gs: GuildenServer, fd: posix.SocketHandle) =
+proc closeFd*(gs: GuildenServer, fd: posix.SocketHandle) {.raises: [].} =
   if fd.int == NullHandle: return
   try:
     if gs.selector.contains(fd): gs.selector.unregister(fd)
@@ -114,70 +109,57 @@ proc closeFd*(gs: GuildenServer, fd: posix.SocketHandle) =
   except: discard
 
 
-#[proc registerWshandler*(gs: GuildenServer, callback: proc(gv: GuildenVars) {.gcsafe, nimcall, raises: [].}) =
-  gs.wsHandler = callback
-
-
-proc registerWsdisconnecthandler*(gs: GuildenServer, callback: proc(gv: GuildenVars, closedbyclient: bool) {.gcsafe, nimcall, raises: [].}) =
-  gs.wsdisconnectHandler = callback
-
-
-proc registerTimerhandler*(gs: GuildenServer, callback: proc() {.gcsafe, nimcall, raises: [].}, intervalsecs: int) =
-  gs.timerHandler = callback
-  discard gs.selector.registerTimer(1000 * intervalsecs, false, Data(fdKind: Ticker, clientid: NullHandle.Clientid))
-
-
-proc registerErrorhandler*(gs: GuildenServer, callback: proc(gv: GuildenVars, msg: string) {.gcsafe, nimcall, raises: [].}) =
-  gs.errorHandler = callback
-  
-
-proc registerShutdownhandler*(gs: GuildenServer, callback: proc() {.gcsafe, nimcall, raises: [].}) =
-  gs.shutdownHandler = callback
-
-
-proc upgradeHttpToWs*(gv: GuildenVars, clientid: Clientid) =
-  gv.clientid = clientid
-
-
-proc closeFd*(gs: GuildenServer, fd: posix.SocketHandle) =
-  if fd.int == NullHandle: return
-  try:
-    if gs.selector.contains(fd): gs.selector.unregister(fd)
-    fd.close()
-  except: discard]#
-
-
-proc getPath*(gv: GuildenVars): string =
+proc getPath*(gv: GuildenVars): string {.raises: [].} =
   if gv.pathlen == 0: return
   return gv.recvbuffer.data[gv.path ..< gv.path + gv.pathlen]
 
-proc isPath*(gv: GuildenVars, apath: string): bool =
+proc isPath*(gv: GuildenVars, apath: string): bool {.raises: [].} =
   if gv.pathlen != apath.len: return false
   for i in 0 ..< gv.pathlen:
     if gv.recvbuffer.data[gv.path + i] != apath[i]: return false
   return true
 
-proc pathStarts*(gv: GuildenVars, pathstart: string): bool =
+proc pathStarts*(gv: GuildenVars, pathstart: string): bool  {.raises: [].} =
   if gv.pathlen < pathstart.len: return false
   for i in 0 ..< pathstart.len:
     if gv.recvbuffer.data[gv.path + i] != pathstart[i]: return false
   return true
 
-proc getMethod*(gv: GuildenVars): string =
+proc getMethod*(gv: GuildenVars): string  {.raises: [].} =
   if gv.methlen == 0: return
   return gv.recvbuffer.data[0 ..< gv.methlen]
 
-proc isMethod*(gv: GuildenVars, amethod: string): bool =
+proc isMethod*(gv: GuildenVars, amethod: string): bool  {.raises: [].} =
   if gv.methlen != amethod.len: return false
   for i in 0 ..< gv.methlen:
     if gv.recvbuffer.data[i] != amethod[i]: return false
   return true
 
-proc getHeader*(gv: GuildenVars, header: string): string {.inline.} =
+proc getHeader*(gv: GuildenVars, header: string): string {.inline, raises: [].} =
   let tokeni = gv.gs.headerfieldarray.find(header)
   if tokeni == -1: return
   return gv.headervalues[tokeni]
+
+proc getHeaders*(gv: GuildenVars): string  {.raises: [].} =
+  try: result = gv.recvbuffer.data[0 ..< gv.bodystartpos]
+  except: doaSsert(false, "getHeaders error: " & getCurrentExceptionMsg())
   
-proc getBody*(gv: GuildenVars): string =
+proc getBody*(gv: GuildenVars): string {.raises: [].} =
   try: result = gv.recvbuffer.data[gv.bodystartpos ..< gv.recvbuffer.getPosition()]
-  except: doaSsert(false, "getBody error: " & getCurrentExceptionMsg()) 
+  except: doaSsert(false, "getBody error: " & getCurrentExceptionMsg())
+
+proc isBody*(gv: GuildenVars, body: string): bool {.raises: [].} =
+  let len =
+    try: gv.recvbuffer.getPosition() - gv.bodystartpos
+    except: return false
+  if  len != body.len: return false
+  for i in gv.bodystartpos ..< gv.bodystartpos + len:
+    if gv.recvbuffer.data[i] != body[i]: return false
+  return true
+
+proc write*(gv: GuildenVars, str: string): bool {.raises: [].} =
+  try: 
+    if gv.sendbuffer.getPosition() + str.len() > MaxResponseLength: return false
+    gv.sendbuffer.write(str)
+  except:  return false
+  true

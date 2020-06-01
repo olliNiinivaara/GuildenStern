@@ -10,7 +10,6 @@
 #
 
 from httpcore import Http200, Http404
-from os import putEnv
 
 import guildenstern
 
@@ -30,7 +29,6 @@ proc startServer(port: int) =
 proc startServer8080*() = startServer(8080)
 
 when ismainmodule:
-  #putEnv("WEAVE_NUM_THREADS", "5")
   let port = 8080
   echo "GuildenServer listening on port ", port
   startServer(port)

@@ -16,12 +16,6 @@
 #
 #
 
-# from httpcore import HttpCode, Http200, Http303, Http400, Http401, Http404, Http422, Http429, Http500, Http503
-# export               HttpCode, Http200, Http303, Http400, Http401, Http404, Http422, Http429, Http500, Http503
-
-
-# from posix import SocketHandle; export SocketHandle
-
 from posix import SocketHandle
 export SocketHandle
 
@@ -35,15 +29,16 @@ when not defined(nimdoc):
   export GuildenVars
   export registerHttphandler, upgradeHttpToWs, registerWshandler, registerWsdisconnecthandler,
          registerTimerhandler, registerShutdownhandler, registerErrorhandler    
-  export isPath, pathStarts, getPath, isMethod, getMethod, getHeader, getBody
+  export isPath, pathStarts, getPath, isMethod, getMethod, getHeader, getHeaders, isBody, getBody
+  export write
   export Clientid, `==`, `$`
   export reply, replyHeaders, replyCode
-  export writeToWs
-
+  export sendToWs
 else:
   from net import Port
-  from streams import StringStream
   from httpcore import HttpCode, Http200
+  from streams import StringStream
+
 
   type
     GuildenServer* {.inheritable.} = ref object
@@ -180,8 +175,20 @@ else:
     ## Returns value of header.
     discard
 
+  proc getHeaders*(gv: GuildenVars): string {.inline.} =
+    ## Returns deep copy of headers part in http request.
+    discard
+
   proc getBody*(gv: GuildenVars): string =
-    ## Returns deep copy of http body (avoid in production).
+    ## Returns deep copy of http body / web socket request.
+    discard
+
+  proc isBody*(gv: GuildenVars, abody: string): bool =
+    ## Checks if http body / web socket request is abody.
+    discard
+
+  proc write*(gv: GuildenVars, str: string): bool {.raises: [].} =
+    ## appends string to sendbuffer, returns false if append failed.
     discard
 
   proc reply*(gv: GuildenVars, code: HttpCode, body: string, headers="") {.inline.} =
@@ -199,8 +206,6 @@ else:
   proc reply*(gv: GuildenVars, body: string, code=Http200) {.inline.} =
     discard
 
-  # HeadersOnly??
-
   proc replyHeaders*(gv: GuildenVars, headers: openArray[string], code: HttpCode=Http200) {.inline.} =
     discard
 
@@ -209,8 +214,6 @@ else:
 
   proc replyHeaders*(gv: GuildenVars, headers: openArray[seq[string]], code: HttpCode=Http200) {.inline.} =
     discard
-
-  # varri poissa käytöstä
 
   proc reply*(gv: GuildenVars, headers: openArray[string]) {.inline.} =
     ## Responds with contents of sendbuffer
@@ -226,8 +229,9 @@ else:
 
   proc replyCode*(gv: GuildenVars, code: HttpCode) {.inline.} =
     discard
+  
 
-  proc writeToWs*(gv: GuildenVars, toSocket = NullHandle.SocketHandle, text: StringStream = nil): bool =
+  proc sendToWs*(gv: GuildenVars, toSocket = NullHandle.SocketHandle, text: StringStream = nil): bool =
     ## Sends text data to a websocket.
     ## 
     ## If text parameter is not given, sends contents of ``sendbuffer``.

@@ -172,8 +172,14 @@ function main() {
     title="isMethod(gv: GuildenVars; amethod: string): bool"><wbr />is<wbr />Method<span class="attachedType"></span></a></li>
   <li><a class="reference" href="#getHeader%2CGuildenVars%2Cstring"
     title="getHeader(gv: GuildenVars; header: string): string"><wbr />get<wbr />Header<span class="attachedType"></span></a></li>
+  <li><a class="reference" href="#getHeaders%2CGuildenVars"
+    title="getHeaders(gv: GuildenVars): string"><wbr />get<wbr />Headers<span class="attachedType"></span></a></li>
   <li><a class="reference" href="#getBody%2CGuildenVars"
     title="getBody(gv: GuildenVars): string"><wbr />get<wbr />Body<span class="attachedType"></span></a></li>
+  <li><a class="reference" href="#isBody%2CGuildenVars%2Cstring"
+    title="isBody(gv: GuildenVars; abody: string): bool"><wbr />is<wbr />Body<span class="attachedType"></span></a></li>
+  <li><a class="reference" href="#write%2CGuildenVars%2Cstring"
+    title="write(gv: GuildenVars; str: string): bool"><wbr />write<span class="attachedType"></span></a></li>
   <li><a class="reference" href="#reply%2CGuildenVars%2CHttpCode%2Cstring%2Cstring"
     title="reply(gv: GuildenVars; code: HttpCode; body: string; headers = &quot;&quot;)"><wbr />reply<span class="attachedType"></span></a></li>
   <li><a class="reference" href="#reply%2CGuildenVars%2CHttpCode%2Cstring%2CopenArray%5Bstring%5D"
@@ -199,9 +205,9 @@ function main() {
     title="reply(gv: GuildenVars; headers: openArray[seq[string]])"><wbr />reply<span class="attachedType"></span></a></li>
   <li><a class="reference" href="#replyCode%2CGuildenVars%2CHttpCode"
     title="replyCode(gv: GuildenVars; code: HttpCode)"><wbr />reply<wbr />Code<span class="attachedType"></span></a></li>
-  <li><a class="reference" href="#writeToWs%2CGuildenVars%2CStringStream"
-    title="writeToWs(gv: GuildenVars; toSocket = -2147483647.SocketHandle;
-          text: StringStream = nil): bool"><wbr />write<wbr />To<wbr />Ws<span class="attachedType"></span></a></li>
+  <li><a class="reference" href="#sendToWs%2CGuildenVars%2CStringStream"
+    title="sendToWs(gv: GuildenVars; toSocket = -2147483647.SocketHandle;
+         text: StringStream = nil): bool"><wbr />send<wbr />To<wbr />Ws<span class="attachedType"></span></a></li>
 
   </ul>
 </li>
@@ -427,11 +433,32 @@ Checks if http method is amethod.
 Returns value of header.
 
 </dd>
+<a id="getHeaders,GuildenVars"></a>
+<dt><pre><span class="Keyword">proc</span> <a href="#getHeaders%2CGuildenVars"><span class="Identifier">getHeaders</span></a><span class="Other">(</span><span class="Identifier">gv</span><span class="Other">:</span> <a href="guildenstern.html#GuildenVars"><span class="Identifier">GuildenVars</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">inline</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<dd>
+
+Returns deep copy of headers part in http request.
+
+</dd>
 <a id="getBody,GuildenVars"></a>
 <dt><pre><span class="Keyword">proc</span> <a href="#getBody%2CGuildenVars"><span class="Identifier">getBody</span></a><span class="Other">(</span><span class="Identifier">gv</span><span class="Other">:</span> <a href="guildenstern.html#GuildenVars"><span class="Identifier">GuildenVars</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
 <dd>
 
-Returns deep copy of http body (avoid in production).
+Returns deep copy of http body / web socket request.
+
+</dd>
+<a id="isBody,GuildenVars,string"></a>
+<dt><pre><span class="Keyword">proc</span> <a href="#isBody%2CGuildenVars%2Cstring"><span class="Identifier">isBody</span></a><span class="Other">(</span><span class="Identifier">gv</span><span class="Other">:</span> <a href="guildenstern.html#GuildenVars"><span class="Identifier">GuildenVars</span></a><span class="Other">;</span> <span class="Identifier">abody</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<dd>
+
+Checks if http body / web socket request is abody.
+
+</dd>
+<a id="write,GuildenVars,string"></a>
+<dt><pre><span class="Keyword">proc</span> <a href="#write%2CGuildenVars%2Cstring"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">gv</span><span class="Other">:</span> <a href="guildenstern.html#GuildenVars"><span class="Identifier">GuildenVars</span></a><span class="Other">;</span> <span class="Identifier">str</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<dd>
+
+appends string to sendbuffer, returns false if append failed.
 
 </dd>
 <a id="reply,GuildenVars,HttpCode,string,string"></a>
@@ -526,9 +553,9 @@ Responds with contents of sendbuffer
 
 
 </dd>
-<a id="writeToWs,GuildenVars,StringStream"></a>
-<dt><pre><span class="Keyword">proc</span> <a href="#writeToWs%2CGuildenVars%2CStringStream"><span class="Identifier">writeToWs</span></a><span class="Other">(</span><span class="Identifier">gv</span><span class="Other">:</span> <a href="guildenstern.html#GuildenVars"><span class="Identifier">GuildenVars</span></a><span class="Other">;</span> <span class="Identifier">toSocket</span> <span class="Other">=</span> <span class="DecNumber">-2147483647</span><span class="Other">.</span><span class="Identifier">SocketHandle</span><span class="Other">;</span>
-              <span class="Identifier">text</span><span class="Other">:</span> <span class="Identifier">StringStream</span> <span class="Other">=</span> <span class="Keyword">nil</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<a id="sendToWs,GuildenVars,StringStream"></a>
+<dt><pre><span class="Keyword">proc</span> <a href="#sendToWs%2CGuildenVars%2CStringStream"><span class="Identifier">sendToWs</span></a><span class="Other">(</span><span class="Identifier">gv</span><span class="Other">:</span> <a href="guildenstern.html#GuildenVars"><span class="Identifier">GuildenVars</span></a><span class="Other">;</span> <span class="Identifier">toSocket</span> <span class="Other">=</span> <span class="DecNumber">-2147483647</span><span class="Other">.</span><span class="Identifier">SocketHandle</span><span class="Other">;</span>
+             <span class="Identifier">text</span><span class="Other">:</span> <span class="Identifier">StringStream</span> <span class="Other">=</span> <span class="Keyword">nil</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
 <dd>
 
 <p>Sends text data to a websocket.</p>
@@ -549,7 +576,7 @@ Responds with contents of sendbuffer
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2020-05-11 11:16:14 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2020-06-01 11:46:47 UTC</small>
       </div>
     </div>
   </div>

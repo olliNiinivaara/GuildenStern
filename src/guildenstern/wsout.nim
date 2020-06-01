@@ -82,16 +82,16 @@ proc createWsHeader(gv: GuildenVars, len: int) =
     gv.wsheader.write char(len and 255)
 
 
-proc writeToWs*(gv: GuildenVars, toSocket = NullHandle.SocketHandle, text: StringStream = nil): bool =
-  if text == nil:
-    gv.createWsHeader(gv.sendbuffer.getPosition())
-    result = gv.writeWs(toSocket, gv.sendbuffer)
-  else:
-    gv.createWsHeader(text.getPosition())
-    result =  gv.writeWs(toSocket, text)
-  if not result:
-    try: discard posix.close(gv.fd)
-    except: discard
+proc sendToWs*(gv: GuildenVars, toSocket = NullHandle.SocketHandle, text: StringStream = nil): bool {.raises: [].} =
+  try:
+    if text == nil:
+      gv.createWsHeader(gv.sendbuffer.getPosition())
+      result = gv.writeWs(toSocket, gv.sendbuffer)
+    else:
+      gv.createWsHeader(text.getPosition())
+      result =  gv.writeWs(toSocket, text)
+    if not result: discard posix.close(gv.fd)
+  except: result = false
 
 
 proc nibbleFromChar(c: char): int =

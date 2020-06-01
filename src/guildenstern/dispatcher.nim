@@ -85,7 +85,7 @@ proc process[T: GuildenVars](gs: ptr GuildenServer, threadcontexts: ptr array[MA
     when compileOption("threads"):
       template gv: untyped = threadcontexts[Weave.getThreadid() - 1]
     else:
-      template gv: untyped = threadcontexts[0] 
+      template gv: untyped = threadcontexts[0]
     gv.currentexceptionmsg.setLen(0)
     gv.path = 0
     gv.pathlen = 0
@@ -198,11 +198,9 @@ proc eventLoop[T: GuildenVars](gs: GuildenServer) {.gcsafe, raises: [].} =
       if Event.Error in event.events:
         case data.fdKind
         of Server: echo "server error: " & osErrorMsg(event.errorCode)
-        of Http:
-          if event.errorCode.cint != ECONNRESET: echo "http error: " & osErrorMsg(event.errorCode)
+        else:
+          if event.errorCode.cint != ECONNRESET: echo "socket error: " & osErrorMsg(event.errorCode)
           gs.closeFd(fd)
-        of Ws: echo "ws error: " & osErrorMsg(event.errorCode)
-        else: discard
         continue
 
       if Event.Read notin event.events:
@@ -213,7 +211,7 @@ proc eventLoop[T: GuildenVars](gs: GuildenServer) {.gcsafe, raises: [].} =
         finally: continue
       handleEvent()
     except:
-      echo "fail: ", getCurrentExceptionMsg()
+      echo "fail: ", getCurrentExceptionMsg() # TODO: remove if never triggered
       continue
 
 
