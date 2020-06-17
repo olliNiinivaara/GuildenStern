@@ -31,7 +31,6 @@ type
   GuildenServer* {.inheritable.} = ref object
     tcpport*: Port
     serverstate*: ServerState
-    processstart*: float
     headerfieldarray* : array[MaxHttpHeaderFields, string]
     lastheader*: int
     selector*: Selector[Data]

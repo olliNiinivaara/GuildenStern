@@ -5,17 +5,11 @@ import guildenserver
 import selectors, net, nativesockets, os, httpcore, posix, streams
 import private/[httpin, wsin]
 from wsout import wsHandshake
-from times import epochTime
 
-when compileOption("threads"):
-  import weave
-  from weave/contexts import workforce
-  from weave/config import WV_MaxWorkers
+when compileOption("threads"): import weave
+  
+const MAXTHREADCONTEXTS = 255 # Weave's WV_MaxWorkers
 
-const
-  MAXTHREADCONTEXTS = 255 # Weave's WV_MaxWorkers
-  SELECTOR_TIMEOUT = 10000
-var THREADCOUNT = 1 # read at start from Weave's workforce()
 
 template initData(kind: FdKind): Data = Data(fdKind: kind, clientid: NullHandle.Clientid)
 
@@ -83,7 +77,7 @@ proc process[T: GuildenVars](gs: ptr GuildenServer, threadcontexts: ptr array[MA
   if gs.serverstate == Shuttingdown: return
   {.gcsafe.}:
     when compileOption("threads"):
-      template gv: untyped = threadcontexts[Weave.getThreadid() - 1]
+      template gv: untyped = threadcontexts[Weave.getThreadid()]
     else:
       template gv: untyped = threadcontexts[0]
     gv.currentexceptionmsg.setLen(0)
@@ -97,8 +91,15 @@ proc process[T: GuildenVars](gs: ptr GuildenServer, threadcontexts: ptr array[MA
     except: (echo "Nim internal error"; return)
     gv.fd = fd
     gv.clientid = data.clientid
-  gs.processstart = epochTime()  
-  if data.fdKind == Http: processHttp() else: processWs()
+  if data.fdKind == Http: processHttp()
+  else: processWs()
+
+
+proc spawnProcess[T: GuildenVars](gs: ptr GuildenServer, threadcontexts: ptr array[MAXTHREADCONTEXTS, T], fd: posix.SocketHandle, data: ptr Data) =
+  when compileOption("threads"):
+    spawn process[T](gs, threadcontexts, fd, data)
+  else:
+    process[T](gs, threadcontexts, fd, data) 
 
 
 template handleAccept() =
@@ -111,7 +112,7 @@ template handleAccept() =
   if setsockopt(fd, cint(SOL_SOCKET), cint(RcvTimeOut), addr(tv), SockLen(sizeof(tv))) < 0'i32:
     gs.selector.unregister(fd)
     raise newException(CatchableError, osErrorMsg(event.errorCode))
-  
+
 
 template handleEvent() =
   if data.fdKind == Server:
@@ -128,7 +129,31 @@ template handleEvent() =
       echo "updateHandle error: " & getCurrentExceptionMsg()
       continue
     try:
-      spawn process[T](unsafeAddr gs, addr threadcontexts, fd, data)
+      submit(spawnProcess[T](unsafeAddr gs, addr threadcontexts, fd, data))
+      sleep(10)
+#[ without sleep:
+/home/olli/.nimble/pkgs/weave-#master/weave/executor.nim(161) eventLoop
+/home/olli/.nimble/pkgs/weave-#master/weave/executor.nim(125) runForever
+/home/olli/.nimble/pkgs/weave-#master/weave/executor.nim(109) processAllandTryPark
+/home/olli/.nimble/pkgs/weave-#master/weave/state_machines/sync_root.nim(81) syncRoot
+/home/olli/.nimble/pkgs/weave-#master/weave/state_machines/dispatch_events.nim(59) nextTask
+/home/olli/.nimble/pkgs/weave-#master/weave/victims.nim(351) shareWork
+/home/olli/.nimble/pkgs/weave-#master/weave/victims.nim(304) distributeWork
+/home/olli/.nimble/pkgs/weave-#master/weave/victims.nim(186) dispatchElseDecline
+/home/olli/.nimble/pkgs/weave-#master/weave/victims.nim(150) takeTasks
+/home/olli/.nimble/pkgs/weave-#master/weave/instrumentation/contracts.nim(86) stealHalf
+/home/olli/.choosenim/toolchains/nim-1.2.0/lib/system/assertions.nim(29) failedAssertImpl
+/home/olli/.choosenim/toolchains/nim-1.2.0/lib/system/assertions.nim(22) raiseAssert
+/home/olli/.choosenim/toolchains/nim-1.2.0/lib/system/fatal.nim(49) sysFatal
+Error: unhandled exception: /home/olli/.nimble/pkgs/weave-#master/weave/instrumentation/contracts.nim(86, 15) `
+dq.tail.prev == dq.head` 
+    Contract violated for transient condition at prell_deques.nim:206
+        dq.tail.prev == dq.head
+    The following values are contrary to expectations:
+        0000000000000000 == 00000000A4AED3C0  [Worker 0]
+ [AssertionError]
+Error: execution of an external program failed: '/home/olli/Nim/GuildenStern/tests/guildentest '  
+]#
     except: break
   else: process[T](unsafeAddr gs, unsafeAddr threadcontexts, fd, data)
 
@@ -143,40 +168,25 @@ proc initGuildenVars(context: GuildenVars, gs: GuildenServer) =
   context.recvbuffer.data.setLen(MaxResponseLength)
 
 
+
 proc eventLoop[T: GuildenVars](gs: GuildenServer) {.gcsafe, raises: [].} =
   var eventbuffer: array[1, ReadyKey]
-  when compileOption("threads"):
-    THREADCOUNT = workforce()
-    assert(THREADCOUNT <= WV_MaxWorkers)
-    when defined(fulldebug): echo "THREADCOUNT: ", THREADCOUNT
   var threadcontexts: array[MAXTHREADCONTEXTS, T]
-  for t in 0 ..<  THREADCOUNT:
+  for t in 0 ..< MAXTHREADCONTEXTS:
     threadcontexts[t] = new T
     threadcontexts[t].initGuildenVars(gs)
-
   while true:
     try:
       var ret: int
-      var backoff: int
-      let now = epochTime()
-      if now - gs.processstart < 1: backoff = 0
-      else:
-        when compileOption("threads"):
-          if now - gs.processstart < 2:
-            try: syncRoot(Weave)
-            except: discard
-        backoff = SELECTOR_TIMEOUT
       try:
         {.push assertions: on.} # otherwise selectInto could panic # TODO: Nim-lang issue?
-        ret = gs.selector.selectInto(backoff, eventbuffer)
+        ret = gs.selector.selectInto(-1, eventbuffer)
         {.pop.}
       except: discard    
       if gs.serverstate == Shuttingdown: break
       if ret != 1 or eventbuffer[0].events.len == 0:
-        when compileOption("threads"):
-          loadBalance(Weave)
-        else:
-          sleep(0) # 4 x speedup
+        when compileOption("threads"): processAllandTryPark(Weave)
+        else: sleep(0) 
         continue
       
       let event = eventbuffer[0]
@@ -213,13 +223,14 @@ proc eventLoop[T: GuildenVars](gs: GuildenServer) {.gcsafe, raises: [].} =
     except:
       echo "fail: ", getCurrentExceptionMsg() # TODO: remove if never triggered
       continue
+  # teardownSubmitterThread(Weave) ... but expression 'jobProviderContext.mempool' is of type: ptr TLPoolAllocator
 
 
 proc serve*[T: GuildenVars](gs: GuildenServer, port: int) =
+
   doAssert(gs.httpHandler != nil, "No http handler registered")
   when compileOption("threads"):
     doAssert(defined(threadsafe), "Selectors module requires compiling with -d:threadsafe")
-    init(Weave)
   let server = newSocket()
   server.setSockOpt(OptReuseAddr, true)
   server.setSockOpt(OptReusePort, true)
@@ -233,12 +244,16 @@ proc serve*[T: GuildenVars](gs: GuildenServer, port: int) =
   gs.selector.registerHandle(server.getFd(), {Event.Read}, initData(Server))
   discard gs.selector.registerSignal(SIGINT, initData(Signal))
   server.listen()
-  when compileOption("threads"):
-    syncRoot(Weave)
   gs.serverstate = Normal
+  when compileOption("threads"):
+    var weavethread: Thread[void]
+    weavethread.runInBackground(Weave)
+    setupSubmitterThread(Weave)
+    waitUntilReady(Weave)
   eventLoop[T](gs)
   gs.serverstate = ShuttingDown
   when compileOption("threads"):
+    syncRoot(Weave)
     exit(Weave)
   echo ""      
   {.gcsafe.}:
