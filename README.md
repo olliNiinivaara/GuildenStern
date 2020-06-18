@@ -8,4 +8,5 @@ http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blo
 
 ## Installation
 For Weave 0.4.0: `nimble install https://github.com/olliNiinivaara/GuildenStern`
+
 Latest version: `nimble install weave@#master ; nimble install https://github.com/olliNiinivaara/GuildenStern@#master`
