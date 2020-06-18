@@ -11,4 +11,4 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 1.2.0"
-requires "weave = #master"
+# requires "weave = #master", use: nimble install weave@#master

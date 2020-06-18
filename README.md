@@ -7,4 +7,5 @@ work in process...
 http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/guildenstern.html
 
 ## Installation
-`nimble install https://github.com/olliNiinivaara/GuildenStern`
+For Weave 0.4.0: `nimble install https://github.com/olliNiinivaara/GuildenStern`
+Latest version: `nimble install weave@#master ; nimble install https://github.com/olliNiinivaara/GuildenStern@#master`
