@@ -1,5 +1,11 @@
 # nimble install httpbeast
+
+# all cores:
 # nim c -r --d:danger --threads:on --d:threadsafe beasttest.nim
+
+# single-threaded:
+# nim c -r --d:danger beasttest.nim
+
 
 import options, asyncdispatch
 import httpbeast

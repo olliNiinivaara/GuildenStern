@@ -95,13 +95,6 @@ proc process[T: GuildenVars](gs: ptr GuildenServer, threadcontexts: ptr array[MA
   else: processWs()
 
 
-proc spawnProcess[T: GuildenVars](gs: ptr GuildenServer, threadcontexts: ptr array[MAXTHREADCONTEXTS, T], fd: posix.SocketHandle, data: ptr Data) =
-  when compileOption("threads"):
-    spawn process[T](gs, threadcontexts, fd, data)
-  else:
-    process[T](gs, threadcontexts, fd, data) 
-
-
 template handleAccept() =
   let fd = fd.accept()[0]
   if fd == osInvalidSocket: return
@@ -128,34 +121,7 @@ template handleEvent() =
     except:
       echo "updateHandle error: " & getCurrentExceptionMsg()
       continue
-    try:
-      submit(spawnProcess[T](unsafeAddr gs, addr threadcontexts, fd, data))
-      sleep(10)
-#[ without sleep:
-/home/olli/.nimble/pkgs/weave-#master/weave/executor.nim(161) eventLoop
-/home/olli/.nimble/pkgs/weave-#master/weave/executor.nim(125) runForever
-/home/olli/.nimble/pkgs/weave-#master/weave/executor.nim(109) processAllandTryPark
-/home/olli/.nimble/pkgs/weave-#master/weave/state_machines/sync_root.nim(81) syncRoot
-/home/olli/.nimble/pkgs/weave-#master/weave/state_machines/dispatch_events.nim(59) nextTask
-/home/olli/.nimble/pkgs/weave-#master/weave/victims.nim(351) shareWork
-/home/olli/.nimble/pkgs/weave-#master/weave/victims.nim(304) distributeWork
-/home/olli/.nimble/pkgs/weave-#master/weave/victims.nim(186) dispatchElseDecline
-/home/olli/.nimble/pkgs/weave-#master/weave/victims.nim(150) takeTasks
-/home/olli/.nimble/pkgs/weave-#master/weave/instrumentation/contracts.nim(86) stealHalf
-/home/olli/.choosenim/toolchains/nim-1.2.0/lib/system/assertions.nim(29) failedAssertImpl
-/home/olli/.choosenim/toolchains/nim-1.2.0/lib/system/assertions.nim(22) raiseAssert
-/home/olli/.choosenim/toolchains/nim-1.2.0/lib/system/fatal.nim(49) sysFatal
-Error: unhandled exception: /home/olli/.nimble/pkgs/weave-#master/weave/instrumentation/contracts.nim(86, 15) `
-dq.tail.prev == dq.head` 
-    Contract violated for transient condition at prell_deques.nim:206
-        dq.tail.prev == dq.head
-    The following values are contrary to expectations:
-        0000000000000000 == 00000000A4AED3C0  [Worker 0]
- [AssertionError]
-Error: execution of an external program failed: '/home/olli/Nim/GuildenStern/tests/guildentest '  
-]#
-    except: break
-  else: process[T](unsafeAddr gs, unsafeAddr threadcontexts, fd, data)
+  process[T](unsafeAddr gs, unsafeAddr threadcontexts, fd, data)
 
 
 proc initGuildenVars(context: GuildenVars, gs: GuildenServer) =
@@ -168,7 +134,6 @@ proc initGuildenVars(context: GuildenVars, gs: GuildenServer) =
   context.recvbuffer.data.setLen(MaxResponseLength)
 
 
-
 proc eventLoop[T: GuildenVars](gs: GuildenServer) {.gcsafe, raises: [].} =
   var eventbuffer: array[1, ReadyKey]
   var threadcontexts: array[MAXTHREADCONTEXTS, T]
@@ -179,14 +144,13 @@ proc eventLoop[T: GuildenVars](gs: GuildenServer) {.gcsafe, raises: [].} =
     try:
       var ret: int
       try:
-        {.push assertions: on.} # otherwise selectInto could panic # TODO: Nim-lang issue?
+        {.push assertions: on.} # otherwise selectInto could panic - a Nim-lang issue
         ret = gs.selector.selectInto(-1, eventbuffer)
         {.pop.}
       except: discard    
       if gs.serverstate == Shuttingdown: break
       if ret != 1 or eventbuffer[0].events.len == 0:
-        when compileOption("threads"): processAllandTryPark(Weave)
-        else: sleep(0) 
+        sleep(0) 
         continue
       
       let event = eventbuffer[0]
@@ -223,7 +187,14 @@ proc eventLoop[T: GuildenVars](gs: GuildenServer) {.gcsafe, raises: [].} =
     except:
       echo "fail: ", getCurrentExceptionMsg() # TODO: remove if never triggered
       continue
-  # teardownSubmitterThread(Weave) ... but expression 'jobProviderContext.mempool' is of type: ptr TLPoolAllocator
+  gs.serverstate = ShuttingDown
+  when compileOption("threads"):
+    try:
+      processAllandTryPark(Weave)
+      # teardownSubmitterThread(Weave) # does not compile: expected var, got ptr
+      exit(Weave)
+    except:
+      echo getCurrentExceptionMsg()
 
 
 proc serve*[T: GuildenVars](gs: GuildenServer, port: int) =
@@ -251,10 +222,6 @@ proc serve*[T: GuildenVars](gs: GuildenServer, port: int) =
     setupSubmitterThread(Weave)
     waitUntilReady(Weave)
   eventLoop[T](gs)
-  gs.serverstate = ShuttingDown
-  when compileOption("threads"):
-    syncRoot(Weave)
-    exit(Weave)
   echo ""      
   {.gcsafe.}:
     if gs.shutdownHandler != nil: gs.shutdownHandler()
