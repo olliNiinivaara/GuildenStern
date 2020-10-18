@@ -13,7 +13,8 @@ proc writeToHttp*(gs: GuildenServer, fd: posix.SocketHandle, text: string, lengt
   while bytessent < length:
     let ret =
       try: send(fd, unsafeAddr text[bytessent], length - bytessent, 0)
-      except: return getCurrentExceptionMsg()
+      except: -1111
+    if ret == -1111: return "posix.send exception at writeToHttp"
     if gs.serverstate == Shuttingdown: return "shuttingdown"
     if ret == 0:
       retries.inc(10)

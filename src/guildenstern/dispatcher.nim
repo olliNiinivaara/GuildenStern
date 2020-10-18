@@ -6,9 +6,14 @@ import selectors, net, nativesockets, os, httpcore, posix, streams
 import private/[httpin, wsin]
 from wsout import wsHandshake
 
-when compileOption("threads"): import weave
-  
-const MAXTHREADCONTEXTS = 255 # Weave's WV_MaxWorkers
+when compileOption("threads"):
+  import threadpool, locks
+  const MAXTHREADCONTEXTSIZE = MaxThreadPoolSize
+  var threadreservations: array[MAXTHREADCONTEXTSIZE, bool]
+  var lock: Lock
+
+else:
+  const MAXTHREADCONTEXTSIZE = 1
 
 
 template initData(kind: FdKind): Data = Data(fdKind: kind, clientid: NullHandle.Clientid)
@@ -73,26 +78,41 @@ template processWs() =
       gv.disconnectWs(false)
 
 
-proc process[T: GuildenVars](gs: ptr GuildenServer, threadcontexts: ptr array[MAXTHREADCONTEXTS, T], fd: posix.SocketHandle, data: ptr Data) {.gcsafe, raises: [].} =
+proc reserveThreadcontext(): int {.inline.} =
+  when not compileOption("threads"): return 0
+  else:
+    withLock(lock):
+      var contextid = 0
+      while threadreservations[contextid] == true:
+        contextid += 1
+        if contextid == MAXTHREADCONTEXTSIZE:
+          contextid = 0
+      threadreservations[contextid] = true
+      return contextid
+
+
+proc releaseThreadcontext(contextid: int) {.inline.} =
+  when compileOption("threads"): threadreservations[contextid] = false
+  
+  
+proc process[T: GuildenVars](gs: ptr GuildenServer, threadcontexts: ptr array[MAXTHREADCONTEXTSIZE, T], fd: posix.SocketHandle, data: ptr Data) {.gcsafe, raises: [].} =
   if gs.serverstate == Shuttingdown: return
+  let threadcontextid = reserveThreadcontext()
   {.gcsafe.}:
-    when compileOption("threads"):
-      template gv: untyped = threadcontexts[Weave.getThreadid()]
-    else:
-      template gv: untyped = threadcontexts[0]
-    gv.currentexceptionmsg.setLen(0)
-    gv.path = 0
-    gv.pathlen = 0
-    gv.methlen = 0
-    gv.bodystartpos = 0
-    try:
-      gv.sendbuffer.setPosition(0)
-      gv.recvbuffer.setPosition(0)
-    except: (echo "Nim internal error"; return)
-    gv.fd = fd
-    gv.clientid = data.clientid
-  if data.fdKind == Http: processHttp()
-  else: processWs()
+    var gv = threadcontexts[threadcontextid]
+  gv.currentexceptionmsg.setLen(0)
+  gv.path = 0
+  gv.pathlen = 0
+  gv.methlen = 0
+  gv.bodystartpos = 0
+  try:
+    gv.sendbuffer.setPosition(0)
+    gv.recvbuffer.setPosition(0)
+  except: (echo "Nim internal error"; return)
+  gv.fd = fd
+  gv.clientid = data.clientid
+  if data.fdKind == Http: processHttp() else: processWs()
+  releaseThreadcontext(threadcontextid)
 
 
 template handleAccept() =
@@ -121,7 +141,8 @@ template handleEvent() =
     except:
       echo "updateHandle error: " & getCurrentExceptionMsg()
       continue
-  process[T](unsafeAddr gs, unsafeAddr threadcontexts, fd, data)
+    spawn process[T](unsafeAddr gs, unsafeAddr threadcontexts, fd, data)
+  else: process[T](unsafeAddr gs, unsafeAddr threadcontexts, fd, data)
 
 
 proc initGuildenVars(context: GuildenVars, gs: GuildenServer) =
@@ -136,8 +157,8 @@ proc initGuildenVars(context: GuildenVars, gs: GuildenServer) =
 
 proc eventLoop[T: GuildenVars](gs: GuildenServer) {.gcsafe, raises: [].} =
   var eventbuffer: array[1, ReadyKey]
-  var threadcontexts: array[MAXTHREADCONTEXTS, T]
-  for t in 0 ..< MAXTHREADCONTEXTS:
+  var threadcontexts: array[MAXTHREADCONTEXTSIZE, T]
+  for t in 0 ..< MAXTHREADCONTEXTSIZE:
     threadcontexts[t] = new T
     threadcontexts[t].initGuildenVars(gs)
   while true:
@@ -188,20 +209,13 @@ proc eventLoop[T: GuildenVars](gs: GuildenServer) {.gcsafe, raises: [].} =
       echo "fail: ", getCurrentExceptionMsg() # TODO: remove if never triggered
       continue
   gs.serverstate = ShuttingDown
-  when compileOption("threads"):
-    try:
-      processAllandTryPark(Weave)
-      # teardownSubmitterThread(Weave) # does not compile: expected var, got ptr
-      exit(Weave)
-    except:
-      echo getCurrentExceptionMsg()
 
 
 proc serve*[T: GuildenVars](gs: GuildenServer, port: int) =
-
   doAssert(gs.httpHandler != nil, "No http handler registered")
   when compileOption("threads"):
     doAssert(defined(threadsafe), "Selectors module requires compiling with -d:threadsafe")
+    initLock(lock)
   let server = newSocket()
   server.setSockOpt(OptReuseAddr, true)
   server.setSockOpt(OptReusePort, true)
@@ -216,11 +230,6 @@ proc serve*[T: GuildenVars](gs: GuildenServer, port: int) =
   discard gs.selector.registerSignal(SIGINT, initData(Signal))
   server.listen()
   gs.serverstate = Normal
-  when compileOption("threads"):
-    var weavethread: Thread[void]
-    weavethread.runInBackground(Weave)
-    setupSubmitterThread(Weave)
-    waitUntilReady(Weave)
   eventLoop[T](gs)
   echo ""      
   {.gcsafe.}:

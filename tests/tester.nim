@@ -1,4 +1,4 @@
-# nim c -r --d:danger --threads:on --d:threadsafe tester.nim
+# nim c -r --gc:arc --d:danger --threads:on --d:threadsafe tester.nim
 
 import asyncdispatch, httpclient
 from guildenstern import signalSIGINT

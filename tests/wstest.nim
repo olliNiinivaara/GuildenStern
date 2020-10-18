@@ -1,4 +1,4 @@
-# nim c -r --d:danger --threads:on --d:threadsafe wstest.nim
+# nim c -r --gc:arc --d:danger --threads:on --d:threadsafe wstest.nim
 # use k6script.js as test client
 
 import guildenstern

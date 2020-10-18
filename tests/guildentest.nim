@@ -1,12 +1,9 @@
 #
-# weave:
-# nim c -r --d:danger --threads:on --d:threadsafe guildentest.nim
-#
-# weave and statistics:
-# nim c --d:danger --threads:on --d:threadsafe -d:WEAVE_NUM_THREADS=4 -d:WV_metrics -d:WV_profile -d:CpuFreqMhz=1200 guildentest.nim ; ./guildentest
+# threadpool:
+# nim c -r --gc:arc --d:danger --threads:on --d:threadsafe guildentest.nim
 #
 # single-threaded:
-# nim c -r --d:danger guildentest.nim
+# nim c -r --gc:arc --d:danger guildentest.nim
 #
 
 from httpcore import Http200, Http404

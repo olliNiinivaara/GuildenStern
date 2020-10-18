@@ -150,7 +150,7 @@ proc getBody*(gv: GuildenVars): string {.raises: [].} =
 proc isBody*(gv: GuildenVars, body: string): bool {.raises: [].} =
   let len =
     try: gv.recvbuffer.getPosition() - gv.bodystartpos
-    except: return false
+    except: -1
   if  len != body.len: return false
   for i in gv.bodystartpos ..< gv.bodystartpos + len:
     if gv.recvbuffer.data[i] != body[i]: return false
