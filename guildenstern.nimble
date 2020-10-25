@@ -1,8 +1,8 @@
 # Package
 
-version       = "0.8.0"
+version       = "0.9.0"
 author        = "Olli"
-description   = "An integrated multithreading Http/1.1 + WebSocket v13 server for Linux"
+description   = "multithreading plug'n'play posix http server"
 license       = "MIT"
 srcDir        = "src"
 
@@ -10,5 +10,4 @@ srcDir        = "src"
 
 # Dependencies
 
-requires "nim >= 1.2.0"
-# requires "weave = #master", use: nimble install weave@#master
+requires "nim >= 1.4.0"

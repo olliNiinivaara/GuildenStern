@@ -2,9 +2,7 @@
 #
 #   Guildenstern
 #
-##  genuinely multithreading integrated HTTP/1.1 + WebSocket v13 Server
-## 
-##  for POSIX-compliant OSes
+##  multithreading plug'n'play posix http server
 #
 #   (c) Copyright 2020 Olli Niinivaara
 #
@@ -22,18 +20,14 @@ export SocketHandle
 when not defined(nimdoc):
   import guildenstern/guildenserver
   import guildenstern/dispatcher
-  import guildenstern/httpout
-  import guildenstern/wsout
+  # import guildenstern/httpout
+  # import guildenstern/wsout
 
   export GuildenServer, ServerState, serve, signalSIGINT
-  export GuildenVars
-  export registerHttphandler, upgradeHttpToWs, registerWshandler, registerWsdisconnecthandler,
-         registerTimerhandler, registerShutdownhandler, registerErrorhandler    
-  export isPath, pathStarts, getPath, isMethod, getMethod, getHeader, getHeaders, isBody, getBody
-  export write
-  export Clientid, `==`, `$`
-  export reply, replyHeaders, replyCode
-  export sendToWs
+  export Handler
+  export newGuildenServer, registerHandler, registerShutdownhandler
+  #export write
+  # export sendToWs
 else:
   from net import Port
   from httpcore import HttpCode, Http200
@@ -48,6 +42,7 @@ else:
       tcpport*: Port ## set when calling `serve`
 
     GuildenVars* {.inheritable.} = ref object
+      ## THIS DOC IS OUTDATED!!
       ## | Contains thread-local variables, acting as the context for an incoming request.
       ## | This is available in callbacks as parameter.
       ## | Inherit and add custom properties as needed.
@@ -98,9 +93,9 @@ else:
     ##    MyGuildenVars = ref object of GuildenVars
     ##      customcontextproperty: string
     ##   
-    ##  proc onRequest(gv: MyGuildenVars) =
-    ##    gv.customcontextproperty = "world"
-    ##    gv.reply(((MyGuildenServer)gv.gs).customserverproperty & gv.customcontextproperty)
+    ##  proc onRequest(h: MyGuildenVars) =
+    ##    h.customcontextproperty = "world"
+    ##    h.reply(((MyGuildenServer)h.gs).customserverproperty & h.customcontextproperty)
     ##  
     ##  let server = new MyGuildenServer
     ##  server.customserverproperty = "hello,"
@@ -111,18 +106,18 @@ else:
     ## Sends Ctrl-C to current process which is caught by GuildenServer and graceful shutdown is commenced.
     discard
 
-  proc registerHttphandler*(gs: GuildenServer, callback: proc(gv: GuildenVars) {.gcsafe, nimcall, raises: [].},
+  proc registerHttphandler*(gs: GuildenServer, callback: proc(h: GuildenVars) {.gcsafe, nimcall, raises: [].},
    headerfields: openarray[string] = ["content-length"]) =
     ## Registers the callback procedure to handle incoming http requests. Give list of header field names to capture.
     ## If body is to be received, "content-length" must be one of the capturable fields.
     ## Receiving duplicate header fields is not supported.
     discard
 
-  proc registerWshandler*(gs: GuildenServer, callback: proc(gv: GuildenVars) {.gcsafe, nimcall, raises: [].}) =
+  proc registerWshandler*(gs: GuildenServer, callback: proc(h: GuildenVars) {.gcsafe, nimcall, raises: [].}) =
     ## Registers the callback procedure to handle incoming WebSocket requests.
     discard
 
-  proc registerWsdisconnecthandler*(gs: GuildenServer, callback: proc(gv: GuildenVars, closedbyclient: bool) {.gcsafe, nimcall, raises: [].}) =
+  proc registerWsdisconnecthandler*(gs: GuildenServer, callback: proc(h: GuildenVars, closedbyclient: bool) {.gcsafe, nimcall, raises: [].}) =
     ## Registers the callback procedure to handle disconnecting WebSocket requests.
     ## If closedbyclient == true, client closed the session and usually must not be allowed to login again without credentials.
     ## If closedbyclient == false, socket was lost due to a network problem and usually the client will try to reconnect soon.
@@ -132,7 +127,7 @@ else:
     ## Registers the callback procedure to handle timer events with given interval in seconds.
     discard
 
-  proc registerErrorhandler*(gs: GuildenServer, callback: proc(gv: GuildenVars, msg: string) {.gcsafe, nimcall, raises: [].}) =
+  proc registerErrorhandler*(gs: GuildenServer, callback: proc(h: GuildenVars, msg: string) {.gcsafe, nimcall, raises: [].}) =
     ## Registers the callback procedure to handle error conditions.
     ## If serverstate is set to Maintenance, all http and ws requests will call this proc instead of their normal handler.
     ## If proc is called due to a genuine error, error message is available in msg.
@@ -144,94 +139,94 @@ else:
     discard
 
 
-  proc upgradeHttpToWs*(gv: GuildenVars, clientid: Clientid) =
+  proc upgradeHttpToWs*(h: GuildenVars, clientid: Clientid) =
     ## Upgrades the current file descriptor to WebSocket protocol.
     ## Give a clientid that allows identification of the connected user.
     ## Note that GuildenStern does not offer a way to get ``fd`` s of connected clients, you have to store these mappings yourself.
     discard
 
 
-  proc getPath*(gv: GuildenVars): string =
+  proc getPath*(h: GuildenVars): string =
     ## Returns deep copy of http path.
     discard
     
-  proc isPath*(gv: GuildenVars, apath: string): bool =
+  proc isPath*(h: GuildenVars, apath: string): bool =
     ## Checks if http path is apath.
     discard
 
-  proc pathStarts*(gv: GuildenVars, pathstart: string): bool =
+  proc pathStarts*(h: GuildenVars, pathstart: string): bool =
     ## Checks if http path starts with pathstart.
     discard
 
-  proc getMethod*(gv: GuildenVars): string =
+  proc getMethod*(h: GuildenVars): string =
     ## Returns deep copy of http method.
     discard
 
-  proc isMethod*(gv: GuildenVars, amethod: string): bool =
+  proc isMethod*(h: GuildenVars, amethod: string): bool =
     ## Checks if http method is amethod.
     discard
 
-  proc getHeader*(gv: GuildenVars, header: string): string {.inline.} =
+  proc getHeader*(h: GuildenVars, header: string): string {.inline.} =
     ## Returns value of header.
     discard
 
-  proc getHeaders*(gv: GuildenVars): string {.inline.} =
+  proc getHeaders*(h: GuildenVars): string {.inline.} =
     ## Returns deep copy of headers part in http request.
     discard
 
-  proc getBody*(gv: GuildenVars): string =
+  proc getBody*(h: GuildenVars): string =
     ## Returns deep copy of http body / web socket request.
     discard
 
-  proc isBody*(gv: GuildenVars, abody: string): bool =
+  proc isBody*(h: GuildenVars, abody: string): bool =
     ## Checks if http body / web socket request is abody.
     discard
 
-  proc write*(gv: GuildenVars, str: string): bool {.raises: [].} =
+  proc write*(h: GuildenVars, str: string): bool {.raises: [].} =
     ## appends string to sendbuffer, returns false if append failed.
     discard
 
-  proc reply*(gv: GuildenVars, code: HttpCode, body: string, headers="") {.inline.} =
+  proc reply*(h: GuildenVars, code: HttpCode, body: string, headers="") {.inline.} =
     discard
 
-  proc reply*(gv: GuildenVars, code: HttpCode, body: string, headers: openArray[string]) {.inline.} =
+  proc reply*(h: GuildenVars, code: HttpCode, body: string, headers: openArray[string]) {.inline.} =
     discard
 
-  proc reply*(gv: GuildenVars, code: HttpCode, body: string, headers: seq[string]) {.inline.} =
+  proc reply*(h: GuildenVars, code: HttpCode, body: string, headers: seq[string]) {.inline.} =
     discard
 
-  proc reply*(gv: GuildenVars, code: HttpCode, body: string,  headers: openArray[seq[string]]) {.inline.} =
+  proc reply*(h: GuildenVars, code: HttpCode, body: string,  headers: openArray[seq[string]]) {.inline.} =
     discard
 
-  proc reply*(gv: GuildenVars, body: string, code=Http200) {.inline.} =
+  proc reply*(h: GuildenVars, body: string, code=Http200) {.inline.} =
     discard
 
-  proc replyHeaders*(gv: GuildenVars, headers: openArray[string], code: HttpCode=Http200) {.inline.} =
+  proc replyHeaders*(h: GuildenVars, headers: openArray[string], code: HttpCode=Http200) {.inline.} =
     discard
 
-  proc replyHeaders*(gv: GuildenVars, headers: seq[string], code: HttpCode=Http200) {.inline.} =
+  proc replyHeaders*(h: GuildenVars, headers: seq[string], code: HttpCode=Http200) {.inline.} =
     discard
 
-  proc replyHeaders*(gv: GuildenVars, headers: openArray[seq[string]], code: HttpCode=Http200) {.inline.} =
+  proc replyHeaders*(h: GuildenVars, headers: openArray[seq[string]], code: HttpCode=Http200) {.inline.} =
     discard
 
-  proc reply*(gv: GuildenVars, headers: openArray[string]) {.inline.} =
+  proc reply*(h: GuildenVars, headers: openArray[string]) {.inline.} =
     ## Responds with contents of sendbuffer
     discard
 
-  proc reply*(gv: GuildenVars, headers: seq[string]) {.inline.} =
+  proc reply*(h: GuildenVars, headers: seq[string]) {.inline.} =
     ## Responds with contents of sendbuffer
     discard 
 
-  proc reply*(gv: GuildenVars, headers: openArray[seq[string]]) {.inline.} =
+  proc reply*(h: GuildenVars, headers: openArray[seq[string]]) {.inline.} =
     ## Responds with contents of sendbuffer
     discard
 
-  proc replyCode*(gv: GuildenVars, code: HttpCode) {.inline.} =
+  proc replyCode*(h: GuildenVars, code: HttpCode) {.inline.} =
     discard
   
 
-  proc sendToWs*(gv: GuildenVars, toSocket = NullHandle.SocketHandle, text: StringStream = nil): bool =
+  proc sendToWs*(h: GuildenVars, toSocket = NullHandle.SocketHandle, text: StringStream = nil): bool =
     ## Sends text data to a websocket.
     ## 
     ## If text parameter is not given, sends contents of ``sendbuffer``.

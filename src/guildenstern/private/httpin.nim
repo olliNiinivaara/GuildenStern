@@ -1,127 +1,142 @@
 import posix, net, nativesockets, os, strutils, streams
-import ../guildenserver
+import ../guildenserver, httphandlertype
+
+const
+  MaxRequestLength* {.intdefine.} = 1000
+  MaxResponseLength* {.intdefine.} = 100000
+
+var  
+  headerfieldsArrays* : array[256, Headerfieldarray]
+  lastheaders*: array[256, int]
 
 
 {.push checks: off.}
 
-proc setHeaderValue(gv: GuildenVars, current: (string, string)): bool {.inline.} =
+proc setHeaderValue(h: HttpHandler, current: (string, string)): bool {.inline.} =
   let field = toLowerAscii(current[0])
   var i = 0
-  while i <= gv.gs.lastheader:
-    if gv.gs.headerfieldarray[i] == field:
-      gv.headervalues[i] = current[1]
-      return true
+  while i <= lastheaders[h.gs.serverid]:
+    {.gcsafe.}:
+      if headerfieldsArrays[h.gs.serverid][i] == field:
+        h.headervalues[i] = current[1]
+        return true
     i.inc
   false
 
 
-proc findFinishPos(gv: GuildenVars, j: int, recvbufferlen: int) {.inline.} =
-  if j > recvbufferlen - 5: (gv.bodystartpos = recvbufferlen; return)
+proc findFinishPos(h: HttpHandler, j: int, recvdatalen: int) {.inline.} =
+  if j > recvdatalen - 5: (h.bodystartpos = recvdatalen; return)
   var i = j
-  let contleni = gv.gs.headerfieldarray.find("content-length")
-  if contleni == -1: (gv.bodystartpos = recvbufferlen; return)
-  if gv.recvbuffer.data[recvbufferlen-4] == '\c' and gv.recvbuffer.data[recvbufferlen-3] == '\l' and gv.recvbuffer.data[recvbufferlen-2] == '\c' and gv.recvbuffer.data[recvbufferlen-1] == '\l':
-      gv.bodystartpos = recvbufferlen
-      return
-  while i <= recvbufferlen - 4:
-    if gv.recvbuffer.data[i] == '\c' and gv.recvbuffer.data[i+1] == '\l' and gv.recvbuffer.data[i+2] == '\c' and gv.recvbuffer.data[i+3] == '\l':
-      gv.bodystartpos = i + 4
-      return
-    i.inc
+  {.gcsafe.}:
+    let contleni = headerfieldsArrays[h.gs.serverid].find("content-length")
+    if contleni == -1: (h.bodystartpos = recvdatalen; return)
+    if h.recvdata.data[recvdatalen-4] == '\c' and h.recvdata.data[recvdatalen-3] == '\l' and h.recvdata.data[recvdatalen-2] == '\c' and h.recvdata.data[recvdatalen-1] == '\l':
+        h.bodystartpos = recvdatalen
+        return
+    while i <= recvdatalen - 4:
+      if h.recvdata.data[i] == '\c' and h.recvdata.data[i+1] == '\l' and h.recvdata.data[i+2] == '\c' and h.recvdata.data[i+3] == '\l':
+        h.bodystartpos = i + 4
+        return
+      i.inc
 
 
-proc parseHeaders(gv: GuildenVars, recvbufferlen: int): bool =
-  gv.bodystartpos = -1
+proc parseHeaders(h: HttpHandler, recvdatalen: int): bool =
+  h.bodystartpos = -1
   var headercount = 0
-  for i in 0 .. gv.gs.lastheader: gv.headervalues[i].setLen(0)
+  for i in 0 .. lastheaders[h.gs.serverid]: h.headervalues[i].setLen(0)
   
-  while gv.methlen < recvbufferlen and gv.recvbuffer.data[gv.methlen] != ' ': gv.methlen.inc
-  if gv.methlen == recvbufferlen: return false
-  var i = gv.methlen + 1
+  while h.methlen < recvdatalen and h.recvdata.data[h.methlen] != ' ': h.methlen.inc
+  if h.methlen == recvdatalen: return false
+  var i = h.methlen + 1
   let start = i
-  while i < recvbufferlen and gv.recvbuffer.data[i] != ' ': i.inc()
-  gv.path = start
-  gv.pathlen = i - start
-  if gv.gs.lastheader == 0:    
-    findFinishPos(gv, i+1, recvbufferlen)
-    return gv.bodystartpos > -1
+  while i < recvdatalen and h.recvdata.data[i] != ' ': i.inc()
+  h.path = start
+  h.pathlen = i - start
+  if lastheaders[h.gs.serverid] == 0:    
+    findFinishPos(h, i+1, recvdatalen)
+    return h.bodystartpos > -1
   i.inc
   var value = false
   var current: (string, string) = ("", "")
 
-  while i <= recvbufferlen - 4:
-    case gv.recvbuffer.data[i]
+  while i <= recvdatalen - 4:
+    case h.recvdata.data[i]
     of '\c':
-      if gv.recvbuffer.data[i+1] == '\l' and gv.recvbuffer.data[i+2] == '\c' and gv.recvbuffer.data[i+3] == '\l':
-        gv.bodystartpos = i + 4
+      if h.recvdata.data[i+1] == '\l' and h.recvdata.data[i+2] == '\c' and h.recvdata.data[i+3] == '\l':
+        h.bodystartpos = i + 4
         return true
     of ':':
       if value: current[1].add(':')
       value = true
     of ' ':
       if value:
-        if current[1].len != 0: current[1].add(gv.recvbuffer.data[i])
-      else: current[0].add(gv.recvbuffer.data[i])
+        if current[1].len != 0: current[1].add(h.recvdata.data[i])
+      else: current[0].add(h.recvdata.data[i])
     of '\l':
-      if gv.setHeaderValue(current): headercount.inc
-      if headercount == gv.gs.lastheader + 1:
-        gv.findFinishPos(i, recvbufferlen)
-        return gv.bodystartpos > -1
+      if h.setHeaderValue(current): headercount.inc
+      if headercount == lastheaders[h.gs.serverid] + 1:
+        h.findFinishPos(i, recvdatalen)
+        return h.bodystartpos > -1
       value = false
       current = ("", "")
     else:
-      if value: current[1].add(gv.recvbuffer.data[i])
-      else: current[0].add(gv.recvbuffer.data[i])
+      if value: current[1].add(h.recvdata.data[i])
+      else: current[0].add(h.recvdata.data[i])
     i.inc()
   return false
 
     
-proc readFromHttp*(gv: GuildenVars): bool {.gcsafe, raises:[] .} =
-  var recvbufferlen = 0
+proc readFromHttp*(h: HttpHandler): bool {.gcsafe, raises:[] .} =
+  var recvdatalen = 0
   var trials = 0
   var expectedlength = MaxRequestLength + 1
   while true:
-    let ret = recv(gv.fd, addr gv.recvbuffer.data[recvbufferlen], expectedlength - recvbufferlen, 0.cint)
-    if gv.gs.serverstate == Shuttingdown: return false
+    let ret = recv(h.socket, addr h.recvdata.data[recvdatalen], expectedlength - recvdatalen, 0.cint)
+    if h.gs.serverstate == Shuttingdown: return false
     if ret == 0:
       let lastError = osLastError().int    
-      if lastError == 0 and recvbufferlen > 0: return true
-      if lastError == 0 or lastError == 2 or lastError == 9 or lastError == 104: return false
+      if lastError == 0: return recvdatalen > 0
+      if lastError == 2 or lastError == 9 or lastError == 104: return false
       trials.inc
       if trials <= 3: 
         echo "nothing received, backoff triggered"
         sleep(100 + trials * 100)
         continue
         # TODO: real backoff strategy
-    if trials >= 4 or ret == -1:
+    if ret == -1:
       let lastError = osLastError().int
-      if lastError == 0 or lastError == 2 or lastError == 9 or lastError == 104: return false 
-      gv.currentexceptionmsg = "http receive: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError))
+      h.currentexceptionmsg = "http receive: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError))
+      return false
+    if trials >= 4:
+      h.currentexceptionmsg = "http receive: receiving stalled"
       return false
       
-    recvbufferlen += ret
-    if recvbufferlen == MaxRequestLength + 1:
-      gv.currentexceptionmsg = "http receive: Max request size exceeded"
+    recvdatalen += ret
+
+    if recvdatalen == MaxRequestLength + 1:
+      h.currentexceptionmsg = "http receive: Max request size exceeded"
       return false
-    if recvbufferlen == expectedlength: break
+    if recvdatalen == expectedlength: break
     if expectedlength == MaxRequestLength + 1:
       try:
-        let allheadersreceived = gv.parseHeaders(recvbufferlen)
+        let allheadersreceived = h.parseHeaders(recvdatalen)
         if not allheadersreceived:
           trials += 1
           continue
         trials = 0
-        let contlen = gv.gs.headerfieldarray.find("content-length")
-        if contlen == -1: break
-        if gv.headervalues[contlen] == "": break
-        expectedlength = parseInt(gv.headervalues[contlen]) + gv.bodystartpos
-        if recvbufferlen == expectedlength: break
+        {.gcsafe.}:
+          let contlenpos = headerfieldsArrays[h.gs.serverid].find("content-length")
+        if contlenpos == -1 or h.headervalues[contlenpos] == "": return true
+        expectedlength = parseInt(h.headervalues[contlenpos]) + h.bodystartpos
+        if recvdatalen == expectedlength: break
       except:
-        gv.currentexceptionmsg = "parse http headers: " & getCurrentExceptionMsg()
+        h.currentexceptionmsg = "parse http headers: " & getCurrentExceptionMsg()
         return false
   try:
-    gv.recvbuffer.setPosition(recvbufferlen) # - 1 ?
-  except: echo("recvbuffer setPosition error")
+    h.recvdata.setPosition(recvdatalen) # - 1 ?
+  except:
+    echo("recvdata setPosition error")
+    return false
   true
 
 {.pop.}
