@@ -1,21 +1,9 @@
-import posix, net, nativesockets, os, strutils, streams
-import ../guildenserver, httphandlertype
-
-const
-  MaxRequestLength* {.intdefine.} = 1000
-  MaxResponseLength* {.intdefine.} = 100000
-
-var  
-  headerfieldsArrays* : array[256, Headerfieldarray]
-  lastheaders*: array[256, int]
-
-
 {.push checks: off.}
 
 proc setHeaderValue(h: HttpHandler, current: (string, string)): bool {.inline.} =
   let field = toLowerAscii(current[0])
   var i = 0
-  while i <= lastheaders[h.gs.serverid]:
+  while i <= lastheaderindex[h.gs.serverid]:
     {.gcsafe.}:
       if headerfieldsArrays[h.gs.serverid][i] == field:
         h.headervalues[i] = current[1]
@@ -25,7 +13,7 @@ proc setHeaderValue(h: HttpHandler, current: (string, string)): bool {.inline.} 
 
 
 proc findFinishPos(h: HttpHandler, j: int, recvdatalen: int) {.inline.} =
-  if j > recvdatalen - 5: (h.bodystartpos = recvdatalen; return)
+  if j > recvdatalen - 5: (h.bodystartpos = recvdatalen; return) # on assumption that proxy server has buffered the whole header part before passing data here
   var i = j
   {.gcsafe.}:
     let contleni = headerfieldsArrays[h.gs.serverid].find("content-length")
@@ -43,7 +31,7 @@ proc findFinishPos(h: HttpHandler, j: int, recvdatalen: int) {.inline.} =
 proc parseHeaders(h: HttpHandler, recvdatalen: int): bool =
   h.bodystartpos = -1
   var headercount = 0
-  for i in 0 .. lastheaders[h.gs.serverid]: h.headervalues[i].setLen(0)
+  for i in 0 .. lastheaderindex[h.gs.serverid]: h.headervalues[i].setLen(0)
   
   while h.methlen < recvdatalen and h.recvdata.data[h.methlen] != ' ': h.methlen.inc
   if h.methlen == recvdatalen: return false
@@ -52,7 +40,7 @@ proc parseHeaders(h: HttpHandler, recvdatalen: int): bool =
   while i < recvdatalen and h.recvdata.data[i] != ' ': i.inc()
   h.path = start
   h.pathlen = i - start
-  if lastheaders[h.gs.serverid] == 0:    
+  if lastheaderindex[h.gs.serverid] == -1:    
     findFinishPos(h, i+1, recvdatalen)
     return h.bodystartpos > -1
   i.inc
@@ -74,7 +62,7 @@ proc parseHeaders(h: HttpHandler, recvdatalen: int): bool =
       else: current[0].add(h.recvdata.data[i])
     of '\l':
       if h.setHeaderValue(current): headercount.inc
-      if headercount == lastheaders[h.gs.serverid] + 1:
+      if headercount == lastheaderindex[h.gs.serverid] + 1:
         h.findFinishPos(i, recvdatalen)
         return h.bodystartpos > -1
       value = false
@@ -86,7 +74,7 @@ proc parseHeaders(h: HttpHandler, recvdatalen: int): bool =
   return false
 
     
-proc readFromHttp*(h: HttpHandler): bool {.gcsafe, raises:[] .} =
+proc recvHttp*(h: HttpHandler): bool {.gcsafe, raises:[] .} =
   var recvdatalen = 0
   var trials = 0
   var expectedlength = MaxRequestLength + 1
@@ -99,25 +87,25 @@ proc readFromHttp*(h: HttpHandler): bool {.gcsafe, raises:[] .} =
       if lastError == 2 or lastError == 9 or lastError == 104: return false
       trials.inc
       if trials <= 3: 
-        echo "nothing received, backoff triggered"
+        # echo "nothing received, backoff triggered"
         sleep(100 + trials * 100)
         continue
         # TODO: real backoff strategy
     if ret == -1:
       let lastError = osLastError().int
-      h.currentexceptionmsg = "http receive: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError))
+      h.currentexceptionmsg = "http in: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError))
       return false
     if trials >= 4:
-      h.currentexceptionmsg = "http receive: receiving stalled"
+      h.currentexceptionmsg = "http in: receiving stalled"
       return false
       
     recvdatalen += ret
 
     if recvdatalen == MaxRequestLength + 1:
-      h.currentexceptionmsg = "http receive: Max request size exceeded"
+      h.currentexceptionmsg = "http in: Max request size exceeded"
       return false
     if recvdatalen == expectedlength: break
-    if expectedlength == MaxRequestLength + 1:
+    if expectedlength >= MaxRequestLength + 1:
       try:
         let allheadersreceived = h.parseHeaders(recvdatalen)
         if not allheadersreceived:
@@ -125,6 +113,7 @@ proc readFromHttp*(h: HttpHandler): bool {.gcsafe, raises:[] .} =
           continue
         trials = 0
         {.gcsafe.}:
+          if true: return true ## TESTING
           let contlenpos = headerfieldsArrays[h.gs.serverid].find("content-length")
         if contlenpos == -1 or h.headervalues[contlenpos] == "": return true
         expectedlength = parseInt(h.headervalues[contlenpos]) + h.bodystartpos

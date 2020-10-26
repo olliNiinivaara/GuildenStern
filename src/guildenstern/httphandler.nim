@@ -1,24 +1,46 @@
 from streams import StringStream, newStringStream, getPosition, setPosition, write
-from os import sleep
+from strutils import toLowerAscii, parseInt
+from os import osLastError, osErrorMsg, OSErrorCode, sleep
+from posix import recv
 import locks
-import guildenserver, private/[httphandlertype, httpin, httpout]
-export HttpHandler
-export reply, replyHeaders, replyCode
+import guildenserver, private/[httpout]
+export replyCode, replyEmpty #, replyHeaders
 
 
 const
+  MaxRequestLength* {.intdefine.} = 1000
+  MaxResponseLength* {.intdefine.} = 100000
   MaxHttpHeaderValueLength* {.intdefine.} = 200
+  MaxHttpHeaderFields* {.intdefine.} = 25
+
+
+type
+  Headerfieldarray* = array[MaxHttpHeaderFields, string]
+
+  HttpHandler* = ref object of Handler
+    recvdata* : StringStream
+    senddata* : StringStream
+    path*: int
+    pathlen*: int
+    methlen*: int
+    headervalues* : Headerfieldarray
+    bodystartpos* : int
 
 var
   lock: Lock
   httpRequestHandlerCallbacks: array[256, proc(handler: HttpHandler) {.gcsafe, raises: [].}] # 256 servers in one executable is enough, right?
   httpErrorHandlerCallbacks: array[256, proc(handler: Handler) {.gcsafe, raises: [].}]
   httphandlers: array[MaxHandlerCount, HttpHandler]
+  headerfieldsArrays* : array[256, Headerfieldarray]
+  lastheaderindex*: array[256, int]
+
+
+include private/httpin
 
 
 proc newHttpHandler(): HttpHandler =
   result = new HttpHandler
-  result.handlertype = HttpHandlerType
+  result.handlertype = HttpHandling
   result.senddata = newStringStream()
   result.senddata.data.setLen(MaxResponseLength)
   result.recvdata = newStringStream()
@@ -59,7 +81,7 @@ template handleError() =
 
 proc handleHttp(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
   var finished = false
-  var handler = getHttpHandler()
+  var handler: HttpHandler = getHttpHandler()
   try:
     handler.gs = gs[]
     handler.socket = data.socket
@@ -81,9 +103,9 @@ proc initHttpHandling*(gs: GuildenServer, onrequestcallback: proc(handler: HttpH
   initLock(lock)
   {.gcsafe.}: 
     httpRequestHandlerCallbacks[gs.serverid] = onrequestcallback
-    gs.registerDefaultHandler(HttpHandlerType, handleHttp)
+    gs.registerDefaultHandler(HttpHandling, handleHttp)
     for i in 0 .. interestingheaderfields.high: headerfieldsArrays[gs.serverid][i] = interestingheaderfields[i]
-    lastheaders[gs.serverid] = interestingheaderfields.high
+    lastheaderindex[gs.serverid] = interestingheaderfields.high
 
 
 proc registerHttpErrorHandler*(gs: GuildenServer, onerrorcallback: proc(handler: Handler){.gcsafe, nimcall, raises: [].}) =
@@ -144,3 +166,15 @@ proc write*(h: HttpHandler, str: string): bool {.raises: [].} =
     h.senddata.write(str)
   except:  return false
   true
+
+proc doReply*(h: HttpHandler, code: HttpCode=Http200, headers: ptr string) =
+  let length = h.senddata.getPosition()
+  if length == 0: doReply(h, code, nil, headers)
+  else: doReply(h, code, addr h.senddata.data, headers)
+  #let headers = if likely(headers.len == 0): "HTTP/1.1 " & $code & "\c\L" & "Content-Length: " & $length & "\c\L\c\L"
+  #else: "HTTP/1.1 " & $code & "\c\L" & "Content-Length: " & $length & "\c\L" & headers & "\c\L\c\L"
+  #writeToHttp(h.gs, h.socket, unsafeAddr headers)
+
+
+proc reply*(h: Handler, code: HttpCode, body: ptr string, headers: ptr string) {.inline, gcsafe, raises: [].} =
+  doReply(h, code,  body, headers)

@@ -7,7 +7,7 @@ when compileOption("threads"): import threadpool
 
 proc process(gs: ptr GuildenServer, fd: posix.SocketHandle, data: ptr SocketData) {.gcsafe, raises: [].} =
   if gs.serverstate == Shuttingdown: return
-  if data.handlertype == InvalidHandling: return
+  if data.handlertype == InvalidHandlerType: return
   data.socket = fd
   handleRead(gs, data)
   if gs.selector.contains(fd):
@@ -19,17 +19,12 @@ proc process(gs: ptr GuildenServer, fd: posix.SocketHandle, data: ptr SocketData
     closeFd(gs[], fd)
 
 
-template handleAccept(theport: uint16) =
-  var porthandler = 0
-  while gs.porthandlers[porthandler].port != theport.int: porthandler += 1
+template handleAccept() =
   let fd = fd.accept()[0]
   if fd == osInvalidSocket: return
   if gs.selector.contains(fd):
-    #return
-    echo "oli jo"
-    if not gs.selector.setData(fd, SocketData(port: gs.porthandlers[porthandler].port.uint16, handlertype: gs.porthandlers[porthandler].handlertype)): return
-  else:
-    gs.selector.registerHandle(fd, {Event.Read}, SocketData(port: gs.porthandlers[porthandler].port.uint16, handlertype: gs.porthandlers[porthandler].handlertype))
+    if not gs.selector.setData(fd, SocketData(handlertype: gs.defaulthandlertype)): return
+  else: gs.selector.registerHandle(fd, {Event.Read}, SocketData(handlertype: gs.defaulthandlertype))
   var tv = (RcvTimeOut,0)
   if setsockopt(fd, cint(SOL_SOCKET), cint(RcvTimeOut), addr(tv), SockLen(sizeof(tv))) < 0'i32:
     gs.selector.unregister(fd)
@@ -37,9 +32,9 @@ template handleAccept(theport: uint16) =
 
 
 template handleEvent() =
-  if data.handlertype == ServerHandling:
+  if data.handlertype == ServerHandlerType:
     try:
-      handleAccept(data.port)
+      handleAccept()
     except:
       if osLastError().int != 2 and osLastError().int != 9: echo "connect error: " & getCurrentExceptionMsg()
     continue
@@ -86,7 +81,7 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
         break
 
       if Event.Error in event.events:
-        if data.handlertype == ServerHandling: echo "server error: " & osErrorMsg(event.errorCode)
+        if data.handlertype == ServerHandlerType: echo "server error: " & osErrorMsg(event.errorCode)
         else:
           if event.errorCode.cint != ECONNRESET: echo "socket error: " & osErrorMsg(event.errorCode)
           gs.closeFd(fd)
@@ -103,28 +98,24 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
   gs.serverstate = ShuttingDown
 
 
-proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
+proc serve*(gs: GuildenServer, port: int, multithreaded = true) {.gcsafe, nimcall.} =
   gs.multithreading = multithreaded
   if multithreaded:
     doAssert(compileOption("threads"))
     doAssert(defined(threadsafe), "Selectors module requires compiling with -d:threadsafe")
+  let server = newSocket()
+  server.setSockOpt(OptReuseAddr, true)
+  server.setSockOpt(OptReusePort, true)
+  gs.tcpport = net.Port(port)
+  try:
+    server.bindAddr(gs.tcpport, "")
+  except:
+    echo "Could not open port ", $gs.tcpport
+    raise
   gs.selector = newSelector[SocketData]()
-  {.gcsafe.}:
-    for i in 0 ..< gs.portcount:
-      let server {.global.} = newSocket()
-      server.setSockOpt(OptReuseAddr, true)
-      server.setSockOpt(OptReusePort, true)
-      try:
-        server.bindAddr(net.Port(gs.porthandlers[i].port), "")
-      except:
-        echo "Could not open port ", gs.porthandlers[i].port
-        raise
-      gs.selector.registerHandle(server.getFd(), {Event.Read}, SocketData(port: gs.porthandlers[i].port.uint16, handlertype: ServerHandling))
-      server.listen()
-  
-  discard gs.selector.registerSignal(SIGINT, SocketData(handlertype: SignalHandling))
-  {.gcsafe.}: signal(SIG_PIPE, SIG_IGN)
-  
+  gs.selector.registerHandle(server.getFd(), {Event.Read}, SocketData(handlertype: ServerHandlerType))
+  discard gs.selector.registerSignal(SIGINT, SocketData(handlertype: SignalHandlerType))
+  server.listen()
   gs.serverstate = Normal
   eventLoop(gs)
   echo ""      

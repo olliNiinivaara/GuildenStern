@@ -24,7 +24,7 @@ when not defined(nimdoc):
   # import guildenstern/wsout
 
   export GuildenServer, ServerState, serve, signalSIGINT
-  export Handler
+  export Handler, HandlerType, HttpHandling
   export newGuildenServer, registerHandler, registerShutdownhandler
   #export write
   # export sendToWs

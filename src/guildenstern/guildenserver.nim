@@ -7,7 +7,7 @@ import locks
 
 
 const
-  NullHandle* = (-2147483647)
+  # NullHandle* = (-2147483647)
   RcvTimeOut* {.intdefine.} = 5 # SO_RCVTIMEO, https://linux.die.net/man/7/socket
   
 when compileOption("threads"):
@@ -16,24 +16,30 @@ when compileOption("threads"):
 else:
   const MaxHandlerCount* = 1
 
+#{.push experimental: "notnil"}
 type
+  MovingString* = distinct string
+
   HandlerType* = distinct int
+
+  HandlerAssociation* = tuple[port: int, handlertype: HandlerType]
   
   ServerState* = enum
     Initializing, Normal, Maintenance, Shuttingdown
 
   SocketData* = object
+    port*: uint16
     socket*: SocketHandle
     handlertype*: HandlerType
     dataobject*: ref RootObj
 
   GuildenServer* {.inheritable.} = ref object
     serverid*: int
-    tcpport*: Port
     multithreading*: bool
     serverstate*: ServerState
     selector*: Selector[SocketData]
-    defaulthandlertype*: HandlerType    
+    porthandlers*: array[200, HandlerAssociation]
+    portcount*: int    
     handlercallbacks*: array[0.HandlerType .. 200.HandlerType, HandlerCallback]
     shutdownHandler*: proc() {.gcsafe, raises: [].}
 
@@ -47,14 +53,16 @@ type
   
   HandlerCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData){.gcsafe, nimcall, raises: [].}
 
+#{.pop.}
+
 const
-  InvalidHandlerType* = 0.HandlerType
-  HttpHandlerType* = 101.HandlerType
-  CustomHandlerType* = 102.HandlerType  
-  ServerHandlerType* = 103.HandlerType
-  TimerHandlerType* = 104.HandlerType
-  SignalHandlerType* = 105.HandlerType
-  
+  InvalidHandling* = 0.HandlerType
+  HttpHandling* = 101.HandlerType
+  ServerHandling* = 102.HandlerType
+  TimerHandling* = 103.HandlerType
+  SignalHandling* = 104.HandlerType
+
+proc `=copy`(src: var MovingString, dest: MovingString) {.error.}  
 
 proc `$`*(x: posix.SocketHandle): string {.inline.} = $(x.cint)
 proc `$`*(x: HandlerType): string {.inline.} = $(x.int)
@@ -64,9 +72,11 @@ proc `==`*(x, y: HandlerType): bool {.borrow.}
 var serveridlock: Lock
 initLock(serveridlock)
 var nextserverid: int
-proc newGuildenServer*(defaulthandlertype: HandlerType = HttpHandlerType): GuildenServer {.gcsafe, nimcall.} =
+proc newGuildenServer*(handlers: openarray[HandlerAssociation]): GuildenServer {.gcsafe, nimcall.} =
   result = new GuildenServer
-  result.defaulthandlertype = defaulthandlertype
+  result.portcount = handlers.len
+  for i in 0 ..< result.portcount:
+    result.porthandlers[i] = handlers[i]
   withLock(serveridlock):
     result.serverid = nextserverid
     nextserverid += 1
@@ -81,7 +91,7 @@ proc registerDefaultHandler*(gs: GuildenServer,  handlertype: HandlerType, callb
 
 
 proc registerHandler*(gs: GuildenServer,  handlertype: HandlerType, callback: HandlerCallback) =
-  assert(handlertype != InvalidHandlerType, "handler type 0 is not to be used")
+  assert(handlertype != InvalidHandling, "handler type 0 is not to be used")
   assert(handlertype.int < 100, "handler types over 100 are reserved for internal use")
   gs.handlercallbacks[handlertype] = callback
 
@@ -101,7 +111,6 @@ proc handleRead*(gs: ptr GuildenServer, data: ptr SocketData) =
 
 
 proc closeFd*(gs: GuildenServer, fd: posix.SocketHandle) {.raises: [].} =
-  if fd.int == NullHandle: return
   try:
     if gs.selector.contains(fd): gs.selector.unregister(fd)
     fd.close()
