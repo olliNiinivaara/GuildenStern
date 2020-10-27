@@ -3,11 +3,11 @@ from nativesockets import SocketHandle, close
 from net import Port
 from os import getCurrentProcessId
 from posix import kill, SIGINT
+from streams import StringStream
 import locks
 
 
 const
-  # NullHandle* = (-2147483647)
   RcvTimeOut* {.intdefine.} = 5 # SO_RCVTIMEO, https://linux.die.net/man/7/socket
   
 when compileOption("threads"):
@@ -16,10 +16,7 @@ when compileOption("threads"):
 else:
   const MaxHandlerCount* = 1
 
-#{.push experimental: "notnil"}
 type
-  MovingString* = distinct string
-
   HandlerType* = distinct int
 
   HandlerAssociation* = tuple[port: int, handlertype: HandlerType]
@@ -33,6 +30,9 @@ type
     handlertype*: HandlerType
     dataobject*: ref RootObj
 
+  HandlerCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData){.gcsafe, nimcall, raises: [].}
+  ErrorCallback* = proc(ctx: Ctx) {.gcsafe, raises: [].}
+
   GuildenServer* {.inheritable.} = ref object
     serverid*: int
     multithreading*: bool
@@ -41,28 +41,26 @@ type
     porthandlers*: array[200, HandlerAssociation]
     portcount*: int    
     handlercallbacks*: array[0.HandlerType .. 200.HandlerType, HandlerCallback]
+    errorHandler*: ErrorCallback
     shutdownHandler*: proc() {.gcsafe, raises: [].}
 
-  Handler* {.inheritable.} = ref object of RootObj
+  Ctx* {.inheritable, shallow.} = ref object
     handlertype*: HandlerType
-    gs*: GuildenServer
+    gs*: ptr GuildenServer
     socket*: SocketHandle
     dataobject*: ref RootObj
     ishandling*: bool
+    recvdata* : StringStream
+    senddata* : StringStream
     currentexceptionmsg* : string
   
-  HandlerCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData){.gcsafe, nimcall, raises: [].}
 
-#{.pop.}
 
 const
   InvalidHandling* = 0.HandlerType
-  HttpHandling* = 101.HandlerType
-  ServerHandling* = 102.HandlerType
-  TimerHandling* = 103.HandlerType
-  SignalHandling* = 104.HandlerType
-
-proc `=copy`(src: var MovingString, dest: MovingString) {.error.}  
+  ServerHandling* = (-1).HandlerType
+  TimerHandling* = (-2).HandlerType
+  SignalHandling* = (-3).HandlerType
 
 proc `$`*(x: posix.SocketHandle): string {.inline.} = $(x.cint)
 proc `$`*(x: HandlerType): string {.inline.} = $(x.int)
@@ -72,13 +70,12 @@ proc `==`*(x, y: HandlerType): bool {.borrow.}
 var serveridlock: Lock
 initLock(serveridlock)
 var nextserverid: int
-proc newGuildenServer*(handlers: openarray[HandlerAssociation]): GuildenServer {.gcsafe, nimcall.} =
-  result = new GuildenServer
-  result.portcount = handlers.len
-  for i in 0 ..< result.portcount:
-    result.porthandlers[i] = handlers[i]
+proc initGuildenServer*(gs: var GuildenServer, handlers: openarray[HandlerAssociation]) {.gcsafe, nimcall.} =
+  gs.portcount = handlers.len
+  for i in 0 ..< gs.portcount:
+    gs.porthandlers[i] = handlers[i]
   withLock(serveridlock):
-    result.serverid = nextserverid
+    gs.serverid = nextserverid
     nextserverid += 1
 
 
@@ -86,13 +83,13 @@ proc signalSIGINT*() =
   discard kill(getCurrentProcessId().cint, SIGINT)
 
 
-proc registerDefaultHandler*(gs: GuildenServer,  handlertype: HandlerType, callback: HandlerCallback) =
-  gs.handlercallbacks[handlertype] = callback
+#proc registerDefaultHandler*(gs: GuildenServer,  handlertype: HandlerType, callback: HandlerCallback) =
+#  gs.handlercallbacks[handlertype] = callback
+
 
 
 proc registerHandler*(gs: GuildenServer,  handlertype: HandlerType, callback: HandlerCallback) =
-  assert(handlertype != InvalidHandling, "handler type 0 is not to be used")
-  assert(handlertype.int < 100, "handler types over 100 are reserved for internal use")
+  assert(handlertype.int > 0, "ctx types below 1 are reserved for internal use")
   gs.handlercallbacks[handlertype] = callback
 
 
@@ -101,16 +98,21 @@ proc registerHandler*(gs: GuildenServer,  handlertype: HandlerType, callback: Ha
 #  discard gs.selector.registerTimer(interval, false, SocketData(fdKind: Ticker, dataobject: nil))
 
 
+
+proc registerErrorhandler*(gs: GuildenServer, callback: ErrorCallback) =
+  gs.errorHandler = callback
+
+
 proc registerShutdownhandler*(gs: GuildenServer, callback: proc() {.gcsafe, nimcall, raises: [].}) =
   gs.shutdownHandler = callback
 
 
 proc handleRead*(gs: ptr GuildenServer, data: ptr SocketData) =
-  assert(gs.handlercallbacks[data.handlertype] != nil, "No handler registered for HandlerType " & $data.handlertype)
+  assert(gs.handlercallbacks[data.handlertype] != nil, "No ctx registered for HandlerType " & $data.handlertype)
   gs.handlercallbacks[data.handlertype](gs, data)
 
 
-proc closeFd*(gs: GuildenServer, fd: posix.SocketHandle) {.raises: [].} =
+proc closeFd*(gs: ptr GuildenServer, fd: posix.SocketHandle) {.raises: [].} =
   try:
     if gs.selector.contains(fd): gs.selector.unregister(fd)
     fd.close()

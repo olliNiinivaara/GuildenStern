@@ -16,7 +16,7 @@ proc process(gs: ptr GuildenServer, fd: posix.SocketHandle, data: ptr SocketData
     except:
       echo "updateHandle error: " & getCurrentExceptionMsg()
   else:
-    closeFd(gs[], fd)
+    closeFd(gs, fd)
 
 
 template handleAccept(theport: uint16) =
@@ -89,7 +89,7 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
         if data.handlertype == ServerHandling: echo "server error: " & osErrorMsg(event.errorCode)
         else:
           if event.errorCode.cint != ECONNRESET: echo "socket error: " & osErrorMsg(event.errorCode)
-          gs.closeFd(fd)
+          closeFd(unsafeAddr gs, fd)
         continue
 
       if Event.Read notin event.events:
@@ -111,7 +111,7 @@ proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
   gs.selector = newSelector[SocketData]()
   {.gcsafe.}:
     for i in 0 ..< gs.portcount:
-      let server {.global.} = newSocket()
+      let server = newSocket()
       server.setSockOpt(OptReuseAddr, true)
       server.setSockOpt(OptReusePort, true)
       try:
