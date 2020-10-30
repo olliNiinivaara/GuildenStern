@@ -1,4 +1,4 @@
-# nim c -r --gc:arc --d:danger --threads:on --d:threadsafe guildentest.nim
+# nim c -r --threads:on --d:threadsafe guildentest.nim
 
 
 from httpcore import Http200, Http404, Http411

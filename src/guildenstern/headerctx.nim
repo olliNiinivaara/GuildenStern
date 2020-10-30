@@ -1,117 +1,44 @@
-from streams import StringStream, newStringStream, getPosition, setPosition, write
-from os import osLastError, osErrorMsg, OSErrorCode, sleep
-from posix import recv
-import locks
 import guildenserver
 import httpctx
 export httpctx
 
-type
-  HeaderCtx* = ref object of HttpCtx
- 
+
 var
-  HeaderCtxType: HandlerType
-  lock: Lock
-  httpRequestHandlerCallbacks: array[256, proc(ctx: HeaderCtx) {.gcsafe, raises: [].}]
-  ctxpool {.threadvar.}: array[MaxHandlerCount, HeaderCtx]
-
-
-template newHeaderCtx() =
-  ctxpool[i] = new HeaderCtx
-  ctxpool[i].handlertype = HeaderCtxType
-  newHttpCtxData()
-  
-
-proc getHeaderCtx(): lent HeaderCtx {.inline, raises: [].} =
- {.gcsafe.}:
-    withLock(lock):
-      var i = 0
-      result = ctxpool[i]
-      while ctxpool[i] == nil or ctxpool[i].ishandling:
-        if ctxpool[i] == nil:
-          newHeaderCtx()          
-          break
-        i += 1
-        if i == MaxHandlerCount:
-          sleep(20)
-          i = 0
-      result = ctxpool[i]
-      result.ishandling = true
-    initHttpCtx()
-
+  HeaderCtxId: CtxId
+  requestCallback: RequestCallback
+  ctx {.threadvar.}: HttpCtx 
 
 {.push checks: off.}
 
 template isFinished: bool =
-  ctx.recvdata.data[recvdatalen-4] == '\c' and ctx.recvdata.data[recvdatalen-3] == '\l' and ctx.recvdata.data[recvdatalen-2] == '\c' and ctx.recvdata.data[recvdatalen-1] == '\l'
-  
-proc receiveHeader*(ctx: HeaderCtx): bool {.gcsafe, raises:[].} =
-  var recvdatalen = 0
-  var trials = 0
+  httprequest[ctx.requestlen-4] == '\c' and httprequest[ctx.requestlen-3] == '\l' and httprequest[ctx.requestlen-2] == '\c' and httprequest[ctx.requestlen-1] == '\l'
+
+proc receiveHeader(): bool {.gcsafe, raises:[].} =
   while true:
     if ctx.gs.serverstate == Shuttingdown: return false
-    let ret = recv(ctx.socket, addr ctx.recvdata.data[recvdatalen], MaxRequestLength + 1, 0.cint)
+    let ret = 
+      if ctx.requestlen == 0: recv(ctx.socketdata.socket, addr httprequest[0], MaxHeaderLength + 1, 0x40) # 0x40 = MSG_DONTWAIT
+      else: recv(ctx.socketdata.socket, addr httprequest[ctx.requestlen], MaxHeaderLength + 1, 0)
     if ctx.gs.serverstate == Shuttingdown: return false
-    echo ret
-    if ret == 0: return false
-    #[  let lastError = osLastError().int
-      if lastError == 2 or lastError == 9 or lastError == 104: return false
-      if lastError != 0:
-        echo "lasteroor ", lastError
-        trials.inc
-        if trials <= 3: 
-          sleep(100 + trials * 100)
-          continue
-        else:
-          ctx.currentexceptionmsg = "receiveHeader: receiving stalled"
-          return false
-      else: break]#
-    if ret == -1:
-      let lastError = osLastError().int
-      ctx.currentexceptionmsg = "receiveHeader: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError))
-      return false      
-    recvdatalen += ret
-    if recvdatalen >= MaxRequestLength + 1:
-      ctx.currentexceptionmsg = "receiveHeader: Max request size exceeded"
-      return false
-    if isFinished:
-      break
-    else:
-      echo "ootetaan lisää"
-      echo ctx.recvdata.data[0 .. recvdatalen]
-  try:
-    ctx.recvdata.setPosition(recvdatalen)
-    ctx.requestlen = recvdatalen
-  except:
-    echo("recvdata setPosition error")
-    return false
+    checkRet()
+    if ret == MaxHeaderLength + 1: (ctx.notifyError("receiveHeader: Max header size exceeded"); return false)
+    ctx.requestlen += ret
+    if isFinished: break
   return ctx.requestlen > 0
-  
+
 {.pop.}
 
 
 proc handleHeaderRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
-  var finished = false
-  var ctx = getHeaderCtx()
-  try:
-    ctx.gs = gs
-    ctx.socket = data.socket
-    ctx.dataobject = data.dataobject
-    if ctx.receiveHeader():
-      ctx.parseRequestLine() 
-      {.gcsafe.}: httpRequestHandlerCallbacks[gs.serverid](ctx)
-    else:
-      discard ctx.handleError()
-      finished = true 
-  except: finished = true
-  finally:
-    if finished: closeFd(ctx.gs, ctx.socket)
-    ctx.ishandling = false
+  if ctx == nil: ctx = new HttpCtx
+  if httprequest.len < MaxRequestLength + 1: httprequest = newString(MaxRequestLength + 1)
+  initHttpCtx(ctx, gs, data)    
+  if receiveHeader() and ctx.parseRequestLine():
+    {.gcsafe.}: requestCallback(ctx)
     
 
-proc initHeaderCtx*(headerctxtypeid: HandlerType, gs: GuildenServer, onrequestcallback: proc(ctx: HeaderCtx){.gcsafe, nimcall, raises: [].}) =
-  HeaderCtxType = headerctxtypeid
-  initLock(lock)
+proc initHeaderCtx*(gs: var GuildenServer, onrequestcallback: proc(ctx: HttpCtx){.gcsafe, nimcall, raises: [].}, ports: openArray[int]) =
+  HeaderCtxId  = gs.getCtxId()
   {.gcsafe.}: 
-    httpRequestHandlerCallbacks[gs.serverid] = onrequestcallback
-    gs.registerHandler(HeaderCtxType, handleHeaderRequest)
+    requestCallback = onrequestcallback
+    gs.registerHandler(HeaderCtxId, handleHeaderRequest, ports)

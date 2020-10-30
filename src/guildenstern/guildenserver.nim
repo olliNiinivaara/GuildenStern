@@ -1,9 +1,8 @@
 from selectors import Selector, contains, registerTimer, unregister
 from nativesockets import SocketHandle, close
-from net import Port
+export SocketHandle
 from os import getCurrentProcessId
 from posix import kill, SIGINT
-from streams import StringStream
 import locks
 
 
@@ -17,9 +16,10 @@ else:
   const MaxHandlerCount* = 1
 
 type
-  HandlerType* = distinct int
+  CtxId* = distinct int
 
-  HandlerAssociation* = tuple[port: int, handlertype: HandlerType]
+  RequestCallback* = proc(ctx: Ctx) {.gcsafe, raises: [].}
+  HandlerAssociation* = tuple[port: int, ctxid: CtxId]
   
   ServerState* = enum
     Initializing, Normal, Maintenance, Shuttingdown
@@ -27,80 +27,92 @@ type
   SocketData* = object
     port*: uint16
     socket*: SocketHandle
-    handlertype*: HandlerType
-    dataobject*: ref RootObj
+    ctxid*: CtxId
+    customdata*: pointer
+
+  Ctx* {.inheritable, shallow.} = ref object
+    gs*: ptr GuildenServer
+    socketdata*: ptr SocketData
 
   HandlerCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData){.gcsafe, nimcall, raises: [].}
-  ErrorCallback* = proc(ctx: Ctx) {.gcsafe, raises: [].}
+  ErrorCallback* = proc(msg: string) {.gcsafe, raises: [].}
 
   GuildenServer* {.inheritable.} = ref object
     serverid*: int
     multithreading*: bool
     serverstate*: ServerState
     selector*: Selector[SocketData]
+    lock*: Lock
     porthandlers*: array[200, HandlerAssociation]
     portcount*: int    
-    handlercallbacks*: array[0.HandlerType .. 200.HandlerType, HandlerCallback]
-    errorHandler*: ErrorCallback
+    handlercallbacks*: array[0.CtxId .. 200.CtxId, HandlerCallback]
+    errorNotifier*: ErrorCallback
     shutdownHandler*: proc() {.gcsafe, raises: [].}
-
-  Ctx* {.inheritable, shallow.} = ref object
-    handlertype*: HandlerType
-    gs*: ptr GuildenServer
-    socket*: SocketHandle
-    dataobject*: ref RootObj
-    ishandling*: bool
-    recvdata* : StringStream
-    senddata* : StringStream
-    currentexceptionmsg* : string
-  
+    nextctxid: int
 
 
 const
-  InvalidHandling* = 0.HandlerType
-  ServerHandling* = (-1).HandlerType
-  TimerHandling* = (-2).HandlerType
-  SignalHandling* = (-3).HandlerType
+  InvalidCtx* = 0.CtxId
+  ServerCtx* = (-1).CtxId
+  TimerCtx* = (-2).CtxId
+  SignalCtx* = (-3).CtxId
 
-proc `$`*(x: posix.SocketHandle): string {.inline.} = $(x.cint)
-proc `$`*(x: HandlerType): string {.inline.} = $(x.int)
-proc `==`*(x, y: HandlerType): bool {.borrow.}
+proc `$`*(x: SocketHandle): string {.inline.} = $(x.cint)
+proc `$`*(x: CtxId): string {.inline.} = $(x.int)
+proc `==`*(x, y: CtxId): bool {.borrow.}
 
 
 var serveridlock: Lock
 initLock(serveridlock)
+
 var nextserverid: int
-proc initGuildenServer*(gs: var GuildenServer, handlers: openarray[HandlerAssociation]) {.gcsafe, nimcall.} =
-  gs.portcount = handlers.len
-  for i in 0 ..< gs.portcount:
-    gs.porthandlers[i] = handlers[i]
+proc initGuildenServer*(gs: var GuildenServer) {.gcsafe, nimcall.} = # , handlers: openarray[HandlerAssociation]
+  initLock(gs.lock)
+  #gs.portcount = handlers.len
+  gs.nextctxid = 1
+  #for i in 0 ..< gs.portcount:
+  #  gs.porthandlers[i] = handlers[i]
   withLock(serveridlock):
     gs.serverid = nextserverid
     nextserverid += 1
+
+proc newGuildenServer*(): GuildenServer =
+  result = new GuildenServer
+  result.initGuildenServer()
+
+
+proc getCtxId*(gs: var GuildenServer): CtxId {.gcsafe, nimcall.} =
+  withLock(gs.lock):
+    result = gs.nextctxid.CtxId
+    gs.nextctxid += 1
 
 
 proc signalSIGINT*() =
   discard kill(getCurrentProcessId().cint, SIGINT)
 
 
-#proc registerDefaultHandler*(gs: GuildenServer,  handlertype: HandlerType, callback: HandlerCallback) =
-#  gs.handlercallbacks[handlertype] = callback
+#proc registerDefaultHandler*(gs: GuildenServer,  ctxid: CtxId, callback: HandlerCallback) =
+#  gs.handlercallbacks[ctxid] = callback
 
 
 
-proc registerHandler*(gs: GuildenServer,  handlertype: HandlerType, callback: HandlerCallback) =
-  assert(handlertype.int > 0, "ctx types below 1 are reserved for internal use")
-  gs.handlercallbacks[handlertype] = callback
+proc registerHandler*(gs: GuildenServer,  ctxid: CtxId, callback: HandlerCallback, ports: openArray[int]) =
+  assert(ctxid.int > 0, "ctx types below 1 are reserved for internal use")
+  gs.handlercallbacks[ctxid] = callback
+  for port in ports:
+    gs.portHandlers[gs.portcount] = (port, ctxid)
+    gs.portcount += 1
+
 
 
 #proc registerTimerhandler*(gs: GuildenServer, callback: proc() {.gcsafe, nimcall, raises: [].}, interval: int) =
 #  gs.timerHandler = callback
-#  discard gs.selector.registerTimer(interval, false, SocketData(fdKind: Ticker, dataobject: nil))
+#  discard gs.selector.registerTimer(interval, false, SocketData(fdKind: Ticker, customdata: nil))
 
 
 
-proc registerErrorhandler*(gs: GuildenServer, callback: ErrorCallback) =
-  gs.errorHandler = callback
+proc registerErrornotifier*(gs: GuildenServer, callback: ErrorCallback) =
+  gs.errorNotifier = callback
 
 
 proc registerShutdownhandler*(gs: GuildenServer, callback: proc() {.gcsafe, nimcall, raises: [].}) =
@@ -108,12 +120,13 @@ proc registerShutdownhandler*(gs: GuildenServer, callback: proc() {.gcsafe, nimc
 
 
 proc handleRead*(gs: ptr GuildenServer, data: ptr SocketData) =
-  assert(gs.handlercallbacks[data.handlertype] != nil, "No ctx registered for HandlerType " & $data.handlertype)
-  gs.handlercallbacks[data.handlertype](gs, data)
+  assert(gs.handlercallbacks[data.ctxid] != nil, "No ctx registered for CtxId " & $data.ctxid)
+  gs.handlercallbacks[data.ctxid](gs, data)
 
 
-proc closeFd*(gs: ptr GuildenServer, fd: posix.SocketHandle) {.raises: [].} =
-  try:
-    if gs.selector.contains(fd): gs.selector.unregister(fd)
-    fd.close()
-  except: discard
+proc closeSocket*(ctx: Ctx) {.raises: [].} =
+  withLock(ctx.gs.lock):
+    try:
+      if ctx.gs.selector.contains(ctx.socketdata.socket): ctx.gs.selector.unregister(ctx.socketdata.socket)
+      ctx.socketdata.socket.close()
+    except: discard
