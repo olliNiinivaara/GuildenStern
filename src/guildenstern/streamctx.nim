@@ -20,7 +20,7 @@ var
 proc receiveHeader(): bool {.gcsafe, raises:[].} =
   while true:
     if ctx.gs.serverstate == Shuttingdown: return false
-    let ret = recv(ctx.socketdata.socket, addr httprequest[ctx.requestlen], MaxHeaderLength + 1, 0)
+    let ret = recv(ctx.socketdata.socket, addr request[ctx.requestlen], MaxHeaderLength + 1, 0)
     if ctx.gs.serverstate == Shuttingdown: return false
     echo ret
     if ret < 1:
@@ -42,12 +42,12 @@ proc receiveChunk*(ctx: StreamCtx): int {.gcsafe, raises:[] .} =
   if ctx.gs.serverstate == Shuttingdown: return -1
   
   if ctx.contentdelivered == 0 and ctx.contentreceived > 0:
-    httprequest = httprequest[ctx.bodystart ..< ctx.requestlen]
+    request = request[ctx.bodystart ..< ctx.requestlen]
     ctx.contentdelivered = ctx.requestlen - ctx.bodystart
     ctx.requestlen = ctx.contentdelivered.int
     return ctx.contentdelivered.int
 
-  let ret = recv(ctx.socketdata.socket, addr httprequest[0], (ctx.contentlength - ctx.contentreceived).int, 0)    
+  let ret = recv(ctx.socketdata.socket, addr request[0], (ctx.contentlength - ctx.contentreceived).int, 0)    
   if ctx.gs.serverstate == Shuttingdown: return -1      
   if ret < 1:
     if ret == -1:
@@ -64,7 +64,7 @@ proc receiveChunk*(ctx: StreamCtx): int {.gcsafe, raises:[] .} =
 
 proc handleHeaderRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
   if ctx == nil: ctx = new StreamCtx
-  if httprequest.len < MaxRequestLength + 1: httprequest = newString(MaxRequestLength + 1)
+  if request.len < MaxRequestLength + 1: request = newString(MaxRequestLength + 1)
   initHttpCtx(ctx, gs, data)
   ctx.contentlength = -1
   ctx.contentreceived = 0

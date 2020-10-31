@@ -1,4 +1,4 @@
-from selectors import Selector, contains, registerTimer, unregister
+from selectors import Selector, newselector, contains, registerTimer, unregister
 from nativesockets import SocketHandle, close
 export SocketHandle
 from os import getCurrentProcessId
@@ -7,6 +7,8 @@ import locks
 
 
 const
+  MaxCtxHandlers* {.intdefine.} = 100
+  # MaxTimers* {.intdefine.} = 10
   RcvTimeOut* {.intdefine.} = 5 # SO_RCVTIMEO, https://linux.die.net/man/7/socket
   
 when compileOption("threads"):
@@ -35,17 +37,18 @@ type
     socketdata*: ptr SocketData
 
   HandlerCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData){.gcsafe, nimcall, raises: [].}
+  TimerCallback* = proc() {.nimcall, gcsafe, raises: [].}
   ErrorCallback* = proc(msg: string) {.gcsafe, raises: [].}
-
+  
   GuildenServer* {.inheritable.} = ref object
     serverid*: int
     multithreading*: bool
     serverstate*: ServerState
     selector*: Selector[SocketData]
     lock*: Lock
-    porthandlers*: array[200, HandlerAssociation]
+    porthandlers*: array[MaxCtxHandlers, HandlerAssociation]
     portcount*: int    
-    handlercallbacks*: array[0.CtxId .. 200.CtxId, HandlerCallback]
+    handlercallbacks*: array[0.CtxId .. MaxCtxHandlers.CtxId, HandlerCallback]
     errorNotifier*: ErrorCallback
     shutdownHandler*: proc() {.gcsafe, raises: [].}
     nextctxid: int
@@ -66,12 +69,10 @@ var serveridlock: Lock
 initLock(serveridlock)
 
 var nextserverid: int
-proc initGuildenServer*(gs: var GuildenServer) {.gcsafe, nimcall.} = # , handlers: openarray[HandlerAssociation]
+proc initGuildenServer*(gs: var GuildenServer) {.gcsafe, nimcall.} =
   initLock(gs.lock)
-  #gs.portcount = handlers.len
+  gs.selector = newSelector[SocketData]()
   gs.nextctxid = 1
-  #for i in 0 ..< gs.portcount:
-  #  gs.porthandlers[i] = handlers[i]
   withLock(serveridlock):
     gs.serverid = nextserverid
     nextserverid += 1
@@ -91,24 +92,25 @@ proc signalSIGINT*() =
   discard kill(getCurrentProcessId().cint, SIGINT)
 
 
-#proc registerDefaultHandler*(gs: GuildenServer,  ctxid: CtxId, callback: HandlerCallback) =
-#  gs.handlercallbacks[ctxid] = callback
-
+proc notifyError*(ctx: Ctx, msg: string) {.inline.} =
+  if ctx.gs.errorNotifier != nil: ctx.gs.errorNotifier(msg)
+  else:
+    if defined(fulldebug): echo msg
 
 
 proc registerHandler*(gs: GuildenServer,  ctxid: CtxId, callback: HandlerCallback, ports: openArray[int]) =
   assert(ctxid.int > 0, "ctx types below 1 are reserved for internal use")
+  assert(ctxid.int < MaxCtxHandlers, "ctxid " & $ctxid & "over MaxCtxHandlers = " & $MaxCtxHandlers)
+  assert(gs.nextctxid > 0, "Ctx handlers can be registered only after initGuildenServer is called")
   gs.handlercallbacks[ctxid] = callback
   for port in ports:
     gs.portHandlers[gs.portcount] = (port, ctxid)
     gs.portcount += 1
 
 
-
-#proc registerTimerhandler*(gs: GuildenServer, callback: proc() {.gcsafe, nimcall, raises: [].}, interval: int) =
-#  gs.timerHandler = callback
-#  discard gs.selector.registerTimer(interval, false, SocketData(fdKind: Ticker, customdata: nil))
-
+proc registerTimerhandler*(gs: GuildenServer, callback: TimerCallback, interval: int) =
+  assert(gs.nextctxid > 0, "Timer handlers can be registered only after initGuildenServer is called")
+  discard gs.selector.registerTimer(interval, false, SocketData(ctxid: TimerCtx, customdata: cast[pointer](callback)))
 
 
 proc registerErrornotifier*(gs: GuildenServer, callback: ErrorCallback) =

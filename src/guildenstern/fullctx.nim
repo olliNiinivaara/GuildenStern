@@ -12,8 +12,8 @@ proc receiveHttp(): bool {.gcsafe, raises:[] .} =
   var expectedlength = MaxRequestLength + 1
   while true:
     if ctx.gs.serverstate == Shuttingdown: return false
-    let ret = if ctx.requestlen == 0: recv(ctx.socketdata.socket, addr httprequest[ctx.requestlen], expectedlength - ctx.requestlen, 0x40) # MSG_DONTWAIT
-      else: recv(ctx.socketdata.socket, addr httprequest[ctx.requestlen], expectedlength - ctx.requestlen, 0)
+    let ret = if ctx.requestlen == 0: recv(ctx.socketdata.socket, addr request[ctx.requestlen], expectedlength - ctx.requestlen, 0x40) # MSG_DONTWAIT
+      else: recv(ctx.socketdata.socket, addr request[ctx.requestlen], expectedlength - ctx.requestlen, 0)
     if ctx.gs.serverstate == Shuttingdown: return false
     if ctx.requestlen == 0 and ret == -1: return false
     checkRet()   
@@ -43,7 +43,7 @@ proc receiveHttp(): bool {.gcsafe, raises:[] .} =
 
 proc handleHttpRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
   if ctx == nil: ctx = new HttpCtx
-  if httprequest.len < MaxRequestLength + 1: httprequest = newString(MaxRequestLength + 1)
+  if request.len < MaxRequestLength + 1: request = newString(MaxRequestLength + 1)
   initHttpCtx(ctx, gs, data)    
   if receiveHttp() and ctx.parseRequestLine():
     {.gcsafe.}: requestCallback(ctx)

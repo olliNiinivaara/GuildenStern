@@ -54,6 +54,13 @@ template handleEvent() =
       echo "removeHandle error: " & getCurrentExceptionMsg()
       continue
     when compileOption("threads"): spawn process(unsafeAddr gs, fd, data)
+
+
+template handleTimer() =
+  if not gs.multithreading: 
+    cast[TimerCallback](data.customdata)()
+  else:
+    when compileOption("threads"): spawn cast[TimerCallback](data.customdata)()
   
 
 proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
@@ -61,24 +68,15 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
   while true:
     try:
       var ret: int
-      try:
-        #{.push assertions: on.} # otherwise selectInto panics?
-        ret = gs.selector.selectInto(-1, eventbuffer)
-        #{.pop.}
+      try: ret = gs.selector.selectInto(-1, eventbuffer)
       except: discard    
       if gs.serverstate == Shuttingdown: break
       
       let event = eventbuffer[0]
       if Event.Signal in event.events: break
-      if Event.Timer in event.events:
-        assert(false, "not implemented")
-        ##{.gcsafe.}: gs.timerHandler()
-        continue
       let fd = posix.SocketHandle(event.fd)
-      if eventbuffer[0].events.len == 0:
-        echo fd, ": no events"
-        continue
-      var data: ptr SocketData        
+      if eventbuffer[0].events.len == 0: continue
+      var data: ptr SocketData
       try:
         {.push warning[ProveInit]: off.}
         data = addr(gs.selector.getData(fd))
@@ -87,6 +85,9 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
       except:
         echo "selector.getData error: " & getCurrentExceptionMsg()
         break
+      if Event.Timer in event.events:
+        handleTimer()
+        continue
       if Event.Error in event.events:
         if data.ctxid == ServerCtx: echo "server error: " & osErrorMsg(event.errorCode)
         else:
@@ -114,7 +115,6 @@ proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
   if multithreaded:
     doAssert(compileOption("threads"))
     doAssert(defined(threadsafe), "Selectors module requires compiling with -d:threadsafe")
-  gs.selector = newSelector[SocketData]()
   {.gcsafe.}:
     for i in 0 ..< gs.portcount:
       let server = newSocket()
