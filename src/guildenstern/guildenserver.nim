@@ -38,6 +38,7 @@ type
 
   HandlerCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData){.gcsafe, nimcall, raises: [].}
   TimerCallback* = proc() {.nimcall, gcsafe, raises: [].}
+  ThreadInitializationCallback* = proc() {.nimcall, gcsafe, raises: [].}
   ErrorCallback* = proc(msg: string) {.gcsafe, raises: [].}
   
   GuildenServer* {.inheritable.} = ref object
@@ -47,7 +48,8 @@ type
     selector*: Selector[SocketData]
     lock*: Lock
     porthandlers*: array[MaxCtxHandlers, HandlerAssociation]
-    portcount*: int    
+    portcount*: int
+    threadinitializer*: ThreadInitializationCallback   
     handlercallbacks*: array[0.CtxId .. MaxCtxHandlers.CtxId, HandlerCallback]
     errorNotifier*: ErrorCallback
     shutdownHandler*: proc() {.gcsafe, raises: [].}
@@ -98,6 +100,10 @@ proc notifyError*(ctx: Ctx, msg: string) {.inline.} =
     if defined(fulldebug): echo msg
 
 
+proc registerThreadInitializer*(gs: GuildenServer, callback: ThreadInitializationCallback) =
+  gs.threadinitializer = callback
+
+
 proc registerHandler*(gs: GuildenServer,  ctxid: CtxId, callback: HandlerCallback, ports: openArray[int]) =
   assert(ctxid.int > 0, "ctx types below 1 are reserved for internal use")
   assert(ctxid.int < MaxCtxHandlers, "ctxid " & $ctxid & "over MaxCtxHandlers = " & $MaxCtxHandlers)
@@ -126,9 +132,16 @@ proc handleRead*(gs: ptr GuildenServer, data: ptr SocketData) =
   gs.handlercallbacks[data.ctxid](gs, data)
 
 
-proc closeSocket*(ctx: Ctx) {.raises: [].} =
-  withLock(ctx.gs.lock):
-    try:
-      if ctx.gs.selector.contains(ctx.socketdata.socket): ctx.gs.selector.unregister(ctx.socketdata.socket)
-      ctx.socketdata.socket.close()
-    except: discard
+proc closeSocket*(ctx: Ctx, socket: SocketHandle = (-1).SocketHandle) {.raises: [].} =
+  try:
+    withLock(ctx.gs.lock):
+      if socket.int != -1:
+        socket.close()
+        if ctx.gs.selector.contains(socket): ctx.gs.selector.unregister(socket)
+        when defined(fulldebug): echo "socket closed: ", socket
+      else:
+        ctx.socketdata.socket.close()
+        if ctx.gs.selector.contains(ctx.socketdata.socket): ctx.gs.selector.unregister(ctx.socketdata.socket)       
+        when defined(fulldebug): echo "ctx socket closed: ", ctx.socketdata.socket
+        writeStackTrace()
+  except: discard

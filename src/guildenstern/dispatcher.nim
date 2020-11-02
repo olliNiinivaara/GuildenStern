@@ -1,6 +1,3 @@
-# it seems all socket hang up events are not being received,
-# you may occasionally want to run: sudo ss --tcp state CLOSE-WAIT --kill
-
 import guildenserver
 
 import selectors, net, nativesockets, os, httpcore, posix
@@ -8,9 +5,15 @@ import selectors, net, nativesockets, os, httpcore, posix
 when compileOption("threads"): import threadpool
 
 
+var threadinitialized {.threadvar.}: bool
+
+
 proc process(gs: ptr GuildenServer, fd: posix.SocketHandle, data: ptr SocketData) {.gcsafe, raises: [].} =
   if gs.serverstate == Shuttingdown: return
   if data.ctxid == InvalidCtx: return
+  if not threadinitialized:
+    threadinitialized = true
+    if gs.threadinitializer != nil: gs.threadinitializer()
   data.socket = fd
   handleRead(gs, data)
   if gs.multithreading:
@@ -28,12 +31,14 @@ template handleAccept(theport: uint16) =
   if gs.selector.contains(fd):
     if gs.selector.setData(fd, SocketData(port: gs.porthandlers[porthandler].port.uint16, ctxid: gs.porthandlers[porthandler].ctxid)):
       gs.selector.updateHandle(fd, {Event.Read})
+      when defined(fulldebug): echo "socket reconnected: ", fd
     else:
       gs.selector.unregister(fd)
-      echo "Socket reconnection fail at port ", theport
+      echo "socket reconnection fail at port ", theport
       return
   else:
     gs.selector.registerHandle(fd, {Event.Read}, SocketData(port: gs.porthandlers[porthandler].port.uint16, ctxid: gs.porthandlers[porthandler].ctxid))
+    when defined(fulldebug): echo "socket connected: ", fd
   var tv = (RcvTimeOut,0)
   if setsockopt(fd, cint(SOL_SOCKET), cint(RcvTimeOut), addr(tv), SockLen(sizeof(tv))) < 0'i32:
     gs.selector.unregister(fd)
@@ -75,7 +80,8 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
       let event = eventbuffer[0]
       if Event.Signal in event.events: break
       let fd = posix.SocketHandle(event.fd)
-      if eventbuffer[0].events.len == 0: continue
+      if event.events.len == 0: continue
+      when defined(fulldebug): echo "socket ", fd, ": ", event.events
       var data: ptr SocketData
       try:
         {.push warning[ProveInit]: off.}
@@ -92,15 +98,18 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
         if data.ctxid == ServerCtx: echo "server error: " & osErrorMsg(event.errorCode)
         else:
           if event.errorCode.cint != 2 and event.errorCode.cint != 9 and event.errorCode.cint != 32 and event.errorCode.cint != 104: echo "socket error: ", event.errorCode.cint," ", osErrorMsg(event.errorCode)
-          gs.selector.unregister(fd)
+          if gs.selector.contains(fd):
+            try: gs.selector.unregister(fd)
+            except: discard
           fd.close()
+          when defined(fulldebug): echo "socket closed by client: ", fd
         continue
 
       if Event.Read notin event.events:
         try:
-          echo "non-read: ", fd
-          if gs.selector.contains(fd): gs.selector.unregister(fd)
-          nativesockets.close(fd)
+          when defined(fulldebug): echo "non-read ", fd, ": ", event.events
+          fd.close()
+          if gs.selector.contains(fd): gs.selector.unregister(fd)          
         except: discard
         finally: continue       
       handleEvent()
@@ -112,9 +121,10 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
 
 proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
   gs.multithreading = multithreaded
-  if multithreaded:
-    doAssert(compileOption("threads"))
-    doAssert(defined(threadsafe), "Selectors module requires compiling with -d:threadsafe")
+  if gs.multithreading and not compileOption("threads"):
+    echo "Threads are off; serving single-threaded"
+    gs.multithreading = false
+  if gs.multithreading: doAssert(defined(threadsafe), "Selectors module requires compiling with -d:threadsafe")
   {.gcsafe.}:
     for i in 0 ..< gs.portcount:
       let server = newSocket()

@@ -89,9 +89,7 @@ proc getContentLength*(ctx: HttpCtx): int {.raises: [].} =
   const length  = "content-length: ".len
   var start = request.find("content-length: ")
   if start == -1: start = request.find("Content-Length: ")
-  if start == -1:
-    when defined(fulldebug): echo "content-length header missing"
-    return 0
+  if start == -1: return 0
   var i = start + length
   while i < ctx.requestlen and request[i] != '\l': i += 1
   if i == ctx.requestlen: return 0
@@ -211,10 +209,10 @@ proc parseHeaders*(ctx: HttpCtx, headers: StringTableRef) =
     i.inc
 
 
-include httpout
+include httpresponse
 
 
 proc replyStringStream*(ctx: HttpCtx, code: HttpCode=Http200, stringstream: StringStream, headers: ptr string) =
   let length = stringstream.getPosition()
-  if length == 0: reply(ctx, code, nil, headers)
-  else: reply(ctx, code, addr stringstream.data, headers, length)
+  #if length == 0: reply(ctx, code, nil, headers)
+  #else: reply(ctx, code, addr stringstream.data, headers, length)

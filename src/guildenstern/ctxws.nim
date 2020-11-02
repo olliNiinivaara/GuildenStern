@@ -1,7 +1,7 @@
 import nativesockets, net, posix, os, std/sha1, base64
 from httpcore import Http101
 import guildenserver
-import guildenstern/[httpctx, headerctx]
+import guildenstern/[ctxhttp, ctxheader]
 
 
 const MaxWsRequestLength* {.intdefine.} = 1000
@@ -169,7 +169,7 @@ proc replyHandshake(): bool =
   let 
     sh = secureHash(headers[0] & "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
     acceptKey = base64.encode(decodeBase16($sh))
-  ctx.replyHeaders(["Sec-WebSocket-Accept: " & acceptKey, "Connection: Upgrade", "Upgrade: webSocket"], Http101)
+  ctx.reply(Http101, ["Sec-WebSocket-Accept: " & acceptKey, "Connection: Upgrade", "Upgrade: webSocket"])
   true
 
 

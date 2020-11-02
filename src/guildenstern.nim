@@ -2,7 +2,7 @@
 #
 #   Guildenstern
 #
-##  multithreading plug'n'play posix http server
+##  Modular multithreading Linux HTTP server
 #
 #   (c) Copyright 2020 Olli Niinivaara
 #
@@ -20,14 +20,10 @@ export SocketHandle
 when not defined(nimdoc):
   import guildenstern/guildenserver
   import guildenstern/dispatcher
-  # import guildenstern/httpout
-  # import guildenstern/wsout
 
-  export GuildenServer, ServerState, serve #, signalSIGINT
-  export Ctx
+  export GuildenServer, ServerState, serve
+  #export Ctx
   export newGuildenServer, registerHandler, registerErrornotifier, registerShutdownhandler
-  #export write
-  # export sendToWs
 else:
   from net import Port
   from httpcore import HttpCode, Http200
@@ -39,27 +35,8 @@ else:
       ## | Contains global variables.
       ## | This is available in GuildenVars via ``gs`` property.
       ## | Inherit and add custom properties as needed.
-      tcpport*: Port ## set when calling `serve`
-
-    GuildenVars* {.inheritable.} = ref object
-      ## THIS DOC IS OUTDATED!!
-      ## | Contains thread-local variables, acting as the context for an incoming request.
-      ## | This is available in callbacks as parameter.
-      ## | Inherit and add custom properties as needed.
-      gs*: GuildenServer
-      clientid*: Clientid
-      fd*: SocketHandle ## fd = "file descriptor" (trad., of Unix folklore origin)
-      recvbuffer* : StringStream ## Contains the request
-      bodystartpos* : int ## Start index of body part in HTTP requests
-      sendbuffer* : StringStream ## Response data to send with `reply` or `sendToWs`
-  
-    Clientid* = distinct int32
-      ## | Value to identify WebSocket client of the request.
-      ## | Set this in upgradeHttpToWs proc and it will thereafter be available as ``clientid`` in GuildenVars.
     
-  const
-    NullHandle = (-2147483647)
-
+  #[const
     MaxHttpHeaderFields* {.intdefine.} = 25
       ## Compile time define pragma to set maximum number of captured http headers.
     MaxHttpHeaderValueLength* {.intdefine.} = 200
@@ -69,7 +46,7 @@ else:
     MaxResponseLength* {.intdefine.} = 100000
       ## Compile time define pragma to limit size of sendable responses (maximum size of ``sendbuffer``).
     RcvTimeOut* {.intdefine.} = 5
-      ## Compile time define pragma to  set sockets timeout SO_RCVTIMEO, https://linux.die.net/man/7/socket
+      ## Compile time define pragma to  set sockets timeout SO_RCVTIMEO, https://linux.die.net/man/7/socket]#
 
 
   proc serve*[T: GuildenVars](gs: GuildenServer, port: int) =
