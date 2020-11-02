@@ -114,7 +114,8 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
         finally: continue       
       handleEvent()
     except:
-      echo getCurrentExceptionMsg()
+      echo "dispatcher: ", getCurrentExceptionMsg()
+      writeStackTrace()
       continue
   gs.serverstate = ShuttingDown
 
@@ -137,6 +138,7 @@ proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
         raise
       gs.selector.registerHandle(server.getFd(), {Event.Read}, SocketData(port: gs.porthandlers[i].port.uint16, ctxid: ServerCtx))
       server.listen()
+      server.getFd().setBlocking(false)
   
   discard gs.selector.registerSignal(SIGINT, SocketData(ctxid: SignalCtx))
   {.gcsafe.}: signal(SIG_PIPE, SIG_IGN)

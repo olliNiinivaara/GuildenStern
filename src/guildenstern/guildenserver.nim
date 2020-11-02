@@ -1,5 +1,5 @@
 from selectors import Selector, newselector, contains, registerTimer, unregister
-from nativesockets import SocketHandle, close
+from nativesockets import SocketHandle, osInvalidSocket, close
 export SocketHandle
 from os import getCurrentProcessId
 from posix import kill, SIGINT
@@ -143,5 +143,5 @@ proc closeSocket*(ctx: Ctx, socket: SocketHandle = (-1).SocketHandle) {.raises: 
         ctx.socketdata.socket.close()
         if ctx.gs.selector.contains(ctx.socketdata.socket): ctx.gs.selector.unregister(ctx.socketdata.socket)       
         when defined(fulldebug): echo "ctx socket closed: ", ctx.socketdata.socket
-        writeStackTrace()
+        ctx.socketdata.socket = osInvalidSocket
   except: discard
