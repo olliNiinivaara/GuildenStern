@@ -1,4 +1,4 @@
-import posix, net, nativesockets, os, httpcore, streams
+import posix, net, nativesockets, os, httpcore
 import guildenserver
 from strutils import join
 
@@ -66,7 +66,7 @@ let
   zerocontent = "Content-Length: 0\c\L"
 
 
-proc replyCode*(ctx: HttpCtx, code: HttpCode) {.inline, gcsafe, raises: [].} =
+proc replyCode*(ctx: HttpCtx, code: HttpCode = Http200) {.inline, gcsafe, raises: [].} =
   if not writeVersion(ctx): return
   if not writeCode(ctx, code): return
   {.gcsafe.}:

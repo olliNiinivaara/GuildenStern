@@ -5,7 +5,6 @@ from httpcore import Http200, Http204
 export Http200, Http204
 import strtabs
 import guildenserver
-export guildenserver
 
 
 const
@@ -197,6 +196,7 @@ proc parseHeaders*(ctx: HttpCtx, fields: openArray[string], toarray: var openArr
 
 
 proc parseHeaders*(ctx: HttpCtx, headers: StringTableRef) =
+  # note: does not clear table first
   var value = false
   var current: (string, string) = ("", "")
   var i = 0

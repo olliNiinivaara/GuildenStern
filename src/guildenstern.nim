@@ -25,17 +25,14 @@
 ## | `ctxws <http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/ctxws.html>`_
 ## 
 
-from posix import SocketHandle
-export SocketHandle
-
-import guildenstern/ctxhttp
-export ctxhttp
 
 when not defined(nimdoc):
   import guildenstern/guildenserver
+  export guildenserver
   import guildenstern/dispatcher
-  export GuildenServer, serve
-  export newGuildenServer, registerHandler, registerTimerhandler, registerErrornotifier, closeSocket
+  export serve  
+  import guildenstern/ctxhttp
+  export ctxhttp
 else:
   import strtabs, httpcore
   const
