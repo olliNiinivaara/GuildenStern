@@ -114,11 +114,11 @@ proc recvFrame() =
   expectedlen = recvHeader()
   if ctx.opcode in [Fail, Close]: return
   while true:
-    if ctx.gs.serverstate == Shuttingdown: (ctx.opcode = Fail; return)
+    if shuttingdown: (ctx.opcode = Fail; return)
     let ret =
       if ctx.requestlen == 0: recv(ctx.socketdata.socket, addr request[0], expectedLen, 0x40)
       else: recv(ctx.socketdata.socket, addr request[ctx.requestlen], expectedLen - ctx.requestlen, 0)
-    if ctx.gs.serverstate == Shuttingdown: (ctx.opcode = Fail; return)
+    if shuttingdown: (ctx.opcode = Fail; return)
 
     if ret == 0: (ctx.closeSocket(); ctx.opcode = Fail; return)
     if ret == -1:
@@ -160,8 +160,8 @@ proc decodeBase16(str: string): string =
       (nibbleFromChar(str[2 * i]) shl 4) or
       nibbleFromChar(str[2 * i + 1]))
 
-
 proc replyHandshake(): bool =
+  if not ctx.receiveHeader(): return false
   var headers = [""]  
   ctx.parseHeaders(["sec-websocket-key"], headers)
   if headers[0] == "": return false
@@ -182,6 +182,10 @@ proc handleWsUpgradehandshake(gs: ptr GuildenServer, data: ptr SocketData) {.gcs
   ctx.socketdata = data
   ctx.requestlen = 0
   if replyHandshake(): data.ctxid = WsCtxId
+  else:
+    ctx.replyCode(Http204)
+    sleep(3000)
+    ctx.closeSocket()
 
 
 proc handleWsMessage(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
@@ -214,9 +218,8 @@ proc sendWs(ctx: Ctx, text: ptr string, length: int = -1): bool =
   let len = if length == -1: text[].len else: length
   var sent = 0
   while sent < len:
-    if ctx.gs.serverstate == Shuttingdown: return false    
+    if shuttingdown: return false    
     let ret = send(ctx.socketdata.socket, addr text[sent], len - sent, 0)
-    if ctx.gs.serverstate == Shuttingdown: return false
     if ret < 1:
       if ret == -1:
         let lastError = osLastError().int

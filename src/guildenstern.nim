@@ -1,10 +1,8 @@
-#
-#
 #   Guildenstern
 #
-##  Modular multithreading Linux HTTP server
+#  Modular multithreading Linux HTTP server
 #
-#   (c) Copyright 2020 Olli Niinivaara
+#  (c) Copyright 2020 Olli Niinivaara
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 #
@@ -12,205 +10,274 @@
 #  
 #  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
-#
+## A modular multithreading Linux HTTP server.
+## Easily add your own custom handlers.
+## Supports associating different handlers with different TCP ports.
+## Can also be run in single-threaded mode.
+## Does not require async/await.
+## 
+## See also
+## ========
+## 
+## | `ctxheader <http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/ctxheader.html>`_
+## | `ctxfull <http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/ctxfull.html>`_
+## | `ctxstream <http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/ctxstream.html>`_
+## | `ctxws <http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/ctxws.html>`_
+## 
 
 from posix import SocketHandle
 export SocketHandle
 
+import guildenstern/ctxhttp
+export ctxhttp
+
 when not defined(nimdoc):
   import guildenstern/guildenserver
   import guildenstern/dispatcher
-
-  export GuildenServer, ServerState, serve
-  #export Ctx
-  export newGuildenServer, registerHandler, registerErrornotifier, registerShutdownhandler
+  export GuildenServer, serve
+  export newGuildenServer, registerHandler, registerTimerhandler, registerErrornotifier, closeSocket
 else:
-  from net import Port
-  from httpcore import HttpCode, Http200
-  from streams import StringStream
-
-
-  type
+  import strtabs, httpcore
+  const
+    MaxHeaderLength* {.intdefine.} = 10000
+      ## Maximum acceptable character length for HTTP header.
+    MaxRequestLength* {.intdefine.} = 100000
+      ## Maximum acceptable length (header length + content length) for a HTTP request
+      ## (Note: in streaming handlers, this denotes chunk size).
+  
+ 
+  type     
     GuildenServer* {.inheritable.} = ref object
-      ## | Contains global variables.
-      ## | This is available in GuildenVars via ``gs`` property.
-      ## | Inherit and add custom properties as needed.
+      ## | This is available in request context as ``gs`` property.
+      ## | You can inherit this and add custom properties as needed.
+   
+    SocketData* = object
+      ## | Data associated with a request context.
+      ## | This is available in request context as ``socketdata`` property (probably not needed in application development, though).
+      port*: uint16
+      socket*: posix.SocketHandle
+      ctxid*: CtxId
+      customdata*: pointer
+
+    Ctx* {.inheritable, shallow.} = ref object
+      ## | Common abstract base class for all request contexts.
+      ## | A request context is received as a parameter in request callbacks. 
+      gs*: ptr GuildenServer
+      socketdata*: ptr SocketData
+
+    HttpCtx* = ref object of Ctx
+      ## | Common abstract base class for all HTTP handling request contexts.
+
+    RequestCallback* = proc(ctx: Ctx) {.gcsafe, raises: [].}
+      ## Type for procs that are called when a socket request can be processed.
+       
+    TimerCallback* = proc() {.nimcall, gcsafe, raises: [].}
+   
+    ThreadInitializationCallback* = proc() {.nimcall, gcsafe, raises: [].}
     
-  #[const
-    MaxHttpHeaderFields* {.intdefine.} = 25
-      ## Compile time define pragma to set maximum number of captured http headers.
-    MaxHttpHeaderValueLength* {.intdefine.} = 200
-      ## Compile time define pragma to set maximum length for any http header value.
-    MaxRequestLength* {.intdefine.} = 1000
-      ## Compile time define pragma to limit size of receivable requests (maximum size of ``recvbuffer``).
-    MaxResponseLength* {.intdefine.} = 100000
-      ## Compile time define pragma to limit size of sendable responses (maximum size of ``sendbuffer``).
-    RcvTimeOut* {.intdefine.} = 5
-      ## Compile time define pragma to  set sockets timeout SO_RCVTIMEO, https://linux.die.net/man/7/socket]#
+    ErrorCallback* = proc(msg: string) {.gcsafe, raises: [].}
 
+  var
+    request* {.threadvar.}: string
+      ## In all HTTP contexts, this threadvar contains the request received from client (note: in streaming contexts, contains one chunk).
+   
+  
+  proc initGuildenServer*(gs: var GuildenServer) {.gcsafe, nimcall.} =
+    ## Call this first when creating subclass instances.
+    discard
 
-  proc serve*[T: GuildenVars](gs: GuildenServer, port: int) =
-    ## Starts the server main loop which runs until SIGINT is received.
-    ##
-    ## Give type of GuildenVars so that you can use your own customized request context.
-    ## (Note: method call syntax does not work, see `#14254 <https://github.com/nim-lang/Nim/issues/14254>`_)
-    ## 
-    ## Give tcp port as parameter.
+  proc newGuildenServer*(): GuildenServer =
+    ## Creates a new server.
+    discard
+
+  proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
+    ## Starts server event dispatcher loop which runs until SIGINT is received.
     ## 
     ## **Example:**
     ##
     ## .. code-block:: Nim
     ##
-    ##  import guildenstern
+    ##   import guildenstern, guildenstern/ctxfull
     ##   
-    ##  type
-    ##    MyGuildenServer = ref object of GuildenServer
-    ##      customserverproperty: string
+    ##   proc onRequest(ctx: HttpCtx) = ctx.replyCode(Http200)
+    ##   
+    ##   var myserver = newGuildenServer()
+    ##   myserver.initFullCtx(onRequest, [5050])
+    ##   myserver.serve()
+    discard
+
+  proc registerThreadInitializer*(gs: GuildenServer, callback: ThreadInitializationCallback) =
+    ## Registers a procedure in which you can initialize threadvars. This is called exactly once for each thread, when it is first created.
+    ## 
+    ## **Example:**
     ##
-    ##    MyGuildenVars = ref object of GuildenVars
-    ##      customcontextproperty: string
-    ##   
-    ##  proc onRequest(ctx: MyGuildenVars) =
-    ##    ctx.customcontextproperty = "world"
-    ##    ctx.reply(((MyGuildenServer)ctx.gs).customserverproperty & ctx.customcontextproperty)
-    ##  
-    ##  let server = new MyGuildenServer
-    ##  server.customserverproperty = "hello,"
-    ##  server.registerHttphandler(onRequest, [])
-    ##  serve[MyGuildenVars](server, 8080)
-
-  proc signalSIGINT*() =
-    ## Sends Ctrl-C to current process which is caught by GuildenServer and graceful shutdown is commenced.
+    ## .. code-block:: Nim
+    ##
+    ##   import guildenstern
+    ##   var x {.threadvar.}: string
+    ## 
+    ##   proc initializeThreadvars() =
+    ##     echo "initializer called!"
+    ##     x = "initialized"
+    ## 
+    ##   var myserver = newGuildenServer()
+    ##   myserver.registerThreadInitializer(initializeThreadvars)
+    ##   myserver.registerTimerhandler((proc() = echo "tick"), 1000)
+    ##   myserver.serve()
     discard
 
-  proc registerHttphandler*(gs: GuildenServer, callback: proc(ctx: GuildenVars) {.gcsafe, nimcall, raises: [].},
-   headerfields: openarray[string] = ["content-length"]) =
-    ## Registers the callback procedure to handle incoming http requests. Give list of header field names to capture.
-    ## If body is to be received, "content-length" must be one of the capturable fields.
-    ## Receiving duplicate header fields is not supported.
+  proc registerTimerhandler*(gs: GuildenServer, callback: TimerCallback, interval: int) =
+    ## Registers a new timer that fires the TimerCallback every `interval` milliseconds.
     discard
 
-  proc registerWshandler*(gs: GuildenServer, callback: proc(ctx: GuildenVars) {.gcsafe, nimcall, raises: [].}) =
-    ## Registers the callback procedure to handle incoming WebSocket requests.
+  proc registerErrornotifier*(gs: GuildenServer, callback: ErrorCallback) =
+    ## Registers a proc that gets called when an internal error occurs.
+    ## Note that you can get even more debug info by compiling with switch -d:fulldebug.
     discard
 
-  proc registerWsdisconnecthandler*(gs: GuildenServer, callback: proc(ctx: GuildenVars, closedbyclient: bool) {.gcsafe, nimcall, raises: [].}) =
-    ## Registers the callback procedure to handle disconnecting WebSocket requests.
-    ## If closedbyclient == true, client closed the session and usually must not be allowed to login again without credentials.
-    ## If closedbyclient == false, socket was lost due to a network problem and usually the client will try to reconnect soon.
+  proc closeSocket*(ctx: Ctx) {.raises: [].} =
+    ## Closes the socket associated with the request context.
     discard
 
-  proc registerTimerhandler*(gs: GuildenServer, callback: proc() {.gcsafe, nimcall, raises: [].}, intervalsecs: int) =
-    ## Registers the callback procedure to handle timer events with given interval in seconds.
-    discard
-
-  proc registerErrorhandler*(gs: GuildenServer, callback: proc(ctx: GuildenVars, msg: string) {.gcsafe, nimcall, raises: [].}) =
-    ## Registers the callback procedure to handle error conditions.
-    ## If serverstate is set to Maintenance, all http and ws requests will call this proc instead of their normal ctx.
-    ## If proc is called due to a genuine error, error message is available in msg.
-    discard
-    
-
-  proc registerShutdownhandler*(gs: GuildenServer, callback: proc() {.gcsafe, nimcall, raises: [].}) =
-    ## Registers the callback procedure to perform application shutdown like closing database connections.
-    discard
-
-
-  proc upgradeHttpToWs*(ctx: GuildenVars, clientid: Clientid) =
-    ## Upgrades the current file descriptor to WebSocket protocol.
-    ## Give a clientid that allows identification of the connected user.
-    ## Note that GuildenStern does not offer a way to get ``fd`` s of connected clients, you have to store these mappings yourself.
-    discard
-
-
-  proc getPath*(ctx: GuildenVars): string =
-    ## Returns deep copy of http path.
-    discard
-    
-  proc isPath*(ctx: GuildenVars, apath: string): bool =
-    ## Checks if http path is apath.
-    discard
-
-  proc pathStarts*(ctx: GuildenVars, pathstart: string): bool =
-    ## Checks if http path starts with pathstart.
-    discard
-
-  proc getMethod*(ctx: GuildenVars): string =
-    ## Returns deep copy of http method.
-    discard
-
-  proc isMethod*(ctx: GuildenVars, amethod: string): bool =
-    ## Checks if http method is amethod.
-    discard
-
-  proc getHeader*(ctx: GuildenVars, header: string): string {.inline.} =
-    ## Returns value of header.
-    discard
-
-  proc getHeaders*(ctx: GuildenVars): string {.inline.} =
-    ## Returns deep copy of headers part in http request.
-    discard
-
-  proc getBody*(ctx: GuildenVars): string =
-    ## Returns deep copy of http body / web socket request.
-    discard
-
-  proc isBody*(ctx: GuildenVars, abody: string): bool =
-    ## Checks if http body / web socket request is abody.
-    discard
-
-  proc write*(ctx: GuildenVars, str: string): bool {.raises: [].} =
-    ## appends string to sendbuffer, returns false if append failed.
-    discard
-
-  proc reply*(ctx: GuildenVars, code: HttpCode, body: string, headers="") {.inline.} =
-    discard
-
-  proc reply*(ctx: GuildenVars, code: HttpCode, body: string, headers: openArray[string]) {.inline.} =
-    discard
-
-  proc reply*(ctx: GuildenVars, code: HttpCode, body: string, headers: seq[string]) {.inline.} =
-    discard
-
-  proc reply*(ctx: GuildenVars, code: HttpCode, body: string,  headers: openArray[seq[string]]) {.inline.} =
-    discard
-
-  proc reply*(ctx: GuildenVars, body: string, code=Http200) {.inline.} =
-    discard
-
-  proc replyHeaders*(ctx: GuildenVars, headers: openArray[string], code: HttpCode=Http200) {.inline.} =
-    discard
-
-  proc replyHeaders*(ctx: GuildenVars, headers: seq[string], code: HttpCode=Http200) {.inline.} =
-    discard
-
-  proc replyHeaders*(ctx: GuildenVars, headers: openArray[seq[string]], code: HttpCode=Http200) {.inline.} =
-    discard
-
-  proc reply*(ctx: GuildenVars, headers: openArray[string]) {.inline.} =
-    ## Responds with contents of sendbuffer
-    discard
-
-  proc reply*(ctx: GuildenVars, headers: seq[string]) {.inline.} =
-    ## Responds with contents of sendbuffer
-    discard 
-
-  proc reply*(ctx: GuildenVars, headers: openArray[seq[string]]) {.inline.} =
-    ## Responds with contents of sendbuffer
-    discard
-
-  proc replyCode*(ctx: GuildenVars, code: HttpCode) {.inline.} =
-    discard
+  proc closeSocket*(gs: ptr GuildenServer, socket: posix.SocketHandle) {.raises: [].} =
+    ## Closes the socket.
   
-
-  proc sendToWs*(ctx: GuildenVars, toSocket = NullHandle.SocketHandle, text: StringStream = nil): bool =
-    ## Sends text data to a websocket.
+  proc shutdown*() =
+    ## Cancels pending network I/O and breaks event dispatcher loops of all servers. Sending SIGINT / pressing Ctrl-C will automatically call shutdown().
     ## 
-    ## If text parameter is not given, sends contents of ``sendbuffer``.
-    ## 
-    ## If toSocket parameter is not given, replies back to socket that made the request.
-    ## 
-    ## Returns false if sending failed.
-    ## 
-    ## Do not write to same socket from many threads in parallel, use some serialization strategy like locking.
+    ## **Example:**
+    ##
+    ## .. code-block:: Nim
+    ##
+    ##   import guildenstern, threadpool, os
+    ##   
+    ##   echo "Hit Ctrl-C or wait until B hits 10..."
+    ##    
+    ##   var a: int ; var serverA = newGuildenServer()
+    ##   serverA.registerTimerhandler((proc() =
+    ##     a += 1 ;  let aa = a; echo "A ", aa, "->" ; sleep(2000) ; echo "<-A ", aa), 600)
+    ##   spawn serverA.serve()
+    ##   
+    ##   var b: int ; var serverB = newGuildenServer()
+    ##   serverB.registerTimerhandler((proc() =
+    ##     b += 1 ; let bb = b; echo "B ", bb, "->" ; sleep(2000) ; echo "<-B ", bb
+    ##     if b == 10: b += 1; echo "commencing shutdown."; shutdown()), 750)
+    ##   serverB.serve()
+    ##   
+    ##   echo "waiting for processes to finish..."
+    ##   sleep(2010)
+    ##   echo "graceful shutdown handling here!"
     discard
+
+  proc getUri*(ctx: HttpCtx): string {.raises: [].} =
+    ## Request URI of a HttpCtx.
+    discard
+
+  proc isUri*(ctx: HttpCtx, uri: string): bool {.raises: [].} =
+    ## true if request URI is uri.
+    discard
+
+  proc startsUri*(ctx: HttpCtx, uristart: string): bool {.raises: [].} =
+    ## true if request URI starts with uristart.
+    discard
+
+  proc getMethod*(ctx: HttpCtx): string {.raises: [].} =
+    ## Request method of a HttpCtx.
+    discard
+
+  proc isMethod*(ctx: HttpCtx, amethod: string): bool {.raises: [].} =
+    ## true if request method is amethod.
+    discard
+
+  proc getHeaders*(ctx: HttpCtx): string =
+    ## Returns the header part of request as string.
+    discard
+
+  proc getBodystart*(ctx: HttpCtx): int {.inline.} =
+    ## Returns the start position of body in ``request``. If there's no body, returns -1.
+    discard
+
+  proc getBodylen*(ctx: HttpCtx): int =
+    ## Returns the length of request body.
+    discard
+
+  proc getBody*(ctx: HttpCtx): string =
+    ## Returns the body part of request as string.
+    discard
+
+  proc isBody*(ctx: HttpCtx, body: string): bool {.raises: [].} =
+    ## true if request body is body.
+    discard
+
+  proc parseHeaders*(ctx: HttpCtx, fields: openArray[string], toarray: var openArray[string]) =
+    ## Parses header `fields` values into `toarray`.
+    ## 
+    ## **Example:**
+    ##
+    ## .. code-block:: Nim
+    ##
+    ##   import guildenstern, guildenstern/ctxheader
+    ##   import httpclient
+    ##   
+    ##   const headerfields = ["afield", "anotherfield"]
+    ##   var headers {.threadvar.}: array[2, string]
+    ##   var client {.threadvar.}: HttpClient
+    ## 
+    ##   proc initializeThreadvars() =
+    ##     try:
+    ##       client = newHttpClient()
+    ##       client.headers = newHttpHeaders(
+    ##         { "afield": "afieldvalue", "bfield": "bfieldvalue" })
+    ##     except: echo getCurrentExceptionMsg()
+    ## 
+    ##   proc sendRequest() =
+    ##     try:
+    ##       discard client.request("http://localhost:5050")
+    ##       client.close()
+    ##     except: echo getCurrentExceptionMsg()
+    ## 
+    ##   proc onRequest(ctx: HttpCtx) =
+    ##     ctx.parseHeaders(headerfields, headers)
+    ##     echo headers
+    ##     ctx.replyCode(Http200)
+    ## 
+    ##   doAssert(compileOption("threads"), """this example must be compiled with threads;
+    ##     "nim c -r --threads:on --d:threadsafe example.nim"""")
+    ##   var myserver = newGuildenServer()
+    ##   myserver.registerThreadInitializer(initializeThreadvars)
+    ##   myserver.initHeaderCtx(onRequest, [5050])
+    ##   myserver.registerTimerhandler(sendRequest, 1000)
+    ##   myserver.serve()
+    discard
+    
+  proc parseHeaders*(ctx: HttpCtx, headers: StringTableRef) =
+    ## Parses all headers into given strtabs.StringTable.
+
+  proc replyCode*(ctx: HttpCtx, code: HttpCode) {.inline, gcsafe, raises: [].} =
+    ## Replies with just the HTTP status code.
+
+  proc reply*(ctx: HttpCtx, code: HttpCode, body: ptr string = nil, headers: ptr string = nil) {.inline, gcsafe, raises: [].} =
+    ## Sends a reply to the socket in context, failing silently if socket is closed. Pointers are used as optimization
+    ## (avoids deep copies and gc refcounting).
+
+  proc reply*(ctx: HttpCtx, code: HttpCode, body: ptr string = nil, headers: openArray[string]) {.inline, gcsafe, raises: [].} =
+    ## Replies with headers fields given as an openArray.
+
+  proc reply*(ctx: HttpCtx, code: HttpCode, headers: openArray[string]) {.inline, gcsafe, raises: [].} =
+    ## Reply without body.
+
+  proc reply*(ctx: HttpCtx, headers: openArray[string]) {.inline, gcsafe, raises: [].} =
+    ## Http200 Ok and headers.
+
+  proc replyStart*(ctx: HttpCtx, code: HttpCode, contentlength: int, firstpart: ptr string, headers: ptr string = nil): bool =
+    ## Indicates that reply will be given in multiple chunks. This first part submits the HTTP status code, first part of body,
+    ## content-length, and, optionally, headers.
+    ## Zero or more replyMores can follow. Last chunk should be sent with replyLast (otherwise 200 ms wait for more data occurs).
+    ## Returns `false` if socket was closed.
+    false
+  
+  proc replyMore*(ctx: HttpCtx, bodypart: ptr string, partlength: int = -1): bool {.inline, gcsafe, raises: [].} =
+    ## Continues a reply started with replyStart. The optional partlength parameter states how many chars will be written (-1 = all chars).
+
+  proc replyLast*(ctx: HttpCtx, lastpart: ptr string, partlength: int = -1) {.inline, gcsafe, raises: [].} =
+    ## Ends a reply started with replyStart.  The optional partlength parameter states how many chars will be written (-1 = all chars).

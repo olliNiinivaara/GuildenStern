@@ -1,31 +1,19 @@
 from selectors import Selector, newselector, contains, registerTimer, unregister
 from nativesockets import SocketHandle, osInvalidSocket, close
 export SocketHandle
-from os import getCurrentProcessId
-from posix import kill, SIGINT
 import locks
 
 
 const
   MaxCtxHandlers* {.intdefine.} = 100
-  # MaxTimers* {.intdefine.} = 10
   RcvTimeOut* {.intdefine.} = 5 # SO_RCVTIMEO, https://linux.die.net/man/7/socket
   
-when compileOption("threads"):
-  import threadpool
-  const MaxHandlerCount* {.intdefine.} = MaxThreadPoolSize
-else:
-  const MaxHandlerCount* = 1
-
 type
   CtxId* = distinct int
 
   RequestCallback* = proc(ctx: Ctx) {.gcsafe, raises: [].}
   HandlerAssociation* = tuple[port: int, ctxid: CtxId]
   
-  ServerState* = enum
-    Initializing, Normal, Maintenance, Shuttingdown
-
   SocketData* = object
     port*: uint16
     socket*: SocketHandle
@@ -42,9 +30,7 @@ type
   ErrorCallback* = proc(msg: string) {.gcsafe, raises: [].}
   
   GuildenServer* {.inheritable.} = ref object
-    serverid*: int
     multithreading*: bool
-    serverstate*: ServerState
     selector*: Selector[SocketData]
     lock*: Lock
     porthandlers*: array[MaxCtxHandlers, HandlerAssociation]
@@ -52,7 +38,6 @@ type
     threadinitializer*: ThreadInitializationCallback   
     handlercallbacks*: array[0.CtxId .. MaxCtxHandlers.CtxId, HandlerCallback]
     errorNotifier*: ErrorCallback
-    shutdownHandler*: proc() {.gcsafe, raises: [].}
     nextctxid: int
 
 
@@ -66,32 +51,29 @@ proc `$`*(x: SocketHandle): string {.inline.} = $(x.cint)
 proc `$`*(x: CtxId): string {.inline.} = $(x.int)
 proc `==`*(x, y: CtxId): bool {.borrow.}
 
+var shuttingdown* = false
 
-var serveridlock: Lock
-initLock(serveridlock)
-
-var nextserverid: int
 proc initGuildenServer*(gs: var GuildenServer) {.gcsafe, nimcall.} =
   initLock(gs.lock)
   gs.selector = newSelector[SocketData]()
   gs.nextctxid = 1
-  withLock(serveridlock):
-    gs.serverid = nextserverid
-    nextserverid += 1
 
 proc newGuildenServer*(): GuildenServer =
   result = new GuildenServer
   result.initGuildenServer()
 
 
+proc shutdown*() {.gcsafe, noconv.} =
+  {.gcsafe.}: shuttingdown = true
+
+setControlCHook(shutdown)
+
+
 proc getCtxId*(gs: var GuildenServer): CtxId {.gcsafe, nimcall.} =
   withLock(gs.lock):
+    assert(gs.nextctxid < MaxCtxHandlers, "Cannot create more handlers")    
     result = gs.nextctxid.CtxId
     gs.nextctxid += 1
-
-
-proc signalSIGINT*() =
-  discard kill(getCurrentProcessId().cint, SIGINT)
 
 
 proc notifyError*(ctx: Ctx, msg: string) {.inline.} =
@@ -123,25 +105,25 @@ proc registerErrornotifier*(gs: GuildenServer, callback: ErrorCallback) =
   gs.errorNotifier = callback
 
 
-proc registerShutdownhandler*(gs: GuildenServer, callback: proc() {.gcsafe, nimcall, raises: [].}) =
-  gs.shutdownHandler = callback
-
-
 proc handleRead*(gs: ptr GuildenServer, data: ptr SocketData) =
   assert(gs.handlercallbacks[data.ctxid] != nil, "No ctx registered for CtxId " & $data.ctxid)
   gs.handlercallbacks[data.ctxid](gs, data)
 
 
-proc closeSocket*(ctx: Ctx, socket: SocketHandle = (-1).SocketHandle) {.raises: [].} =
+proc closeSocket*(ctx: Ctx) {.raises: [].} =
   try:
     withLock(ctx.gs.lock):
-      if socket.int != -1:
-        socket.close()
-        if ctx.gs.selector.contains(socket): ctx.gs.selector.unregister(socket)
-        when defined(fulldebug): echo "socket closed: ", socket
-      else:
-        ctx.socketdata.socket.close()
-        if ctx.gs.selector.contains(ctx.socketdata.socket): ctx.gs.selector.unregister(ctx.socketdata.socket)       
-        when defined(fulldebug): echo "ctx socket closed: ", ctx.socketdata.socket
-        ctx.socketdata.socket = osInvalidSocket
+      when defined(fulldebug): echo "closing ctx socket: ", ctx.socketdata.socket
+      ctx.socketdata.socket.close()
+      if ctx.gs.selector.contains(ctx.socketdata.socket): ctx.gs.selector.unregister(ctx.socketdata.socket)       
+      ctx.socketdata.socket = osInvalidSocket
+  except: discard
+
+
+proc closeSocket*(gs: ptr GuildenServer, socket: SocketHandle) {.raises: [].} =
+  try:
+    withLock(gs.lock):
+      when defined(fulldebug): echo "closing socket: ", socket
+      socket.close()
+      if gs.selector.contains(socket): gs.selector.unregister(socket)
   except: discard

@@ -11,10 +11,9 @@ var
 proc receiveHttp(): bool {.gcsafe, raises:[] .} =
   var expectedlength = MaxRequestLength + 1
   while true:
-    if ctx.gs.serverstate == Shuttingdown: return false
+    if shuttingdown: return false
     let ret = if ctx.requestlen == 0: recv(ctx.socketdata.socket, addr request[ctx.requestlen], expectedlength - ctx.requestlen, 0x40) # MSG_DONTWAIT
       else: recv(ctx.socketdata.socket, addr request[ctx.requestlen], expectedlength - ctx.requestlen, 0)
-    if ctx.gs.serverstate == Shuttingdown: return false
     if ctx.requestlen == 0 and ret == -1: return false
     checkRet()   
     let previouslen = ctx.requestlen

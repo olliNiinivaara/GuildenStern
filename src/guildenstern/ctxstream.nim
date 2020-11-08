@@ -19,9 +19,8 @@ var
 
 proc receiveHeader(): bool {.gcsafe, raises:[].} =
   while true:
-    if ctx.gs.serverstate == Shuttingdown: return false
+    if shuttingdown: return false
     let ret = recv(ctx.socketdata.socket, addr request[ctx.requestlen], MaxHeaderLength + 1, 0)
-    if ctx.gs.serverstate == Shuttingdown: return false
     echo ret
     if ret < 1:
       ctx.closeSocket()
@@ -39,7 +38,7 @@ proc hasData*(ctx: StreamCtx): bool  =
 
 
 proc receiveChunk*(ctx: StreamCtx): int {.gcsafe, raises:[] .} =
-  if ctx.gs.serverstate == Shuttingdown: return -1
+  if shuttingdown: return -1
   
   if ctx.contentdelivered == 0 and ctx.contentreceived > 0:
     request = request[ctx.bodystart ..< ctx.requestlen]
@@ -47,8 +46,7 @@ proc receiveChunk*(ctx: StreamCtx): int {.gcsafe, raises:[] .} =
     ctx.requestlen = ctx.contentdelivered.int
     return ctx.contentdelivered.int
 
-  let ret = recv(ctx.socketdata.socket, addr request[0], (ctx.contentlength - ctx.contentreceived).int, 0)    
-  if ctx.gs.serverstate == Shuttingdown: return -1      
+  let ret = recv(ctx.socketdata.socket, addr request[0], (ctx.contentlength - ctx.contentreceived).int, 0)        
   if ret < 1:
     if ret == -1:
       let lastError = osLastError().int

@@ -1,7 +1,6 @@
 import posix, net, nativesockets, os, httpcore, streams
 import guildenserver
 from strutils import join
-export HttpCode, Http200
 
 {.push checks: off.}
 
@@ -35,32 +34,35 @@ proc writeCode*(ctx: HttpCtx, code: HttpCode): bool {.inline, gcsafe, raises: []
       {.gcsafe.}: ret = send(ctx.socketdata.socket, unsafeAddr http204string[0], 14, 0)
     else:
       let codestring = $code # slow...
-      ret = send(ctx.socketdata.socket, unsafeAddr codestring[0], codestring.len, 0)
+      ret = send(ctx.socketdata.socket, unsafeAddr codestring[0], codestring.len.cint, 0)
   except:
     ret = -2
   checkRet()
+  when defined(fulldebug): echo "writeCode ", ctx.socketdata.socket, ": ", $code
   true
 
 
 proc writeToSocket*(ctx: HttpCtx, text: ptr string, length: int, flags = intermediateflags): bool {.inline, gcsafe, raises: [].} =
+  if length == 0: return true
   var bytessent = 0
   while bytessent < length:
     let ret =
-      try: send(ctx.socketdata.socket, unsafeAddr text[bytessent], length - bytessent, flags + DONTWAIT)
+      try: send(ctx.socketdata.socket, unsafeAddr text[bytessent], (length - bytessent).cint, flags + DONTWAIT)
       except: -2
     if ret == -1 and osLastError().cint in [EAGAIN, EWOULDBLOCK]:
-      sleep(20)
+      sleep(50)
       continue
     checkRet()
-    if ctx.gs.serverstate == Shuttingdown: return false
     bytessent.inc(ret)
+  when defined(fulldebug):
+    if text[0] != '\c': echo "writeToSocket ", ctx.socketdata.socket, ": ", text[0 ..< length]
   true  
 
 
 let
   shortdivider = "\c\L"
   longdivider = "\c\L\c\L"
-  contentlength = "Content-Length: "
+  contentlen = "Content-Length: "
   zerocontent = "Content-Length: 0\c\L"
 
 
@@ -68,9 +70,11 @@ proc replyCode*(ctx: HttpCtx, code: HttpCode) {.inline, gcsafe, raises: [].} =
   if not writeVersion(ctx): return
   if not writeCode(ctx, code): return
   {.gcsafe.}:
-    if code != Http204: discard writeToSocket(ctx, unsafeAddr zerocontent, zerocontent.len)
-    discard writeToSocket(ctx, unsafeAddr longdivider, longdivider.len, lastflag)
-
+    if code != Http204:
+      if not writeToSocket(ctx, unsafeAddr shortdivider, shortdivider.len): return
+      if not writeToSocket(ctx, unsafeAddr zerocontent, zerocontent.len): return
+      if not writeToSocket(ctx, unsafeAddr shortdivider, shortdivider.len): return
+      
 
 proc reply*(ctx: HttpCtx, code: HttpCode, body: ptr string, lengths: string, length: int, headers: ptr string, moretocome: bool): bool {.gcsafe, raises: [].} =
   let finalflag = if moretocome: intermediateflags else: lastflag
@@ -84,92 +88,58 @@ proc reply*(ctx: HttpCtx, code: HttpCode, body: ptr string, lengths: string, len
       if not writeToSocket(ctx, headers, headers[].len): return false
       if not writeToSocket(ctx, unsafeAddr shortdivider, shortdivider.len): return false
 
-    if code == Http303 or code == Http304:      
+    if code == Http101 or code == Http304:      
       return writeToSocket(ctx, unsafeAddr shortdivider, shortdivider.len, finalflag)
-      # closeSocket(ctx.gs, ctx.socketdata.socket) probably not?
       
     if length < 1:      
       if not writeToSocket(ctx, unsafeAddr zerocontent, zerocontent.len): return false
       return writeToSocket(ctx, unsafeAddr longdivider, longdivider.len, finalflag)
       
-    if not writeToSocket(ctx, unsafeAddr contentlength, contentlength.len): return false
-    #let len = if length == "": $body.len else: length
+    if not writeToSocket(ctx, unsafeAddr contentlen, contentlen.len): return false
     if not writeToSocket(ctx, unsafeAddr lengths, lengths.len): return false
     if not writeToSocket(ctx, unsafeAddr longdivider, longdivider.len): return false
     return writeToSocket(ctx, body, length, finalflag)
 
-proc replyStart*(ctx: HttpCtx, code: HttpCode, body: ptr string = nil, length: int, headers: ptr string = nil): bool {.inline, gcsafe, raises: [].} =
-  ctx.reply(code, body, $length, length, headers, true)
+
+proc replyStart*(ctx: HttpCtx, code: HttpCode, contentlength: int, firstpart: ptr string, headers: ptr string = nil): bool {.inline, gcsafe, raises: [].} =
+  {.gcsafe.}: 
+    if not writeVersion(ctx): return false 
+    if not writeCode(ctx, code): return false
+    if not writeToSocket(ctx, unsafeAddr shortdivider, shortdivider.len): return false
+
+    if headers != nil and headers[].len > 0:
+      if not writeToSocket(ctx, headers, headers[].len): return false
+      if not writeToSocket(ctx, unsafeAddr shortdivider, shortdivider.len): return false
+      
+    if not writeToSocket(ctx, unsafeAddr contentlen, contentlen.len): return false
+    let length = $contentlength
+    if not writeToSocket(ctx, unsafeAddr length, length.len): return false
+    if not writeToSocket(ctx, unsafeAddr longdivider, longdivider.len): return false
+    return writeToSocket(ctx, firstpart, firstpart[].len)
+
 
 proc reply*(ctx: HttpCtx, code: HttpCode, body: ptr string = nil, headers: ptr string = nil) {.inline, gcsafe, raises: [].} =
   let length = if body == nil: 0 else: body[].len
-  discard ctx.reply(code, body, $length, length, headers, false)
+  when defined(fulldebug):
+    echo "reply: ", $ctx.reply(code, body, $length, length, headers, false)
+  else: discard ctx.reply(code, body, $length, length, headers, false)
 
-proc reply*(ctx: HttpCtx, code: HttpCode=Http200, body: ptr string = nil, headers: openArray[string]) {.inline, gcsafe, raises: [].} =
+proc reply*(ctx: HttpCtx, code: HttpCode, body: ptr string, headers: openArray[string]) {.inline, gcsafe, raises: [].} =
   let joinedheaders = headers.join("\c\L")
   reply(ctx, code, body, unsafeAddr joinedheaders)
 
-proc reply*(ctx: HttpCtx, code: HttpCode=Http200, headers: openArray[string]) {.inline, gcsafe, raises: [].} =
+proc reply*(ctx: HttpCtx, code: HttpCode, headers: openArray[string]) {.inline, gcsafe, raises: [].} =
   reply(ctx, code, nil, headers)
 
-proc replyMore*(ctx: HttpCtx, text: ptr string = nil, length: int): bool {.inline, gcsafe, raises: [].} =
-  return ctx.writeToSocket(text, length)
+proc reply*(ctx: HttpCtx, headers: openArray[string]) {.inline, gcsafe, raises: [].} =
+  reply(ctx, Http200, nil, headers)
 
-proc replyLast*(ctx: HttpCtx, text: ptr string = nil, length: int): bool {.inline, gcsafe, raises: [].} =
-  return ctx.writeToSocket(text, length, lastflag)
+proc replyMore*(ctx: HttpCtx, bodypart: ptr string, partlength: int = -1): bool {.inline, gcsafe, raises: [].} =
+  let length = if partlength != -1: partlength else: bodypart[].len
+  return ctx.writeToSocket(bodypart, length)
 
-proc replyMore*(ctx: HttpCtx, text: ptr string = nil): bool {.inline, gcsafe, raises: [].} =
-  let length = text[].len
-  if length == 0: return true
-  return ctx.writeToSocket(text, length)
-
-proc replyLast*(ctx: HttpCtx, text: ptr string = nil) {.inline, gcsafe, raises: [].} =
-  let length = text[].len
-  if length == 0: return
-  discard ctx.writeToSocket(text, length, lastflag)
-
-     
-#[proc replyHeaders*(ctx: HttpCtx, code: HttpCode=Http200, headers: ptr string) {.inline, gcsafe, raises: [].} =
-  reply(ctx, code, nil, headers)
-
-proc replyHeaders*(ctx: HttpCtx, code: HttpCode=Http200, headers: openArray[string]) {.inline.} =
-  let joinedheaders = headers.join("\c\L")
-  reply(ctx, code, nil, unsafeAddr joinedheaders)]#
-  
-#[proc reply*(ctx: Ctx, code: HttpCode, body: string, headers: openArray[string]) {.inline.} =
-  discard doReply(ctx.gs, ctx.socketdata.socket, code,  body, headers.join("\c\L"))
-
-proc reply*(ctx: Ctx, code: HttpCode, body: string, headers: seq[string]) {.inline.} =
-  discard doReply(ctx.gs, ctx.socketdata.socket, code,  body, headers.join("\c\L"))
-
-proc joinHeaders(headers: openArray[seq[string]]): string {.inline.} =
-  for x in headers.low .. headers.high:
-    for y in headers[x].low .. headers[x].high:
-      if y > 0 or x > 0: result.add("\c\L")
-      result.add(headers[x][y])
-
-proc reply*(ctx: Ctx, code: HttpCode, body: string,  headers: openArray[seq[string]]) {.inline.} =
-  discard doReply(ctx.gs, ctx.socketdata.socket, code,  body, joinHeaders(headers))
-
-proc reply*(ctx: Ctx, body: string, code=Http200) {.inline.} =
-  discard doReply(ctx.gs, ctx.socketdata.socket, code, body)
-
-proc replyHeaders*(ctx: Ctx, headers: openArray[string], code: HttpCode=Http200) {.inline.} =
-  discard doReplyHeaders(ctx.gs, ctx.socketdata.socket, code, headers.join("\c\L"))
-
-proc replyHeaders*(ctx: Ctx, headers: seq[string], code: HttpCode=Http200) {.inline.} =
-  discard doReplyHeaders(ctx.gs, ctx.socketdata.socket, code, headers.join("\c\L"))
-
-proc replyHeaders*(ctx: Ctx, headers: openArray[seq[string]], code: HttpCode=Http200) {.inline.} =
-  discard doReplyHeaders(ctx.gs, ctx.socketdata.socket, code, joinHeaders(headers))
-
-proc reply*(ctx: Ctx, headers: openArray[string]) {.inline.} =
-  discard doReply(ctx, Http200, headers.join("\c\L"))
-
-proc reply*(ctx: Ctx, headers: seq[string]) {.inline.} =
-  discard doreply(ctx, Http200, headers.join("\c\L"))
-
-proc reply*(ctx: Ctx, headers: openArray[seq[string]]) {.inline.} =
-  discard doreply(ctx, Http200, joinHeaders(headers))]#
+proc replyLast*(ctx: HttpCtx, lastpart: ptr string, partlength: int = -1) {.inline, gcsafe, raises: [].} =
+  let length = if partlength != -1: partlength else: lastpart[].len
+  discard ctx.writeToSocket(lastpart, length, lastflag)
 
 {.pop.}

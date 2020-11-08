@@ -9,7 +9,7 @@ var threadinitialized {.threadvar.}: bool
 
 
 proc process(gs: ptr GuildenServer, fd: posix.SocketHandle, data: ptr SocketData) {.gcsafe, raises: [].} =
-  if gs.serverstate == Shuttingdown: return
+  if shuttingdown: return
   if data.ctxid == InvalidCtx: return
   if not threadinitialized:
     threadinitialized = true
@@ -61,11 +61,18 @@ template handleEvent() =
     when compileOption("threads"): spawn process(unsafeAddr gs, fd, data)
 
 
+proc processTimer(gs: ptr GuildenServer, data: ptr SocketData) =
+  if not threadinitialized:
+    threadinitialized = true
+    if gs.threadinitializer != nil: gs.threadinitializer()
+  try: cast[TimerCallback](data.customdata)()
+  except: discard
+
+
 template handleTimer() =
-  if not gs.multithreading: 
-    cast[TimerCallback](data.customdata)()
+  if not gs.multithreading: processTimer(unsafeAddr gs, data)
   else:
-    when compileOption("threads"): spawn cast[TimerCallback](data.customdata)()
+    when compileOption("threads"): spawn processTimer(unsafeAddr gs, data)
   
 
 proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
@@ -75,10 +82,12 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
       var ret: int
       try: ret = gs.selector.selectInto(-1, eventbuffer)
       except: discard    
-      if gs.serverstate == Shuttingdown: break
+      if shuttingdown: break
       
       let event = eventbuffer[0]
-      if Event.Signal in event.events: break
+      if Event.Signal in event.events:
+        echo "Signal event detected..."
+        continue
       let fd = posix.SocketHandle(event.fd)
       if event.events.len == 0: continue
       when defined(fulldebug): echo "socket ", fd, ": ", event.events
@@ -117,35 +126,31 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
       echo "dispatcher: ", getCurrentExceptionMsg()
       writeStackTrace()
       continue
-  gs.serverstate = ShuttingDown
 
 
 proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
   gs.multithreading = multithreaded
   if gs.multithreading and not compileOption("threads"):
-    echo "Threads are off; serving single-threaded"
+    echo "threads:off; serving single-threaded"
     gs.multithreading = false
   if gs.multithreading: doAssert(defined(threadsafe), "Selectors module requires compiling with -d:threadsafe")
+  var portservers: seq[Socket]
   {.gcsafe.}:
     for i in 0 ..< gs.portcount:
-      let server = newSocket()
-      server.setSockOpt(OptReuseAddr, true)
-      server.setSockOpt(OptReusePort, true)
+      let portserver = newSocket()
+      portservers.add(portserver)
+      portserver.setSockOpt(OptReuseAddr, true)
+      portserver.setSockOpt(OptReusePort, true)
       try:
-        server.bindAddr(net.Port(gs.porthandlers[i].port), "")
+        portserver.bindAddr(net.Port(gs.porthandlers[i].port), "")
       except:
         echo "Could not open port ", gs.porthandlers[i].port
         raise
-      gs.selector.registerHandle(server.getFd(), {Event.Read}, SocketData(port: gs.porthandlers[i].port.uint16, ctxid: ServerCtx))
-      server.listen()
-      server.getFd().setBlocking(false)
-  
-  discard gs.selector.registerSignal(SIGINT, SocketData(ctxid: SignalCtx))
+      gs.selector.registerHandle(portserver.getFd(), {Event.Read}, SocketData(port: gs.porthandlers[i].port.uint16, ctxid: ServerCtx))
+      portserver.listen()
+      portserver.getFd().setBlocking(false)
+
   {.gcsafe.}: signal(SIG_PIPE, SIG_IGN)
   
-  gs.serverstate = Normal
   eventLoop(gs)
-  echo ""      
-  {.gcsafe.}:
-    if gs.shutdownHandler != nil: gs.shutdownHandler()
-  quit(0)
+  for portserver in portservers: portserver.close()
