@@ -11,10 +11,11 @@
 #  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 ## A modular multithreading Linux HTTP server.
-## Easily add your own custom handlers.
-## Supports associating different handlers with different TCP ports.
-## Can also be run in single-threaded mode.
-## Does not require async/await.
+## Easily create and add handlers.
+## Associate handlers with ports.
+## Genuinely multithreading: spawns new thread for every request.
+## Runs in single-threaded mode, too.
+## No need to use async/await.
 ## 
 ## See also
 ## ========
@@ -35,6 +36,7 @@ when not defined(nimdoc):
   export ctxhttp
 else:
   import strtabs, httpcore
+  from nativesockets import SocketHandle
   const
     MaxHeaderLength* {.intdefine.} = 10000
       ## Maximum acceptable character length for HTTP header.
@@ -43,7 +45,9 @@ else:
       ## (Note: in streaming handlers, this denotes chunk size).
   
  
-  type     
+  type
+    CtxId = distinct int
+
     GuildenServer* {.inheritable.} = ref object
       ## | This is available in request context as ``gs`` property.
       ## | You can inherit this and add custom properties as needed.
@@ -52,7 +56,7 @@ else:
       ## | Data associated with a request context.
       ## | This is available in request context as ``socketdata`` property (probably not needed in application development, though).
       port*: uint16
-      socket*: posix.SocketHandle
+      socket*: nativesockets.SocketHandle
       ctxid*: CtxId
       customdata*: pointer
 
@@ -71,35 +75,25 @@ else:
     TimerCallback* = proc() {.nimcall, gcsafe, raises: [].}
    
     ThreadInitializationCallback* = proc() {.nimcall, gcsafe, raises: [].}
+
+    LostCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData, lostsocket: SocketHandle){.gcsafe, nimcall, raises: [].}
     
     ErrorCallback* = proc(msg: string) {.gcsafe, raises: [].}
-
-  var
-    request* {.threadvar.}: string
-      ## In all HTTP contexts, this threadvar contains the request received from client (note: in streaming contexts, contains one chunk).
-   
-  
-  proc initGuildenServer*(gs: var GuildenServer) {.gcsafe, nimcall.} =
-    ## Call this first when creating subclass instances.
-    discard
-
-  proc newGuildenServer*(): GuildenServer =
-    ## Creates a new server.
-    discard
-
+ 
   proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
-    ## Starts server event dispatcher loop which runs until SIGINT is received.
+    ## Starts server event dispatcher loop which runs until shutdown() is called or SIGINT received.
+    ## If you want the server to run in a single thread, set multithreaded to false.
     ## 
     ## **Example:**
     ##
     ## .. code-block:: Nim
     ##
-    ##   import guildenstern, guildenstern/ctxfull
+    ##   import guildenstern/ctxfull
     ##   
     ##   proc onRequest(ctx: HttpCtx) = ctx.replyCode(Http200)
     ##   
-    ##   var myserver = newGuildenServer()
-    ##   myserver.initFullCtx(onRequest, [5050])
+    ##   var myserver = new GuildenServer
+    ##   myserver.initFullCtx(onRequest, 5050)
     ##   myserver.serve()
     discard
 
@@ -127,6 +121,11 @@ else:
     ## Registers a new timer that fires the TimerCallback every `interval` milliseconds.
     discard
 
+  proc registerConnectionlosthandler*(gs: GuildenServer, callback: LostCallback) =
+    ## Registers procedure that is called when socket connection was dropped.
+    ## This is not called when closeSocket() is called.
+    discard
+
   proc registerErrornotifier*(gs: GuildenServer, callback: ErrorCallback) =
     ## Registers a proc that gets called when an internal error occurs.
     ## Note that you can get even more debug info by compiling with switch -d:fulldebug.
@@ -136,7 +135,7 @@ else:
     ## Closes the socket associated with the request context.
     discard
 
-  proc closeSocket*(gs: ptr GuildenServer, socket: posix.SocketHandle) {.raises: [].} =
+  proc closeSocket*(gs: ptr GuildenServer, socket: nativesockets.SocketHandle) {.raises: [].} =
     ## Closes the socket.
   
   proc shutdown*() =
@@ -150,12 +149,12 @@ else:
     ##   
     ##   echo "Hit Ctrl-C or wait until B hits 10..."
     ##    
-    ##   var a: int ; var serverA = newGuildenServer()
+    ##   var a: int ; var serverA = new GuildenServer
     ##   serverA.registerTimerhandler((proc() =
     ##     a += 1 ;  let aa = a; echo "A ", aa, "->" ; sleep(2000) ; echo "<-A ", aa), 600)
     ##   spawn serverA.serve()
     ##   
-    ##   var b: int ; var serverB = newGuildenServer()
+    ##   var b: int ; var serverB = new GuildenServer
     ##   serverB.registerTimerhandler((proc() =
     ##     b += 1 ; let bb = b; echo "B ", bb, "->" ; sleep(2000) ; echo "<-B ", bb
     ##     if b == 10: b += 1; echo "commencing shutdown."; shutdown()), 750)
@@ -202,9 +201,12 @@ else:
     ## Returns the body part of request as string.
     discard
 
-  proc isBody*(ctx: HttpCtx, body: string): bool {.raises: [].} =
+  proc isBody*(ctx: HttpCtx, body: string): bool =
     ## true if request body is body.
     discard
+
+  proc getRequest*(ctx: HttpCtx): string =
+    ## Returns the whole request as string.
 
   proc parseHeaders*(ctx: HttpCtx, fields: openArray[string], toarray: var openArray[string]) =
     ## Parses header `fields` values into `toarray`.

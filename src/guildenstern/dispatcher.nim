@@ -29,7 +29,7 @@ template handleAccept(theport: uint16) =
   let fd = fd.accept()[0]
   if fd == osInvalidSocket: return
   if gs.selector.contains(fd):
-    if gs.selector.setData(fd, SocketData(port: gs.porthandlers[porthandler].port.uint16, ctxid: gs.porthandlers[porthandler].ctxid)):
+    if gs.selector.setData(fd, SocketData(port: gs.porthandlers[porthandler].port.uint16, ctxid: gs.porthandlers[porthandler].ctxid, socket: fd)):
       gs.selector.updateHandle(fd, {Event.Read})
       when defined(fulldebug): echo "socket reconnected: ", fd
     else:
@@ -37,7 +37,7 @@ template handleAccept(theport: uint16) =
       echo "socket reconnection fail at port ", theport
       return
   else:
-    gs.selector.registerHandle(fd, {Event.Read}, SocketData(port: gs.porthandlers[porthandler].port.uint16, ctxid: gs.porthandlers[porthandler].ctxid))
+    gs.selector.registerHandle(fd, {Event.Read}, SocketData(port: gs.porthandlers[porthandler].port.uint16, ctxid: gs.porthandlers[porthandler].ctxid, socket: fd))
     when defined(fulldebug): echo "socket connected: ", fd
   var tv = (RcvTimeOut,0)
   if setsockopt(fd, cint(SOL_SOCKET), cint(RcvTimeOut), addr(tv), SockLen(sizeof(tv))) < 0'i32:
@@ -52,6 +52,7 @@ template handleEvent() =
     except:
       if osLastError().int != 2 and osLastError().int != 9: echo "connect error: " & getCurrentExceptionMsg()
     continue
+
   if not gs.multithreading: process(unsafeAddr gs, fd, data)
   else:
     try: gs.selector.updateHandle(fd, {})
@@ -111,7 +112,8 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
             try: gs.selector.unregister(fd)
             except: discard
           fd.close()
-          when defined(fulldebug): echo "socket closed by client: ", fd
+          when defined(fulldebug): echo "socket connection was lost: ", fd
+          handleConnectionlost(unsafeAddr gs, data, fd)
         continue
 
       if Event.Read notin event.events:

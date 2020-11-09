@@ -38,10 +38,10 @@ template checkRet*() =
     if ret == -1:
       let lastError = osLastError().int
       if lastError != 2 and lastError != 9 and lastError != 32 and lastError != 104:
-        ctx.notifyError("socket " & $ctx.socketdata.socket & " error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
+        ctx.gs.notifyError("socket " & $ctx.socketdata.socket & " error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
         when defined(fulldebug): echo "socket " & $ctx.socketdata.socket & " error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError))
     elif ret < -1:
-      ctx.notifyError("exception while send/recv, socket " & $ctx.socketdata.socket & ": " & getCurrentExceptionMsg())
+      ctx.gs.notifyError("exception while send/recv, socket " & $ctx.socketdata.socket & ": " & getCurrentExceptionMsg())
       when defined(fulldebug): echo "exception while send/recv, socket " & $ctx.socketdata.socket & ": " & getCurrentExceptionMsg()
     ctx.closeSocket()
     return false
@@ -151,12 +151,16 @@ proc getBody*(ctx: HttpCtx): string =
   request[ctx.bodystart ..< ctx.requestlen]
   
 
-proc isBody*(ctx: HttpCtx, body: string): bool {.raises: [].} =
+proc isBody*(ctx: HttpCtx, body: string): bool =
   let len = ctx.requestlen - ctx.bodystart
   if  len != body.len: return false
   for i in ctx.bodystart ..< ctx.bodystart + len:
     if request[i] != body[i]: return false
   true
+
+
+proc getRequest*(ctx: HttpCtx): string =
+  request[0 ..< ctx.requestlen]
 
 
 proc parseHeaders*(ctx: HttpCtx, fields: openArray[string], toarray: var openArray[string]) =

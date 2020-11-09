@@ -16,7 +16,7 @@ type
   
   SocketData* = object
     port*: uint16
-    socket*: SocketHandle
+    socket*: nativesockets.SocketHandle
     ctxid*: CtxId
     customdata*: pointer
 
@@ -27,6 +27,7 @@ type
   HandlerCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData){.gcsafe, nimcall, raises: [].}
   TimerCallback* = proc() {.nimcall, gcsafe, raises: [].}
   ThreadInitializationCallback* = proc() {.nimcall, gcsafe, raises: [].}
+  LostCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData, closedsocket: SocketHandle){.gcsafe, nimcall, raises: [].}
   ErrorCallback* = proc(msg: string) {.gcsafe, raises: [].}
   
   GuildenServer* {.inheritable.} = ref object
@@ -37,7 +38,8 @@ type
     portcount*: int
     threadinitializer*: ThreadInitializationCallback   
     handlercallbacks*: array[0.CtxId .. MaxCtxHandlers.CtxId, HandlerCallback]
-    errorNotifier*: ErrorCallback
+    errornotifier*: ErrorCallback
+    lostcallback*: LostCallback
     nextctxid: int
 
 
@@ -53,31 +55,23 @@ proc `==`*(x, y: CtxId): bool {.borrow.}
 
 var shuttingdown* = false
 
-proc initGuildenServer*(gs: var GuildenServer) {.gcsafe, nimcall.} =
-  initLock(gs.lock)
-  gs.selector = newSelector[SocketData]()
-  gs.nextctxid = 1
-
-proc newGuildenServer*(): GuildenServer =
-  result = new GuildenServer
-  result.initGuildenServer()
-
-
 proc shutdown*() {.gcsafe, noconv.} =
   {.gcsafe.}: shuttingdown = true
 
 setControlCHook(shutdown)
 
 
-proc getCtxId*(gs: var GuildenServer): CtxId {.gcsafe, nimcall.} =
-  withLock(gs.lock):
-    assert(gs.nextctxid < MaxCtxHandlers, "Cannot create more handlers")    
-    result = gs.nextctxid.CtxId
-    gs.nextctxid += 1
+proc getCtxId(gs: var GuildenServer): CtxId {.gcsafe, nimcall.} =
+  if gs.nextctxid == 0:
+    gs.nextctxid = 1
+    gs.selector = newSelector[SocketData]()
+  assert(gs.nextctxid < MaxCtxHandlers, "Cannot create more handlers")    
+  result = gs.nextctxid.CtxId
+  gs.nextctxid += 1
 
 
-proc notifyError*(ctx: Ctx, msg: string) {.inline.} =
-  if ctx.gs.errorNotifier != nil: ctx.gs.errorNotifier(msg)
+proc notifyError*(gs: ptr GuildenServer, msg: string) {.inline.} =
+  if gs.errorNotifier != nil: gs.errorNotifier(msg)
   else:
     if defined(fulldebug): echo msg
 
@@ -86,19 +80,20 @@ proc registerThreadInitializer*(gs: GuildenServer, callback: ThreadInitializatio
   gs.threadinitializer = callback
 
 
-proc registerHandler*(gs: GuildenServer,  ctxid: CtxId, callback: HandlerCallback, ports: openArray[int]) =
-  assert(ctxid.int > 0, "ctx types below 1 are reserved for internal use")
-  assert(ctxid.int < MaxCtxHandlers, "ctxid " & $ctxid & "over MaxCtxHandlers = " & $MaxCtxHandlers)
-  assert(gs.nextctxid > 0, "Ctx handlers can be registered only after initGuildenServer is called")
-  gs.handlercallbacks[ctxid] = callback
-  for port in ports:
-    gs.portHandlers[gs.portcount] = (port, ctxid)
+proc registerHandler*(gs: var GuildenServer, callback: HandlerCallback, port: int): CtxId =
+  result = gs.getCtxId()
+  gs.handlercallbacks[result] = callback
+  if port > 0:
+    gs.portHandlers[gs.portcount] = (port, result)
     gs.portcount += 1
 
 
 proc registerTimerhandler*(gs: GuildenServer, callback: TimerCallback, interval: int) =
-  assert(gs.nextctxid > 0, "Timer handlers can be registered only after initGuildenServer is called")
   discard gs.selector.registerTimer(interval, false, SocketData(ctxid: TimerCtx, customdata: cast[pointer](callback)))
+
+
+proc registerConnectionlosthandler*(gs: GuildenServer, callback: LostCallback) =
+  gs.lostcallback = callback
 
 
 proc registerErrornotifier*(gs: GuildenServer, callback: ErrorCallback) =
@@ -112,18 +107,20 @@ proc handleRead*(gs: ptr GuildenServer, data: ptr SocketData) =
 
 proc closeSocket*(ctx: Ctx) {.raises: [].} =
   try:
-    withLock(ctx.gs.lock):
-      when defined(fulldebug): echo "closing ctx socket: ", ctx.socketdata.socket
-      ctx.socketdata.socket.close()
-      if ctx.gs.selector.contains(ctx.socketdata.socket): ctx.gs.selector.unregister(ctx.socketdata.socket)       
-      ctx.socketdata.socket = osInvalidSocket
+    when defined(fulldebug): echo "closing ctx socket: ", ctx.socketdata.socket
+    ctx.socketdata.socket.close()
+    if ctx.gs.selector.contains(ctx.socketdata.socket): ctx.gs.selector.unregister(ctx.socketdata.socket)       
+    ctx.socketdata.socket = osInvalidSocket
   except: discard
 
 
 proc closeSocket*(gs: ptr GuildenServer, socket: SocketHandle) {.raises: [].} =
   try:
-    withLock(gs.lock):
-      when defined(fulldebug): echo "closing socket: ", socket
-      socket.close()
-      if gs.selector.contains(socket): gs.selector.unregister(socket)
+    when defined(fulldebug): echo "closing socket: ", socket
+    socket.close()
+    if gs.selector.contains(socket): gs.selector.unregister(socket)
   except: discard
+
+
+proc  handleConnectionlost*(gs: ptr GuildenServer, data: ptr SocketData, lostsocket: SocketHandle) {.raises: [].} =
+  if gs.lostcallback != nil: gs.lostcallback(gs, data, lostsocket)

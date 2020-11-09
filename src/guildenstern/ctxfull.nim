@@ -1,4 +1,4 @@
-## The default HttpCtx handler for most use cases, when optimal performance is not critical. Parses request line and headers automatically.
+## The go-to HttpCtx handler for most use cases, when optimal performance is not critical. Parses request line and headers automatically.
 ## 
 ## **Example:**
 ##
@@ -32,8 +32,8 @@
 ##      if ctx.isMethod("POST"): ctx.handlePost()
 ##      else: ctx.handleGet(headers)
 ##    
-##    var server = newGuildenServer()
-##    server.initFullCtx(onRequest, [5050])
+##    var server = new GuildenServer
+##    server.initFullCtx(onRequest, 5050)
 ##    echo "Point your browser to localhost:5050/any/request-uri/path/"
 ##    server.serve()
 
@@ -55,7 +55,6 @@ type
 
 
 var
-  FullCtxId: CtxId
   requestCallback: FullRequestCallback
   ctx {.threadvar.}: HttpCtx
   headers {.threadvar.}: StringTableRef
@@ -73,7 +72,7 @@ proc receiveHttp(): bool {.gcsafe, raises:[] .} =
     ctx.requestlen += ret
     
     if ctx.requestlen >= MaxRequestLength:
-      ctx.notifyError("recvHttp: Max request size exceeded")
+      ctx.gs.notifyError("recvHttp: Max request size exceeded")
       ctx.closeSocket()
       return false
     
@@ -81,7 +80,7 @@ proc receiveHttp(): bool {.gcsafe, raises:[] .} =
     
     if not ctx.isHeaderreceived(previouslen, ctx.requestlen):
       if ctx.requestlen >= MaxHeaderLength:
-        ctx.notifyError("recvHttp: Max header size exceeded")
+        ctx.gs.notifyError("recvHttp: Max header size exceeded")
         ctx.closeSocket()
         return false
       continue
@@ -104,9 +103,8 @@ proc handleHttpRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, ni
     {.gcsafe.}: requestCallback(ctx, headers)
       
 
-proc initFullCtx*(gs: var GuildenServer, onrequestcallback: FullRequestCallback, ports: openArray[int]) =
+proc initFullCtx*(gs: var GuildenServer, onrequestcallback: FullRequestCallback, port: int) =
   ## Initializes the fullctx handler for given ports with given request callback. See example above.
-  FullCtxId  = gs.getCtxId()
   {.gcsafe.}: 
     requestCallback = onrequestcallback
-    gs.registerHandler(FullCtxId, handleHttpRequest, ports)
+    discard gs.registerHandler(handleHttpRequest, port)

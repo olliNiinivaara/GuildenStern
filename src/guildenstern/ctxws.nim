@@ -1,23 +1,70 @@
+## Websocket handler.
+## 
+## **Example:**
+##
+## .. code-block:: Nim
+##
+##    
+##    import nativesockets
+##    import guildenstern/[ctxws, ctxheader]
+##    
+##    var server = new GuildenServer
+##    var socket = osInvalidSocket
+##    
+##    proc onUpgradeRequest(ctx: WsCtx): bool = socket = ctx.socketdata.socket; true
+##    
+##    proc onMessage(ctx: WsCtx) = echo "client says: ", ctx.getRequest()
+##      
+##    proc sendMessage() =
+##      {.gcsafe.}: # in reality, use locks to make handling connected (web) sockets thread safe
+##        if socket != osInvalidSocket:
+##          let reply = "hello"
+##          discard server.sendWs(socket, unsafeAddr reply)
+##    
+##    proc onLost(gs: ptr GuildenServer, data: ptr SocketData, lostsocket: SocketHandle) =
+##      if lostsocket.int == socket.int:
+##        echo "websocket connection lost"
+##        {.gcsafe.}: socket = osInvalidSocket
+##          
+##    proc onRequest(ctx: HttpCtx) =
+##      let html = """<!doctype html><title>WsCtx</title>
+##      <script>
+##      let websocket = new WebSocket("ws://" + location.host.slice(0, -1) + '1')
+##      websocket.onmessage = function(evt) { document.getElementById("table").insertRow(0).insertCell(0).innerHTML = evt.data }
+##      </script>
+##      <body><button onclick="websocket.send('hallo')">say hallo</button><button onclick="websocket.close()">close</button><table id="table">"""
+##      ctx.reply(Http200, unsafeAddr html)
+##    
+##    server.initHeaderCtx(onRequest, 5050)
+##    server.initWsCtx(onUpgradeRequest, onMessage, 5051)
+##    server.registerTimerhandler(sendMessage, 2000)
+##    server.registerConnectionlosthandler(onLost)
+##    echo "Point your browser to localhost:5050"
+##    server.serve()
+
 import nativesockets, net, posix, os, std/sha1, base64
 from httpcore import Http101
-import guildenserver
-import guildenstern/[ctxhttp, ctxheader]
+
+when not defined(nimdoc):
+  import guildenstern
+  export guildenstern
+else:
+  import guildenserver, ctxhttp
+
+from ctxheader import receiveHeader
 
 
-const MaxWsRequestLength* {.intdefine.} = 1000
+const MaxWsRequestLength* {.intdefine.} = 100000
 
 type
   Opcode* = enum
-    ## 4 bits. Defines the interpretation of the "Payload data".
-    Cont = 0x0                ## denotes a continuation frame
-    Text = 0x1                ## denotes a text frame
-    Binary = 0x2              ## denotes a binary frame
-    # 3-7 are reserved for further non-control frames
-    Close = 0x8               ## denotes a connection close
-    Ping = 0x9                ## denotes a ping
-    Pong = 0xa                ## denotes a pong
-    # B-F are reserved for further control frames
-    Fail = 0xe                ## denotes failure
+    Cont = 0x0                ## continuation frame
+    Text = 0x1                ## text frame
+    Binary = 0x2              ## binary frame
+    Close = 0x8               ## connection close
+    Ping = 0x9                ## ping
+    Pong = 0xa                ## pong
+    Fail = 0xe                ## protocol failure / connection lost in flight
 
   WsCtx* = ref object of HttpCtx
     opcode*: OpCode
@@ -26,10 +73,9 @@ type
   WsMessageCallback = proc(ctx: WsCtx){.gcsafe, nimcall, raises: [].}
 
 var
-  WsCtxNotUpgradedId: CtxId
   WsCtxId: CtxId
   upgraderequestcallback: WsUpgradeRequestCallback
-  requestCallback: WsMessageCallback
+  messageCallback: WsMessageCallback
   
   wsresponseheader {.threadvar.}: string
   ctx {.threadvar.}: WsCtx 
@@ -62,9 +108,10 @@ template `[]`(value: uint8, index: int): bool =
   +---------------------------------------------------------------+]#
 
 
-template error() =
-  when defined(fulldebug): echo "websocket stalled", ctx.socketdata.socket
-  ctx.closeSocket()
+template error(msg: string) =
+  let errormsg = "websocket " & $ctx.socketdata.socket & " fail: " & msg
+  ctx.gs.notifyError(errormsg)
+  when defined(fulldebug): echo errormsg
   ctx.opcode = Fail
   return -1
 
@@ -73,39 +120,28 @@ proc bytesRecv(fd: posix.SocketHandle, buffer: ptr char, size: int): int =
 
 
 proc recvHeader(): int =
-  if ctx.socketdata.socket.bytesRecv(request[0].addr, 2) != 2:
-    when defined(fulldebug): echo "no data from websocket ", ctx.socketdata.socket
-    ctx.closeSocket()
-    ctx.opcode = Fail
-    return -1
+  if posix.SocketHandle(ctx.socketdata.socket).bytesRecv(request[0].addr, 2) != 2: error("no data")
   let b0 = request[0].uint8
   let b1 = request[1].uint8
   ctx.opcode = (b0 and 0x0f).Opcode
-  if b0[1] or b0[2] or b0[3]:
-    when defined(fulldebug): echo "websocket protocol error ", ctx.socketdata.socket
-    ctx.closeSocket()
-    ctx.opcode = Fail
-    return -1
+  if b0[1] or b0[2] or b0[3]: error("protocol")
   var expectedLen: int = 0
 
   let headerLen = uint(b1 and 0x7f)
   if headerLen == 0x7e:
-    var lenstrlen = ctx.socketdata.socket.bytesRecv(request[0].addr, 2)
-    if lenstrlen != 2: error()    
+    var lenstrlen = posix.SocketHandle(ctx.socketdata.socket).bytesRecv(request[0].addr, 2)
+    if lenstrlen != 2: error("length")    
     expectedLen = nativesockets.htons(cast[ptr uint16](request[0].addr)[]).int
   elif headerLen == 0x7f:
-    var lenstrlen = ctx.socketdata.socket.bytesRecv(request[0].addr, 8)
-    if lenstrlen != 8: error()
+    var lenstrlen = posix.SocketHandle(ctx.socketdata.socket).bytesRecv(request[0].addr, 8)
+    if lenstrlen != 8: error("length")
   else: expectedLen = headerLen.int
 
-  let maskKeylen = ctx.socketdata.socket.bytesRecv(maskkey[0].addr, 4)
-  if maskKeylen != 4: error()
+  let maskKeylen = posix.SocketHandle(ctx.socketdata.socket).bytesRecv(maskkey[0].addr, 4)
+  if maskKeylen != 4: error("length")
 
-  if expectedLen > MaxWsRequestLength:
-    ctx.notifyError("Maximum request size bound to be exceeded: " & $(expectedLen))
-    ctx.closeSocket()
-    ctx.opcode = Fail
-    return -1
+  if expectedLen > MaxWsRequestLength: error("Maximum request size bound to be exceeded: " & $(expectedLen))
+  
   return expectedLen
 
 
@@ -116,34 +152,33 @@ proc recvFrame() =
   while true:
     if shuttingdown: (ctx.opcode = Fail; return)
     let ret =
-      if ctx.requestlen == 0: recv(ctx.socketdata.socket, addr request[0], expectedLen, 0x40)
-      else: recv(ctx.socketdata.socket, addr request[ctx.requestlen], expectedLen - ctx.requestlen, 0)
+      if ctx.requestlen == 0: recv(ctx.socketdata.socket, addr request[0], expectedLen.cint, 0x40)
+      else: recv(ctx.socketdata.socket, addr request[ctx.requestlen], (expectedLen - ctx.requestlen).cint, 0)
     if shuttingdown: (ctx.opcode = Fail; return)
 
     if ret == 0: (ctx.closeSocket(); ctx.opcode = Fail; return)
     if ret == -1:
       let lastError = osLastError().int
       if lastError != 2 and lastError != 9 and lastError != 32 and lastError != 104:
-        ctx.notifyError("websocket error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
-      ctx.closeSocket()
+        ctx.gs.notifyError("websocket error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
       ctx.opcode = Fail
       return
 
     ctx.requestlen += ret
     if ctx.requestlen == expectedlen: return
-    
- 
-proc receiveWs*() =
+
+
+proc receiveWs() =
+  ctx.requestlen = 0
   try:
     recvFrame()
     if ctx.opcode in [Fail, Close]: return
     while ctx.opcode == Cont: recvFrame()
     for i in 0 ..< ctx.requestlen: request[i] = (request[i].uint8 xor maskkey[i mod 4].uint8).char
   except:
-    ctx.notifyError("receiveWs: " & getCurrentExceptionMsg())
+    ctx.gs.notifyError("receiveWs: " & getCurrentExceptionMsg())
     ctx.opcode = Fail
 
-{.pop.} 
 
 proc nibbleFromChar(c: char): int =
   case c:
@@ -172,7 +207,6 @@ proc replyHandshake(): bool =
   ctx.reply(Http101, ["Sec-WebSocket-Accept: " & acceptKey, "Connection: Upgrade", "Upgrade: webSocket"])
   true
 
-
 proc handleWsUpgradehandshake(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
   if ctx == nil:
     ctx = new WsCtx
@@ -197,42 +231,41 @@ proc handleWsMessage(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimc
   ctx.socketdata = data
   ctx.requestlen = 0
   receiveWs()
-  if ctx.opcode != Fail:
-    {.gcsafe.}: requestCallback(ctx)
-  if ctx.opcode == Close: ctx.closeSocket()
+  if ctx.opcode in [Fail, Close]:
+    let lostsocket = data.socket    
+    ctx.closeSocket()
+    handleConnectionlost(gs, data, lostsocket)
+  else:
+    {.gcsafe.}: messageCallback(ctx)
+  
 
-
-proc initWsCtx*(gs: var GuildenServer, onwsupgraderequestcallback: WsUpgradeRequestCallback, onwsmessage: WsMessageCallback, ports: openArray[int]) =
-  WsCtxNotUpgradedId = gs.getCtxId()
-  WsCtxId = gs.getCtxId()
+proc initWsCtx*(gs: var GuildenServer, onwsupgraderequestcallback: WsUpgradeRequestCallback, onwsmessage: WsMessageCallback, port: int) =
   {.gcsafe.}:
     upgraderequestcallback = onwsupgraderequestcallback
-    requestCallback = onwsmessage
-    gs.registerHandler(WsCtxNotUpgradedId, handleWsUpgradehandshake, ports)
-    gs.registerHandler(WsCtxId, handleWsMessage, [])
+    messageCallback = onwsmessage
+    discard gs.registerHandler(handleWsUpgradehandshake, port)
+    WsCtxId = gs.registerHandler(handleWsMessage, -1)
 
 
-{.push checks: off.}
-
-proc sendWs(ctx: Ctx, text: ptr string, length: int = -1): bool =
+proc send(gs: ptr GuildenServer, socket: posix.SocketHandle, text: ptr string, length: int = -1): bool =
   let len = if length == -1: text[].len else: length
   var sent = 0
   while sent < len:
     if shuttingdown: return false    
-    let ret = send(ctx.socketdata.socket, addr text[sent], len - sent, 0)
+    let ret = send(socket, addr text[sent], len - sent, 0)
     if ret < 1:
       if ret == -1:
         let lastError = osLastError().int
         if lastError != 2 and lastError != 9 and lastError != 32 and lastError != 104:
-          ctx.notifyError("websocket error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
-      elif ret < -1: ctx.notifyError("websocket exception: " & getCurrentExceptionMsg())
-      ctx.closeSocket()
+          gs.notifyError("websocket error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
+      elif ret < -1: gs.notifyError("websocket exception: " & getCurrentExceptionMsg())
+      gs.closeSocket(nativesockets.SocketHandle(socket))
       return false
     sent.inc(ret)
     if sent == len: return true
   
 
-proc createWsHeader(ctx: Ctx, len: int, binary = false) =
+proc createWsHeader(len: int, binary = false) =
   wsresponseheader = ""
   var b0 = if binary: (0x2.uint8 and 0x0f) else: (0x1.uint8 and 0x0f)
   b0 = b0 or 128u8
@@ -258,10 +291,14 @@ proc createWsHeader(ctx: Ctx, len: int, binary = false) =
     wsresponseheader.add char(len and 255)
 
 
-proc replyWs*(ctx: Ctx, text: ptr string, length = -1, binary = false): bool {.raises: [].} =
+proc sendWs*(gs: GuildenServer, socket: nativesockets.SocketHandle, text: ptr string, length: int = -1, binary = false): bool =
   if length == 0 or text == nil: return
   let len = if length == -1: text[].len else: length
-  ctx.createWsHeader(len, binary)
-  if ctx.sendWs(addr wsresponseheader): return ctx.sendWs(text, len)
-  
+  createWsHeader(len, binary)
+  if send(unsafeAddr gs, posix.SocketHandle(socket), addr wsresponseheader): return send(unsafeAddr gs, posix.SocketHandle(socket), text, len)
+
+
+proc replyWs*(ctx: Ctx, text: ptr string, length = -1, binary = false): bool {.inline.} =
+  return ctx.gs[].sendWs(ctx.socketdata.socket, text, length, binary)
+    
 {.pop.}

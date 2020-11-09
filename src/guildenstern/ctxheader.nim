@@ -21,8 +21,8 @@
 ##       discard ctx.replyMore(unsafeAddr htmlmore)
 ##       ctx.replyLast(addr headervalues[1])
 ##     
-##   var server = newGuildenServer()
-##   server.initHeaderCtx(onRequest, [5050])
+##   var server = new GuildenServer
+##   server.initHeaderCtx(onRequest, 5050)
 ##   echo "Point your browser to localhost:5050"
 ##   server.serve()
 
@@ -35,7 +35,6 @@ else:
   import guildenserver, ctxhttp
 
 var
-  HeaderCtxId: CtxId
   requestlineparsing = true
   requestCallback: RequestCallback
   
@@ -55,7 +54,7 @@ proc receiveHeader*(context: HttpCtx): bool {.gcsafe, raises:[].} =
       if context.requestlen == 0: recv(posix.SocketHandle(context.socketdata.socket), addr request[0], MaxHeaderLength + 1, 0x40) # 0x40 = MSG_DONTWAIT
       else: recv(posix.SocketHandle(context.socketdata.socket), addr request[context.requestlen], MaxHeaderLength + 1, 0)
     checkRet()
-    if ret == MaxHeaderLength + 1: (context.notifyError("receiveHeader: Max header size exceeded"); return false)
+    if ret == MaxHeaderLength + 1: (context.gs.notifyError("receiveHeader: Max header size exceeded"); return false)
     context.requestlen += ret
     if isFinished: break
   return context.requestlen > 0
@@ -71,11 +70,10 @@ proc handleHeaderRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, 
     {.gcsafe.}: requestCallback(ctx)
     
 
-proc initHeaderCtx*(gs: var GuildenServer, onrequestcallback: proc(ctx: HttpCtx){.gcsafe, nimcall, raises: [].}, ports: openArray[int], parserequestline = true) =
+proc initHeaderCtx*(gs: var GuildenServer, onrequestcallback: proc(ctx: HttpCtx){.gcsafe, nimcall, raises: [].}, port: int, parserequestline = true) =
   ## Initializes the headerctx handler for given ports with given request callback. By setting `parserequestline` to false this becomes a pass-through handler
   ## that does no handling for the request.
-  HeaderCtxId  = gs.getCtxId()
   {.gcsafe.}: 
     requestCallback = onrequestcallback
     requestlineparsing = parserequestline
-    gs.registerHandler(HeaderCtxId, handleHeaderRequest, ports)
+    discard gs.registerHandler(handleHeaderRequest, port)
