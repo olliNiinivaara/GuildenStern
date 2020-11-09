@@ -2,7 +2,7 @@
 
 version       = "0.9.0"
 author        = "Olli"
-description   = "multithreading plug'n'play posix http server"
+description   = "Modular multithreading Linux HTTP server"
 license       = "MIT"
 srcDir        = "src"
 

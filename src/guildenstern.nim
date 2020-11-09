@@ -17,6 +17,33 @@
 ## Runs in single-threaded mode, too.
 ## No need to use async/await.
 ## 
+## Example
+## =======
+## 
+## .. code-block:: Nim
+##
+##    # nim c -r --gc:arc --d:release --threads:on --d:threadsafe example.nim
+##    import cgi, guildenstern/[ctxheader, ctxfull]
+##    
+##    let origin = "http://localhost:5050"
+##    let html = """
+##    <!doctype html><title>GuildenStern Example</title><body>
+##    <form action="http://localhost:5051" method="post">
+##    <input name="say" id="say" value="Hi"><button>Send"""
+##      
+##    proc handleGet(ctx: HttpCtx) = {.gcsafe.}: ctx.reply(Http200, unsafeAddr html)
+##    
+##    proc handlePost(ctx: HttpCtx, headers: StringTableRef) =
+##      try: echo readData(ctx.getBody()).getOrDefault("say")
+##      except: discard
+##      {.gcsafe.}: ctx.reply(Http303, ["location: " & origin])
+##        
+##    var server = new GuildenServer
+##    server.initHeaderCtx(handleGet, 5050)
+##    server.initFullCtx(handlePost, 5051)
+##    echo "GuildenStern HTTP server serving at ", origin
+##    server.serve()
+## 
 ## See also
 ## ========
 ## 
@@ -24,7 +51,7 @@
 ## | `ctxfull <http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/ctxfull.html>`_
 ## | `ctxstream <http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/ctxstream.html>`_
 ## | `ctxws <http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/ctxws.html>`_
-## 
+##
 
 
 when not defined(nimdoc):
@@ -94,7 +121,7 @@ else:
     ##   
     ##   var myserver = new GuildenServer
     ##   myserver.initFullCtx(onRequest, 5050)
-    ##   myserver.serve()
+    ##   myserver.serve(false)
     discard
 
   proc registerThreadInitializer*(gs: GuildenServer, callback: ThreadInitializationCallback) =
@@ -244,7 +271,7 @@ else:
     ##     "nim c -r --threads:on --d:threadsafe example.nim"""")
     ##   var myserver = newGuildenServer()
     ##   myserver.registerThreadInitializer(initializeThreadvars)
-    ##   myserver.initHeaderCtx(onRequest, [5050])
+    ##   myserver.initHeaderCtx(onRequest, 5050)
     ##   myserver.registerTimerhandler(sendRequest, 1000)
     ##   myserver.serve()
     discard
