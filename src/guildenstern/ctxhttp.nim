@@ -39,10 +39,12 @@ template checkRet*() =
       let lastError = osLastError().int
       if lastError != 2 and lastError != 9 and lastError != 32 and lastError != 104:
         ctx.gs.notifyError("socket " & $ctx.socketdata.socket & " error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
-        when defined(fulldebug): echo "socket " & $ctx.socketdata.socket & " error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError))
+      when defined(fulldebug): echo "socket " & $ctx.socketdata.socket & " error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError))
     elif ret < -1:
       ctx.gs.notifyError("exception while send/recv, socket " & $ctx.socketdata.socket & ": " & getCurrentExceptionMsg())
       when defined(fulldebug): echo "exception while send/recv, socket " & $ctx.socketdata.socket & ": " & getCurrentExceptionMsg()
+    else: # ret == 0
+      when defined(fulldebug): echo "close received"
     ctx.closeSocket()
     return false
       

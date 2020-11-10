@@ -23,34 +23,40 @@ proc process(gs: ptr GuildenServer, fd: posix.SocketHandle, data: ptr SocketData
     else: fd.close()
 
 
-template handleAccept(theport: uint16) =
-  var porthandler = 0
-  while gs.porthandlers[porthandler].port != theport.int: porthandler += 1
+proc handleAccept(gs: ptr GuildenServer, fd: posix.SocketHandle, data: ptr SocketData) =
   let fd = fd.accept()[0]
   if fd == osInvalidSocket: return
+
+  if data.socket == fd and gs.selector.contains(fd):
+    gs.selector.updateHandle(fd, {Event.Read})
+    when defined(fulldebug): echo "socket reconnected: ", fd
+    return
+
   if gs.selector.contains(fd):
-    if gs.selector.setData(fd, SocketData(port: gs.porthandlers[porthandler].port.uint16, ctxid: gs.porthandlers[porthandler].ctxid, socket: fd)):
-      gs.selector.updateHandle(fd, {Event.Read})
-      when defined(fulldebug): echo "socket reconnected: ", fd
-    else:
-      gs.selector.unregister(fd)
-      echo "socket reconnection fail at port ", theport
+    try: gs.selector.unregister(fd)
+    except:
+      when defined(fulldebug): echo "could not unregister contained socket: ", fd
       return
-  else:
-    gs.selector.registerHandle(fd, {Event.Read}, SocketData(port: gs.porthandlers[porthandler].port.uint16, ctxid: gs.porthandlers[porthandler].ctxid, socket: fd))
-    when defined(fulldebug): echo "socket connected: ", fd
+
+  var porthandler = 0
+  while gs.porthandlers[porthandler].port != data.port.int: porthandler += 1
+  
+  gs.selector.registerHandle(fd, {Event.Read}, SocketData(port: gs.porthandlers[porthandler].port.uint16, ctxid: gs.porthandlers[porthandler].ctxid, socket: fd))
+  when defined(fulldebug): echo "socket connected: ", fd
   var tv = (RcvTimeOut,0)
   if setsockopt(fd, cint(SOL_SOCKET), cint(RcvTimeOut), addr(tv), SockLen(sizeof(tv))) < 0'i32:
     gs.selector.unregister(fd)
-    raise newException(CatchableError, osErrorMsg(event.errorCode))
+    raise newException(CatchableError, "setting timeout failed")
   
 
 template handleEvent() =
   if data.ctxid == ServerCtx:
     try:
-      handleAccept(data.port)
+      handleAccept(unsafeAddr gs, fd, data)
     except:
       if osLastError().int != 2 and osLastError().int != 9: echo "connect error: " & getCurrentExceptionMsg()
+      else:
+        if defined(fulldebug): echo "connect error: " & getCurrentExceptionMsg()
     continue
 
   if not gs.multithreading: process(unsafeAddr gs, fd, data)
@@ -110,7 +116,8 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
           if event.errorCode.cint != 2 and event.errorCode.cint != 9 and event.errorCode.cint != 32 and event.errorCode.cint != 104: echo "socket error: ", event.errorCode.cint," ", osErrorMsg(event.errorCode)
           if gs.selector.contains(fd):
             try: gs.selector.unregister(fd)
-            except: discard
+            except:
+              when defined(fulldebug): echo "unregister failed: ", fd
           fd.close()
           when defined(fulldebug): echo "socket connection was lost: ", fd
           handleConnectionlost(unsafeAddr gs, data, fd)

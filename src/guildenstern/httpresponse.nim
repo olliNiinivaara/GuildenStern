@@ -70,10 +70,11 @@ proc replyCode*(ctx: HttpCtx, code: HttpCode = Http200) {.inline, gcsafe, raises
   if not writeVersion(ctx): return
   if not writeCode(ctx, code): return
   {.gcsafe.}:
-    if code != Http204:
-      if not writeToSocket(ctx, unsafeAddr shortdivider, shortdivider.len): return
-      if not writeToSocket(ctx, unsafeAddr zerocontent, zerocontent.len): return
-      if not writeToSocket(ctx, unsafeAddr shortdivider, shortdivider.len): return
+      if code == Http204: discard writeToSocket(ctx, unsafeAddr longdivider, longdivider.len, lastflag)
+      else:
+        if not writeToSocket(ctx, unsafeAddr shortdivider, shortdivider.len): return
+        if not writeToSocket(ctx, unsafeAddr zerocontent, zerocontent.len): return
+        discard writeToSocket(ctx, unsafeAddr shortdivider, shortdivider.len, lastflag)
       
 
 proc reply*(ctx: HttpCtx, code: HttpCode, body: ptr string, lengths: string, length: int, headers: ptr string, moretocome: bool): bool {.gcsafe, raises: [].} =

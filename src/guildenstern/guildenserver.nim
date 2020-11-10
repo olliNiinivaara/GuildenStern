@@ -108,18 +108,21 @@ proc handleRead*(gs: ptr GuildenServer, data: ptr SocketData) =
 proc closeSocket*(ctx: Ctx) {.raises: [].} =
   try:
     when defined(fulldebug): echo "closing ctx socket: ", ctx.socketdata.socket
+    if ctx.gs.selector.contains(ctx.socketdata.socket): ctx.gs.selector.unregister(ctx.socketdata.socket)
+    # finally got it?
     ctx.socketdata.socket.close()
-    if ctx.gs.selector.contains(ctx.socketdata.socket): ctx.gs.selector.unregister(ctx.socketdata.socket)       
     ctx.socketdata.socket = osInvalidSocket
-  except: discard
+  except:
+    if defined(fulldebug): echo "close error: ", getCurrentExceptionMsg()
 
 
 proc closeSocket*(gs: ptr GuildenServer, socket: SocketHandle) {.raises: [].} =
   try:
     when defined(fulldebug): echo "closing socket: ", socket
-    socket.close()
     if gs.selector.contains(socket): gs.selector.unregister(socket)
-  except: discard
+    socket.close()    
+  except:
+    if defined(fulldebug): echo "close error: ", getCurrentExceptionMsg()
 
 
 proc  handleConnectionlost*(gs: ptr GuildenServer, data: ptr SocketData, lostsocket: SocketHandle) {.raises: [].} =
