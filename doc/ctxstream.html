@@ -172,7 +172,7 @@ function main() {
   &lt;input type=&quot;file&quot; id=&quot;file&quot; name=&quot;file&quot;&gt;
   &lt;input type=&quot;submit&quot;&gt;&quot;&quot;&quot;</span>
   <span class="Keyword">if</span> <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">startsUri</span><span class="Punctuation">(</span><span class="StringLit">&quot;/upload&quot;</span><span class="Punctuation">)</span><span class="Punctuation">:</span> <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">handleUpload</span><span class="Punctuation">(</span><span class="Punctuation">)</span> <span class="Keyword">else</span><span class="Punctuation">:</span> <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">handleGet</span><span class="Punctuation">(</span><span class="Punctuation">)</span>
-  <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">reply</span><span class="Punctuation">(</span><span class="Identifier">Http200</span><span class="Punctuation">,</span> <span class="Identifier">unsafeaddr</span> <span class="Identifier">html</span><span class="Punctuation">)</span>
+  <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">reply</span><span class="Punctuation">(</span><span class="Identifier">Http200</span><span class="Punctuation">,</span> <span class="Identifier">html</span><span class="Punctuation">)</span>
 
 <span class="Keyword">var</span> <span class="Identifier">server</span> <span class="Operator">=</span> <span class="Identifier">new</span> <span class="Identifier">GuildenServer</span>
 <span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">initStreamCtx</span><span class="Punctuation">(</span><span class="Identifier">onRequest</span><span class="Punctuation">,</span> <span class="DecNumber">5050</span><span class="Punctuation">)</span>
@@ -235,7 +235,7 @@ function main() {
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2020-11-09 13:53:12 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2020-11-10 12:02:12 UTC</small>
       </div>
     </div>
   </div>

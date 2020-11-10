@@ -1,0 +1,31 @@
+
+GuildenStern
+
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    96.19ms   96.48ms 489.54ms   84.09%
+    Req/Sec    16.76     13.39    90.00     83.43%
+  Latency Distribution
+     50%   63.33ms
+     75%  139.88ms
+     90%  241.96ms
+     99%  391.88ms
+  1068 requests in 10.03s, 28.18KB read
+Requests/sec:    106.45
+Transfer/sec:      2.81KB
+
+---------------------------------------------------
+
+httpbeast
+
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   133.31ms  147.73ms 880.16ms   85.01%
+    Req/Sec    13.65     13.39   100.00     87.47%
+  Latency Distribution
+     50%  106.04ms
+     75%  213.74ms
+     90%  320.67ms
+     99%  679.77ms
+  804 requests in 10.02s, 91.86KB read
+Requests/sec:     80.26
+Transfer/sec:      9.17KB
+

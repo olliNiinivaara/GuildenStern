@@ -111,14 +111,14 @@ function main() {
   <li><a class="reference" href="#HttpCtx"
     title="HttpCtx = ref object of Ctx"><wbr />Http<wbr />Ctx<span class="attachedType"></span></a></li>
   <li><a class="reference" href="#RequestCallback"
-    title="RequestCallback = proc (ctx: Ctx) {.gcsafe, raises: [].}"><wbr />Request<wbr />Callback<span class="attachedType"></span></a></li>
+    title="RequestCallback = proc (ctx: Ctx) {.nimcall, raises: [].}"><wbr />Request<wbr />Callback<span class="attachedType"></span></a></li>
   <li><a class="reference" href="#TimerCallback"
-    title="TimerCallback = proc () {.nimcall, gcsafe, raises: [].}"><wbr />Timer<wbr />Callback<span class="attachedType"></span></a></li>
+    title="TimerCallback = proc () {.raises: [].}"><wbr />Timer<wbr />Callback<span class="attachedType"></span></a></li>
   <li><a class="reference" href="#ThreadInitializationCallback"
-    title="ThreadInitializationCallback = proc () {.nimcall, gcsafe, raises: [].}"><wbr />Thread<wbr />Initialization<wbr />Callback<span class="attachedType"></span></a></li>
+    title="ThreadInitializationCallback = proc () {.gcsafe, raises: [].}"><wbr />Thread<wbr />Initialization<wbr />Callback<span class="attachedType"></span></a></li>
   <li><a class="reference" href="#LostCallback"
     title="LostCallback = proc (gs: ptr GuildenServer; data: ptr SocketData;
-                     lostsocket: SocketHandle) {.gcsafe, nimcall, raises: [].}"><wbr />Lost<wbr />Callback<span class="attachedType"></span></a></li>
+                     lostsocket: SocketHandle) {.raises: [].}"><wbr />Lost<wbr />Callback<span class="attachedType"></span></a></li>
   <li><a class="reference" href="#ErrorCallback"
     title="ErrorCallback = proc (msg: string) {.gcsafe, raises: [].}"><wbr />Error<wbr />Callback<span class="attachedType"></span></a></li>
 
@@ -178,11 +178,6 @@ function main() {
     title="getMethod(ctx: HttpCtx): string">getMethod,HttpCtx<span class="attachedType">HttpCtx</span></a></li>
 
   </ul>
-  <ul class="simple nested-toc-section">replyMore
-      <li><a class="reference" href="#replyMore%2CHttpCtx%2Cptr.string%2Cint"
-    title="replyMore(ctx: HttpCtx; bodypart: ptr string; partlength: int = -1): bool">replyMore,HttpCtx,ptr.string,int<span class="attachedType">HttpCtx</span></a></li>
-
-  </ul>
   <ul class="simple nested-toc-section">getRequest
       <li><a class="reference" href="#getRequest%2CHttpCtx"
     title="getRequest(ctx: HttpCtx): string">getRequest,HttpCtx<span class="attachedType">HttpCtx</span></a></li>
@@ -200,25 +195,6 @@ function main() {
     title="closeSocket(gs: ptr GuildenServer; socket: nativesockets.SocketHandle)">closeSocket,ptr.GuildenServer,<span class="attachedType"></span></a></li>
 
   </ul>
-  <ul class="simple nested-toc-section">replyStart
-      <li><a class="reference" href="#replyStart%2CHttpCtx%2CHttpCode%2Cint%2Cptr.string%2Cptr.string"
-    title="replyStart(ctx: HttpCtx; code: HttpCode; contentlength: int;
-           firstpart: ptr string; headers: ptr string = nil): bool">replyStart,HttpCtx,HttpCode,int,ptr.string,ptr.string<span class="attachedType">HttpCtx</span></a></li>
-
-  </ul>
-  <ul class="simple nested-toc-section">reply
-      <li><a class="reference" href="#reply%2CHttpCtx%2CHttpCode%2Cptr.string%2Cptr.string"
-    title="reply(ctx: HttpCtx; code: HttpCode; body: ptr string = nil;
-      headers: ptr string = nil)">reply,HttpCtx,HttpCode,ptr.string,ptr.string<span class="attachedType">HttpCtx</span></a></li>
-  <li><a class="reference" href="#reply%2CHttpCtx%2CHttpCode%2Cptr.string%2CopenArray%5Bstring%5D"
-    title="reply(ctx: HttpCtx; code: HttpCode; body: ptr string = nil;
-      headers: openArray[string])">reply,HttpCtx,HttpCode,ptr.string,openArray[string]<span class="attachedType">HttpCtx</span></a></li>
-  <li><a class="reference" href="#reply%2CHttpCtx%2CHttpCode%2CopenArray%5Bstring%5D"
-    title="reply(ctx: HttpCtx; code: HttpCode; headers: openArray[string])">reply,HttpCtx,HttpCode,openArray[string]<span class="attachedType">HttpCtx</span></a></li>
-  <li><a class="reference" href="#reply%2CHttpCtx%2CopenArray%5Bstring%5D"
-    title="reply(ctx: HttpCtx; headers: openArray[string])">reply,HttpCtx,openArray[string]<span class="attachedType">HttpCtx</span></a></li>
-
-  </ul>
   <ul class="simple nested-toc-section">getUri
       <li><a class="reference" href="#getUri%2CHttpCtx"
     title="getUri(ctx: HttpCtx): string">getUri,HttpCtx<span class="attachedType">HttpCtx</span></a></li>
@@ -229,19 +205,9 @@ function main() {
     title="isBody(ctx: HttpCtx; body: string): bool">isBody,HttpCtx,string<span class="attachedType">HttpCtx</span></a></li>
 
   </ul>
-  <ul class="simple nested-toc-section">replyCode
-      <li><a class="reference" href="#replyCode%2CHttpCtx%2CHttpCode"
-    title="replyCode(ctx: HttpCtx; code: HttpCode)">replyCode,HttpCtx,HttpCode<span class="attachedType">HttpCtx</span></a></li>
-
-  </ul>
   <ul class="simple nested-toc-section">serve
       <li><a class="reference" href="#serve%2CGuildenServer"
     title="serve(gs: GuildenServer; multithreaded = true)">serve,GuildenServer<span class="attachedType"></span></a></li>
-
-  </ul>
-  <ul class="simple nested-toc-section">replyLast
-      <li><a class="reference" href="#replyLast%2CHttpCtx%2Cptr.string%2Cint"
-    title="replyLast(ctx: HttpCtx; lastpart: ptr string; partlength: int = -1)">replyLast,HttpCtx,ptr.string,int<span class="attachedType">HttpCtx</span></a></li>
 
   </ul>
   <ul class="simple nested-toc-section">isUri
@@ -275,6 +241,31 @@ function main() {
 
   </ul>
 </li>
+<li>
+  <a class="reference reference-toplevel" href="#18" id="68">Templates</a>
+  <ul class="simple simple-toc-section">
+      <li><a class="reference" href="#reply.t%2CHttpCtx%2CHttpCode%2Cstring%2CopenArray%5Bstring%5D"
+    title="reply(ctx: HttpCtx; code: HttpCode; body: string; headers: openArray[string])"><wbr />reply<span class="attachedType">HttpCtx</span></a></li>
+  <li><a class="reference" href="#reply.t%2CHttpCtx%2CHttpCode%2CopenArray%5Bstring%5D"
+    title="reply(ctx: HttpCtx; code: HttpCode; headers: openArray[string])"><wbr />reply<span class="attachedType">HttpCtx</span></a></li>
+  <li><a class="reference" href="#reply.t%2CHttpCtx%2Cstring"
+    title="reply(ctx: HttpCtx; body: string)"><wbr />reply<span class="attachedType">HttpCtx</span></a></li>
+  <li><a class="reference" href="#reply.t%2CHttpCtx%2CHttpCode%2Cstring"
+    title="reply(ctx: HttpCtx; code: HttpCode; body: string)"><wbr />reply<span class="attachedType">HttpCtx</span></a></li>
+  <li><a class="reference" href="#replyStart.t%2CHttpCtx%2CHttpCode%2Cint%2Cstring%2CopenArray%5Bstring%5D"
+    title="replyStart(ctx: HttpCtx; code: HttpCode; contentlength: int; firstpart: string;
+           headers: openArray[string]): bool"><wbr />reply<wbr />Start<span class="attachedType">HttpCtx</span></a></li>
+  <li><a class="reference" href="#replyStart.t%2CHttpCtx%2CHttpCode%2Cint%2Cstring"
+    title="replyStart(ctx: HttpCtx; code: HttpCode; contentlength: int; firstpart: string): bool"><wbr />reply<wbr />Start<span class="attachedType">HttpCtx</span></a></li>
+  <li><a class="reference" href="#replyMore.t%2CHttpCtx%2Cstring"
+    title="replyMore(ctx: HttpCtx; bodypart: string): bool"><wbr />reply<wbr />More<span class="attachedType">HttpCtx</span></a></li>
+  <li><a class="reference" href="#replyLast.t%2CHttpCtx%2Cstring"
+    title="replyLast(ctx: HttpCtx; lastpart: string)"><wbr />reply<wbr />Last<span class="attachedType">HttpCtx</span></a></li>
+  <li><a class="reference" href="#replyLast.t%2CHttpCtx"
+    title="replyLast(ctx: HttpCtx)"><wbr />reply<wbr />Last<span class="attachedType">HttpCtx</span></a></li>
+
+  </ul>
+</li>
 
 </ul>
 
@@ -283,7 +274,9 @@ function main() {
   <div id="tocRoot"></div>
   
   <p class="module-desc">A modular multithreading Linux HTTP server. Easily create and add handlers. Associate handlers with ports. Genuinely multithreading: spawns new thread for every request. Runs in single-threaded mode, too. No need to use async/await.
-<h1><a class="toc-backref" id="example" href="#example">Example</a></h1><pre class="listing"><span class="Comment"># nim c -r --gc:arc --d:release --threads:on --d:threadsafe example.nim</span>
+<h1><a class="toc-backref" id="example" href="#example">Example</a></h1><p>In this example port number is coded to html just for demonstration purposes. In reality, use your reverse proxy to route different types of requests to different ports.</p>
+<pre class="listing"><span class="Comment"># nim c -r --gc:arc --d:release --threads:on --d:threadsafe example.nim</span>
+
 <span class="Keyword">import</span> <span class="Identifier">cgi</span><span class="Punctuation">,</span> <span class="Identifier">guildenstern</span><span class="Operator">/</span><span class="Punctuation">[</span><span class="Identifier">ctxheader</span><span class="Punctuation">,</span> <span class="Identifier">ctxfull</span><span class="Punctuation">]</span>
 
 <span class="Keyword">let</span> <span class="Identifier">origin</span> <span class="Operator">=</span> <span class="StringLit">&quot;http://localhost:5050&quot;</span>
@@ -292,12 +285,12 @@ function main() {
 &lt;form action=&quot;http://localhost:5051&quot; method=&quot;post&quot;&gt;
 &lt;input name=&quot;say&quot; id=&quot;say&quot; value=&quot;Hi&quot;&gt;&lt;button&gt;Send&quot;&quot;&quot;</span>
 
-<span class="Keyword">proc</span> <span class="Identifier">handleGet</span><span class="Punctuation">(</span><span class="Identifier">ctx</span><span class="Punctuation">:</span> <span class="Identifier">HttpCtx</span><span class="Punctuation">)</span> <span class="Operator">=</span> <span class="Punctuation">{</span><span class="Operator">.</span><span class="Identifier">gcsafe</span><span class="Operator">.</span><span class="Punctuation">}</span><span class="Punctuation">:</span> <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">reply</span><span class="Punctuation">(</span><span class="Identifier">Http200</span><span class="Punctuation">,</span> <span class="Identifier">unsafeAddr</span> <span class="Identifier">html</span><span class="Punctuation">)</span>
+<span class="Keyword">proc</span> <span class="Identifier">handleGet</span><span class="Punctuation">(</span><span class="Identifier">ctx</span><span class="Punctuation">:</span> <span class="Identifier">HttpCtx</span><span class="Punctuation">)</span> <span class="Operator">=</span> <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">reply</span><span class="Punctuation">(</span><span class="Identifier">Http200</span><span class="Punctuation">,</span> <span class="Identifier">html</span><span class="Punctuation">)</span>
 
 <span class="Keyword">proc</span> <span class="Identifier">handlePost</span><span class="Punctuation">(</span><span class="Identifier">ctx</span><span class="Punctuation">:</span> <span class="Identifier">HttpCtx</span><span class="Punctuation">,</span> <span class="Identifier">headers</span><span class="Punctuation">:</span> <span class="Identifier">StringTableRef</span><span class="Punctuation">)</span> <span class="Operator">=</span>
   <span class="Keyword">try</span><span class="Punctuation">:</span> <span class="Identifier">echo</span> <span class="Identifier">readData</span><span class="Punctuation">(</span><span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">getBody</span><span class="Punctuation">(</span><span class="Punctuation">)</span><span class="Punctuation">)</span><span class="Operator">.</span><span class="Identifier">getOrDefault</span><span class="Punctuation">(</span><span class="StringLit">&quot;say&quot;</span><span class="Punctuation">)</span>
   <span class="Keyword">except</span><span class="Punctuation">:</span> <span class="Keyword">discard</span>
-  <span class="Punctuation">{</span><span class="Operator">.</span><span class="Identifier">gcsafe</span><span class="Operator">.</span><span class="Punctuation">}</span><span class="Punctuation">:</span> <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">reply</span><span class="Punctuation">(</span><span class="Identifier">Http303</span><span class="Punctuation">,</span> <span class="Punctuation">[</span><span class="StringLit">&quot;location: &quot;</span> <span class="Operator">&amp;</span> <span class="Identifier">origin</span><span class="Punctuation">]</span><span class="Punctuation">)</span>
+  <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">reply</span><span class="Punctuation">(</span><span class="Identifier">Http303</span><span class="Punctuation">,</span> <span class="Punctuation">[</span><span class="StringLit">&quot;location: &quot;</span> <span class="Operator">&amp;</span> <span class="Identifier">origin</span><span class="Punctuation">]</span><span class="Punctuation">)</span>
 
 <span class="Keyword">var</span> <span class="Identifier">server</span> <span class="Operator">=</span> <span class="Identifier">new</span> <span class="Identifier">GuildenServer</span>
 <span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">initHeaderCtx</span><span class="Punctuation">(</span><span class="Identifier">handleGet</span><span class="Punctuation">,</span> <span class="DecNumber">5050</span><span class="Punctuation">)</span>
@@ -347,21 +340,21 @@ function main() {
 
 </dd>
 <a id="RequestCallback"></a>
-<dt><pre><a href="guildenstern.html#RequestCallback"><span class="Identifier">RequestCallback</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#Ctx"><span class="Identifier">Ctx</span></a><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<dt><pre><a href="guildenstern.html#RequestCallback"><span class="Identifier">RequestCallback</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#Ctx"><span class="Identifier">Ctx</span></a><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">nimcall</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
 <dd>
 
-Type for procs that are called when a socket request can be processed.
+Type for procs that are called when a socket request can be processed. When multithreading, serialize mutations to global vars with locks (use threadvars instead unless memory usage is a problem).
 
 </dd>
 <a id="TimerCallback"></a>
-<dt><pre><a href="guildenstern.html#TimerCallback"><span class="Identifier">TimerCallback</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">nimcall</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<dt><pre><a href="guildenstern.html#TimerCallback"><span class="Identifier">TimerCallback</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
 <dd>
 
 
 
 </dd>
 <a id="ThreadInitializationCallback"></a>
-<dt><pre><a href="guildenstern.html#ThreadInitializationCallback"><span class="Identifier">ThreadInitializationCallback</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">nimcall</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<dt><pre><a href="guildenstern.html#ThreadInitializationCallback"><span class="Identifier">ThreadInitializationCallback</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
 <dd>
 
 
@@ -369,7 +362,7 @@ Type for procs that are called when a socket request can be processed.
 </dd>
 <a id="LostCallback"></a>
 <dt><pre><a href="guildenstern.html#LostCallback"><span class="Identifier">LostCallback</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">gs</span><span class="Other">:</span> <span class="Keyword">ptr</span> <a href="guildenstern.html#GuildenServer"><span class="Identifier">GuildenServer</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">ptr</span> <a href="guildenstern.html#SocketData"><span class="Identifier">SocketData</span></a><span class="Other">;</span>
-                     <span class="Identifier">lostsocket</span><span class="Other">:</span> <span class="Identifier">SocketHandle</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">nimcall</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+                     <span class="Identifier">lostsocket</span><span class="Other">:</span> <span class="Identifier">SocketHandle</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
 <dd>
 
 
@@ -407,19 +400,17 @@ Maximum acceptable length (header length + content length) for a HTTP request (N
 <h1><a class="toc-backref" href="#12">Procs</a></h1>
 <dl class="item">
 <a id="serve,GuildenServer"></a>
-<dt><pre><span class="Keyword">proc</span> <a href="#serve%2CGuildenServer"><span class="Identifier">serve</span></a><span class="Other">(</span><span class="Identifier">gs</span><span class="Other">:</span> <a href="guildenstern.html#GuildenServer"><span class="Identifier">GuildenServer</span></a><span class="Other">;</span> <span class="Identifier">multithreaded</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">nimcall</span><span class="Other">,</span>
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#serve%2CGuildenServer"><span class="Identifier">serve</span></a><span class="Other">(</span><span class="Identifier">gs</span><span class="Other">:</span> <a href="guildenstern.html#GuildenServer"><span class="Identifier">GuildenServer</span></a><span class="Other">;</span> <span class="Identifier">multithreaded</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
 <dd>
 
 <p>Starts server event dispatcher loop which runs until shutdown() is called or SIGINT received. If you want the server to run in a single thread, set multithreaded to false.</p>
 <p><strong>Example:</strong></p>
-<pre class="listing"><span class="Keyword">import</span> <span class="Identifier">guildenstern</span><span class="Operator">/</span><span class="Identifier">ctxfull</span>
-
-<span class="Keyword">proc</span> <span class="Identifier">onRequest</span><span class="Punctuation">(</span><span class="Identifier">ctx</span><span class="Punctuation">:</span> <span class="Identifier">HttpCtx</span><span class="Punctuation">)</span> <span class="Operator">=</span> <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">replyCode</span><span class="Punctuation">(</span><span class="Identifier">Http200</span><span class="Punctuation">)</span>
-
-<span class="Keyword">var</span> <span class="Identifier">myserver</span> <span class="Operator">=</span> <span class="Identifier">new</span> <span class="Identifier">GuildenServer</span>
-<span class="Identifier">myserver</span><span class="Operator">.</span><span class="Identifier">initFullCtx</span><span class="Punctuation">(</span><span class="Identifier">onRequest</span><span class="Punctuation">,</span> <span class="DecNumber">5050</span><span class="Punctuation">)</span>
-<span class="Identifier">myserver</span><span class="Operator">.</span><span class="Identifier">serve</span><span class="Punctuation">(</span><span class="Identifier">false</span><span class="Punctuation">)</span></pre>
+<pre class="listing"><span class="Keyword">import</span> <span class="Identifier">guildenstern</span><span class="Operator">/</span><span class="Identifier">ctxheader</span>
+<span class="Keyword">proc</span> <span class="Identifier">onRequest</span><span class="Punctuation">(</span><span class="Identifier">ctx</span><span class="Punctuation">:</span> <span class="Identifier">HttpCtx</span><span class="Punctuation">)</span> <span class="Operator">=</span> <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">reply</span><span class="Punctuation">(</span><span class="Identifier">Http200</span><span class="Punctuation">)</span>
+<span class="Keyword">var</span> <span class="Identifier">server</span> <span class="Operator">=</span> <span class="Identifier">new</span> <span class="Identifier">GuildenServer</span>
+<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">initHeaderCtx</span><span class="Punctuation">(</span><span class="Identifier">onRequest</span><span class="Punctuation">,</span> <span class="DecNumber">5050</span><span class="Punctuation">)</span>
+<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">serve</span><span class="Punctuation">(</span><span class="Identifier">false</span><span class="Punctuation">)</span></pre>
 
 </dd>
 <a id="registerThreadInitializer,GuildenServer,ThreadInitializationCallback"></a>
@@ -430,17 +421,29 @@ Maximum acceptable length (header length + content length) for a HTTP request (N
 
 <p>Registers a procedure in which you can initialize threadvars. This is called exactly once for each thread, when it is first created.</p>
 <p><strong>Example:</strong></p>
-<pre class="listing"><span class="Keyword">import</span> <span class="Identifier">guildenstern</span>
-<span class="Keyword">var</span> <span class="Identifier">x</span> <span class="Punctuation">{</span><span class="Operator">.</span><span class="Identifier">threadvar</span><span class="Operator">.</span><span class="Punctuation">}</span><span class="Punctuation">:</span> <span class="Identifier">string</span>
+<pre class="listing"><span class="Keyword">import</span> <span class="Identifier">guildenstern</span><span class="Punctuation">,</span> <span class="Identifier">os</span><span class="Punctuation">,</span> <span class="Identifier">random</span>
+
+<span class="Keyword">var</span> <span class="Identifier">threadcount</span><span class="Punctuation">:</span> <span class="Identifier">int</span>
+<span class="Keyword">var</span> <span class="Identifier">rounds</span><span class="Punctuation">:</span> <span class="Identifier">int</span>
+<span class="Keyword">var</span> <span class="Identifier">x</span> <span class="Punctuation">{</span><span class="Operator">.</span><span class="Identifier">threadvar</span><span class="Operator">.</span><span class="Punctuation">}</span><span class="Punctuation">:</span> <span class="Identifier">int</span>
 
 <span class="Keyword">proc</span> <span class="Identifier">initializeThreadvars</span><span class="Punctuation">(</span><span class="Punctuation">)</span> <span class="Operator">=</span>
-  <span class="Identifier">echo</span> <span class="StringLit">&quot;initializer called!&quot;</span>
-  <span class="Identifier">x</span> <span class="Operator">=</span> <span class="StringLit">&quot;initialized&quot;</span>
+  <span class="Identifier">x</span> <span class="Operator">=</span> <span class="Identifier">threadcount</span><span class="Operator">.</span><span class="Identifier">atomicInc</span>
+  <span class="Identifier">echo</span> <span class="StringLit">&quot;new thread initialized: &quot;</span><span class="Punctuation">,</span> <span class="Identifier">x</span>
 
-<span class="Keyword">var</span> <span class="Identifier">myserver</span> <span class="Operator">=</span> <span class="Identifier">newGuildenServer</span><span class="Punctuation">(</span><span class="Punctuation">)</span>
-<span class="Identifier">myserver</span><span class="Operator">.</span><span class="Identifier">registerThreadInitializer</span><span class="Punctuation">(</span><span class="Identifier">initializeThreadvars</span><span class="Punctuation">)</span>
-<span class="Identifier">myserver</span><span class="Operator">.</span><span class="Identifier">registerTimerhandler</span><span class="Punctuation">(</span><span class="Punctuation">(</span><span class="Keyword">proc</span><span class="Punctuation">(</span><span class="Punctuation">)</span> <span class="Operator">=</span> <span class="Identifier">echo</span> <span class="StringLit">&quot;tick&quot;</span><span class="Punctuation">)</span><span class="Punctuation">,</span> <span class="DecNumber">1000</span><span class="Punctuation">)</span>
-<span class="Identifier">myserver</span><span class="Operator">.</span><span class="Identifier">serve</span><span class="Punctuation">(</span><span class="Punctuation">)</span></pre>
+<span class="Keyword">proc</span> <span class="Identifier">tiktok</span><span class="Punctuation">(</span><span class="Punctuation">)</span> <span class="Operator">=</span>
+  <span class="Identifier">echo</span> <span class="StringLit">&quot;tik &quot;</span><span class="Punctuation">,</span> <span class="Identifier">x</span>
+  <span class="Identifier">sleep</span><span class="Punctuation">(</span><span class="DecNumber">500</span> <span class="Operator">+</span> <span class="Identifier">rand</span><span class="Punctuation">(</span><span class="DecNumber">2000</span><span class="Punctuation">)</span><span class="Punctuation">)</span>
+  <span class="Identifier">echo</span> <span class="StringLit">&quot;tok &quot;</span><span class="Punctuation">,</span> <span class="Identifier">x</span>
+  <span class="Keyword">if</span> <span class="Identifier">rounds</span><span class="Operator">.</span><span class="Identifier">atomicInc</span> <span class="Operator">&gt;</span> <span class="DecNumber">50</span><span class="Punctuation">:</span> <span class="Identifier">shutdown</span><span class="Punctuation">(</span><span class="Punctuation">)</span>
+
+<span class="Identifier">randomize</span><span class="Punctuation">(</span><span class="Punctuation">)</span>
+<span class="Keyword">var</span> <span class="Identifier">server</span> <span class="Operator">=</span> <span class="Identifier">new</span> <span class="Identifier">GuildenServer</span>
+<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">registerThreadInitializer</span><span class="Punctuation">(</span><span class="Identifier">initializeThreadvars</span><span class="Punctuation">)</span>
+<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">registerTimerhandler</span><span class="Punctuation">(</span><span class="Identifier">tiktok</span><span class="Punctuation">,</span> <span class="DecNumber">100</span><span class="Punctuation">)</span>
+<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">serve</span><span class="Punctuation">(</span><span class="Punctuation">)</span>
+<span class="Identifier">echo</span> <span class="StringLit">&quot;----&quot;</span>
+<span class="Identifier">sleep</span><span class="Punctuation">(</span><span class="DecNumber">2510</span><span class="Punctuation">)</span></pre>
 
 </dd>
 <a id="registerTimerhandler,GuildenServer,TimerCallback,int"></a>
@@ -592,7 +595,7 @@ Returns the whole request as string.
 
 <p>Parses header <tt class="docutils literal"><span class="pre">fields</span></tt> values into <tt class="docutils literal"><span class="pre">toarray</span></tt>.</p>
 <p><strong>Example:</strong></p>
-<pre class="listing"><span class="Keyword">import</span> <span class="Identifier">guildenstern</span><span class="Punctuation">,</span> <span class="Identifier">guildenstern</span><span class="Operator">/</span><span class="Identifier">ctxheader</span>
+<pre class="listing"><span class="Keyword">import</span> <span class="Identifier">guildenstern</span><span class="Operator">/</span><span class="Identifier">ctxheader</span>
 <span class="Keyword">import</span> <span class="Identifier">httpclient</span>
 
 <span class="Keyword">const</span> <span class="Identifier">headerfields</span> <span class="Operator">=</span> <span class="Punctuation">[</span><span class="StringLit">&quot;afield&quot;</span><span class="Punctuation">,</span> <span class="StringLit">&quot;anotherfield&quot;</span><span class="Punctuation">]</span>
@@ -607,23 +610,21 @@ Returns the whole request as string.
   <span class="Keyword">except</span><span class="Punctuation">:</span> <span class="Identifier">echo</span> <span class="Identifier">getCurrentExceptionMsg</span><span class="Punctuation">(</span><span class="Punctuation">)</span>
 
 <span class="Keyword">proc</span> <span class="Identifier">sendRequest</span><span class="Punctuation">(</span><span class="Punctuation">)</span> <span class="Operator">=</span>
-  <span class="Keyword">try</span><span class="Punctuation">:</span>
-    <span class="Keyword">discard</span> <span class="Identifier">client</span><span class="Operator">.</span><span class="Identifier">request</span><span class="Punctuation">(</span><span class="StringLit">&quot;http://localhost:5050&quot;</span><span class="Punctuation">)</span>
-    <span class="Identifier">client</span><span class="Operator">.</span><span class="Identifier">close</span><span class="Punctuation">(</span><span class="Punctuation">)</span>
+  <span class="Keyword">try</span><span class="Punctuation">:</span> <span class="Keyword">discard</span> <span class="Identifier">client</span><span class="Operator">.</span><span class="Identifier">request</span><span class="Punctuation">(</span><span class="StringLit">&quot;http://localhost:5050&quot;</span><span class="Punctuation">)</span>
   <span class="Keyword">except</span><span class="Punctuation">:</span> <span class="Identifier">echo</span> <span class="Identifier">getCurrentExceptionMsg</span><span class="Punctuation">(</span><span class="Punctuation">)</span>
 
 <span class="Keyword">proc</span> <span class="Identifier">onRequest</span><span class="Punctuation">(</span><span class="Identifier">ctx</span><span class="Punctuation">:</span> <span class="Identifier">HttpCtx</span><span class="Punctuation">)</span> <span class="Operator">=</span>
   <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">parseHeaders</span><span class="Punctuation">(</span><span class="Identifier">headerfields</span><span class="Punctuation">,</span> <span class="Identifier">headers</span><span class="Punctuation">)</span>
   <span class="Identifier">echo</span> <span class="Identifier">headers</span>
-  <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">replyCode</span><span class="Punctuation">(</span><span class="Identifier">Http200</span><span class="Punctuation">)</span>
+  <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">reply</span><span class="Punctuation">(</span><span class="Identifier">Http204</span><span class="Punctuation">)</span>
 
 <span class="Identifier">doAssert</span><span class="Punctuation">(</span><span class="Identifier">compileOption</span><span class="Punctuation">(</span><span class="StringLit">&quot;threads&quot;</span><span class="Punctuation">)</span><span class="Punctuation">,</span> <span class="LongStringLit">&quot;&quot;&quot;this example must be compiled with threads;
-  &quot;nim c -r --threads:on --d:threadsafe example.nim&quot;&quot;&quot;&quot;</span><span class="Punctuation">)</span>
-<span class="Keyword">var</span> <span class="Identifier">myserver</span> <span class="Operator">=</span> <span class="Identifier">newGuildenServer</span><span class="Punctuation">(</span><span class="Punctuation">)</span>
-<span class="Identifier">myserver</span><span class="Operator">.</span><span class="Identifier">registerThreadInitializer</span><span class="Punctuation">(</span><span class="Identifier">initializeThreadvars</span><span class="Punctuation">)</span>
-<span class="Identifier">myserver</span><span class="Operator">.</span><span class="Identifier">initHeaderCtx</span><span class="Punctuation">(</span><span class="Identifier">onRequest</span><span class="Punctuation">,</span> <span class="DecNumber">5050</span><span class="Punctuation">)</span>
-<span class="Identifier">myserver</span><span class="Operator">.</span><span class="Identifier">registerTimerhandler</span><span class="Punctuation">(</span><span class="Identifier">sendRequest</span><span class="Punctuation">,</span> <span class="DecNumber">1000</span><span class="Punctuation">)</span>
-<span class="Identifier">myserver</span><span class="Operator">.</span><span class="Identifier">serve</span><span class="Punctuation">(</span><span class="Punctuation">)</span></pre>
+  &quot;nim c -r --gc:arc --threads:on --d:threadsafe example.nim&quot;&quot;&quot;&quot;</span><span class="Punctuation">)</span>
+<span class="Keyword">var</span> <span class="Identifier">server</span> <span class="Operator">=</span> <span class="Identifier">new</span> <span class="Identifier">GuildenServer</span>
+<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">registerThreadInitializer</span><span class="Punctuation">(</span><span class="Identifier">initializeThreadvars</span><span class="Punctuation">)</span>
+<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">initHeaderCtx</span><span class="Punctuation">(</span><span class="Identifier">onRequest</span><span class="Punctuation">,</span> <span class="DecNumber">5050</span><span class="Punctuation">)</span>
+<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">registerTimerhandler</span><span class="Punctuation">(</span><span class="Identifier">sendRequest</span><span class="Punctuation">,</span> <span class="DecNumber">1000</span><span class="Punctuation">)</span>
+<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">serve</span><span class="Punctuation">(</span><span class="Punctuation">)</span></pre>
 
 </dd>
 <a id="parseHeaders,HttpCtx,StringTableRef"></a>
@@ -633,69 +634,75 @@ Returns the whole request as string.
 Parses all headers into given strtabs.StringTable.
 
 </dd>
-<a id="replyCode,HttpCtx,HttpCode"></a>
-<dt><pre><span class="Keyword">proc</span> <a href="#replyCode%2CHttpCtx%2CHttpCode"><span class="Identifier">replyCode</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">;</span> <span class="Identifier">code</span><span class="Other">:</span> <span class="Identifier">HttpCode</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">inline</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+
+</dl></div>
+<div class="section" id="18">
+<h1><a class="toc-backref" href="#18">Templates</a></h1>
+<dl class="item">
+<a id="reply.t,HttpCtx,HttpCode,string,openArray[string]"></a>
+<dt><pre><span class="Keyword">template</span> <a href="#reply.t%2CHttpCtx%2CHttpCode%2Cstring%2CopenArray%5Bstring%5D"><span class="Identifier">reply</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">;</span> <span class="Identifier">code</span><span class="Other">:</span> <span class="Identifier">HttpCode</span><span class="Other">;</span> <span class="Identifier">body</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span>
+               <span class="Identifier">headers</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span><span class="Other">)</span></pre></dt>
 <dd>
 
-Replies with just the HTTP status code.
+Sends a reply to the socket in context. Aborts silently if socket is closed (there's not much to do). Note that body has to be addressable for posix, use lets instead of consts. Syntactic sugar varations of this template below. If you need even more control over replying, see procs in httpresponse module.
 
 </dd>
-<a id="reply,HttpCtx,HttpCode,ptr.string,ptr.string"></a>
-<dt><pre><span class="Keyword">proc</span> <a href="#reply%2CHttpCtx%2CHttpCode%2Cptr.string%2Cptr.string"><span class="Identifier">reply</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">;</span> <span class="Identifier">code</span><span class="Other">:</span> <span class="Identifier">HttpCode</span><span class="Other">;</span> <span class="Identifier">body</span><span class="Other">:</span> <span class="Keyword">ptr</span> <span class="Identifier">string</span> <span class="Other">=</span> <span class="Keyword">nil</span><span class="Other">;</span>
-           <span class="Identifier">headers</span><span class="Other">:</span> <span class="Keyword">ptr</span> <span class="Identifier">string</span> <span class="Other">=</span> <span class="Keyword">nil</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">inline</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<a id="reply.t,HttpCtx,HttpCode,openArray[string]"></a>
+<dt><pre><span class="Keyword">template</span> <a href="#reply.t%2CHttpCtx%2CHttpCode%2CopenArray%5Bstring%5D"><span class="Identifier">reply</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">;</span> <span class="Identifier">code</span><span class="Other">:</span> <span class="Identifier">HttpCode</span><span class="Other">;</span> <span class="Identifier">headers</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span><span class="Other">)</span></pre></dt>
 <dd>
 
-Sends a reply to the socket in context, failing silently if socket is closed. Pointers are used as optimization (avoids deep copies and gc refcounting).
+
 
 </dd>
-<a id="reply,HttpCtx,HttpCode,ptr.string,openArray[string]"></a>
-<dt><pre><span class="Keyword">proc</span> <a href="#reply%2CHttpCtx%2CHttpCode%2Cptr.string%2CopenArray%5Bstring%5D"><span class="Identifier">reply</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">;</span> <span class="Identifier">code</span><span class="Other">:</span> <span class="Identifier">HttpCode</span><span class="Other">;</span> <span class="Identifier">body</span><span class="Other">:</span> <span class="Keyword">ptr</span> <span class="Identifier">string</span> <span class="Other">=</span> <span class="Keyword">nil</span><span class="Other">;</span>
-           <span class="Identifier">headers</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">inline</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<a id="reply.t,HttpCtx,string"></a>
+<dt><pre><span class="Keyword">template</span> <a href="#reply.t%2CHttpCtx%2Cstring"><span class="Identifier">reply</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">;</span> <span class="Identifier">body</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span></pre></dt>
 <dd>
 
-Replies with headers fields given as an openArray.
+Http200 Ok
 
 </dd>
-<a id="reply,HttpCtx,HttpCode,openArray[string]"></a>
-<dt><pre><span class="Keyword">proc</span> <a href="#reply%2CHttpCtx%2CHttpCode%2CopenArray%5Bstring%5D"><span class="Identifier">reply</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">;</span> <span class="Identifier">code</span><span class="Other">:</span> <span class="Identifier">HttpCode</span><span class="Other">;</span> <span class="Identifier">headers</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">inline</span><span class="Other">,</span>
-    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<a id="reply.t,HttpCtx,HttpCode,string"></a>
+<dt><pre><span class="Keyword">template</span> <a href="#reply.t%2CHttpCtx%2CHttpCode%2Cstring"><span class="Identifier">reply</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">;</span> <span class="Identifier">code</span><span class="Other">:</span> <span class="Identifier">HttpCode</span><span class="Other">;</span> <span class="Identifier">body</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span></pre></dt>
 <dd>
 
-Reply without body.
+
 
 </dd>
-<a id="reply,HttpCtx,openArray[string]"></a>
-<dt><pre><span class="Keyword">proc</span> <a href="#reply%2CHttpCtx%2CopenArray%5Bstring%5D"><span class="Identifier">reply</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">;</span> <span class="Identifier">headers</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">inline</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<a id="replyStart.t,HttpCtx,HttpCode,int,string,openArray[string]"></a>
+<dt><pre><span class="Keyword">template</span> <a href="#replyStart.t%2CHttpCtx%2CHttpCode%2Cint%2Cstring%2CopenArray%5Bstring%5D"><span class="Identifier">replyStart</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">;</span> <span class="Identifier">code</span><span class="Other">:</span> <span class="Identifier">HttpCode</span><span class="Other">;</span> <span class="Identifier">contentlength</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span>
+                    <span class="Identifier">firstpart</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">headers</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span></pre></dt>
 <dd>
 
-Http200 Ok and headers.
+Indicates that reply will be given in multiple chunks. This first part submits the HTTP status code, content-length, first part of body and headers. Zero or more replyMores can follow. Last chunk should be sent with replyLast (otherwise 200 ms wait for more data occurs). Returns <tt class="docutils literal"><span class="pre">false</span></tt> if socket was closed.
 
 </dd>
-<a id="replyStart,HttpCtx,HttpCode,int,ptr.string,ptr.string"></a>
-<dt><pre><span class="Keyword">proc</span> <a href="#replyStart%2CHttpCtx%2CHttpCode%2Cint%2Cptr.string%2Cptr.string"><span class="Identifier">replyStart</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">;</span> <span class="Identifier">code</span><span class="Other">:</span> <span class="Identifier">HttpCode</span><span class="Other">;</span> <span class="Identifier">contentlength</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span>
-                <span class="Identifier">firstpart</span><span class="Other">:</span> <span class="Keyword">ptr</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">headers</span><span class="Other">:</span> <span class="Keyword">ptr</span> <span class="Identifier">string</span> <span class="Other">=</span> <span class="Keyword">nil</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma">
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<a id="replyStart.t,HttpCtx,HttpCode,int,string"></a>
+<dt><pre><span class="Keyword">template</span> <a href="#replyStart.t%2CHttpCtx%2CHttpCode%2Cint%2Cstring"><span class="Identifier">replyStart</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">;</span> <span class="Identifier">code</span><span class="Other">:</span> <span class="Identifier">HttpCode</span><span class="Other">;</span> <span class="Identifier">contentlength</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span>
+                    <span class="Identifier">firstpart</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span></pre></dt>
 <dd>
 
-Indicates that reply will be given in multiple chunks. This first part submits the HTTP status code, first part of body, content-length, and, optionally, headers. Zero or more replyMores can follow. Last chunk should be sent with replyLast (otherwise 200 ms wait for more data occurs). Returns <tt class="docutils literal"><span class="pre">false</span></tt> if socket was closed.
+
 
 </dd>
-<a id="replyMore,HttpCtx,ptr.string,int"></a>
-<dt><pre><span class="Keyword">proc</span> <a href="#replyMore%2CHttpCtx%2Cptr.string%2Cint"><span class="Identifier">replyMore</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">;</span> <span class="Identifier">bodypart</span><span class="Other">:</span> <span class="Keyword">ptr</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">partlength</span><span class="Other">:</span> <span class="Identifier">int</span> <span class="Other">=</span> <span class="Operator">-</span><span class="DecNumber">1</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma">
-    <span class="Identifier">inline</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<a id="replyMore.t,HttpCtx,string"></a>
+<dt><pre><span class="Keyword">template</span> <a href="#replyMore.t%2CHttpCtx%2Cstring"><span class="Identifier">replyMore</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">;</span> <span class="Identifier">bodypart</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span></pre></dt>
 <dd>
 
-Continues a reply started with replyStart. The optional partlength parameter states how many chars will be written (-1 = all chars).
+
 
 </dd>
-<a id="replyLast,HttpCtx,ptr.string,int"></a>
-<dt><pre><span class="Keyword">proc</span> <a href="#replyLast%2CHttpCtx%2Cptr.string%2Cint"><span class="Identifier">replyLast</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">;</span> <span class="Identifier">lastpart</span><span class="Other">:</span> <span class="Keyword">ptr</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">partlength</span><span class="Other">:</span> <span class="Identifier">int</span> <span class="Other">=</span> <span class="Operator">-</span><span class="DecNumber">1</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma">
-    <span class="Identifier">inline</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<a id="replyLast.t,HttpCtx,string"></a>
+<dt><pre><span class="Keyword">template</span> <a href="#replyLast.t%2CHttpCtx%2Cstring"><span class="Identifier">replyLast</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">;</span> <span class="Identifier">lastpart</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span></pre></dt>
 <dd>
 
-Ends a reply started with replyStart.  The optional partlength parameter states how many chars will be written (-1 = all chars).
+Ends a reply started with replyStart.
+
+</dd>
+<a id="replyLast.t,HttpCtx"></a>
+<dt><pre><span class="Keyword">template</span> <a href="#replyLast.t%2CHttpCtx"><span class="Identifier">replyLast</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">)</span></pre></dt>
+<dd>
+
+
 
 </dd>
 
@@ -708,7 +715,7 @@ Ends a reply started with replyStart.  The optional partlength parameter states 
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2020-11-09 14:43:05 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2020-11-10 11:53:53 UTC</small>
       </div>
     </div>
   </div>
