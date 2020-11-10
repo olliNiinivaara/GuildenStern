@@ -5,26 +5,26 @@
 ##
 ## .. code-block:: Nim
 ##
-##   import guildenstern, guildenstern/ctxheader
-## 
-##   const headerfields = ["user-agent", "accept-language"]
-##   let htmlstart = "<!doctype html><title>.</title><body>your user-agent: "
-##   let htmlmore = "<br>your accept-language: "
-##   var headervalues {.threadvar.}: array[2, string]
-##     
-##   proc onRequest(ctx: HttpCtx) =
-##     {.gcsafe.}:
-##       ctx.parseHeaders(headerfields, headervalues)
-##       let contentlength = htmlstart.len + headervalues[0].len  + htmlmore.len + headervalues[1].len
-##       if not ctx.replyStart(Http200, contentlength, unsafeAddr htmlstart): return
-##       discard ctx.replyMore(addr headervalues[0])
-##       discard ctx.replyMore(unsafeAddr htmlmore)
-##       ctx.replyLast(addr headervalues[1])
-##     
-##   var server = new GuildenServer
-##   server.initHeaderCtx(onRequest, 5050)
-##   echo "Point your browser to localhost:5050"
-##   server.serve()
+##    import guildenstern/ctxheader
+##    
+##    let htmlstart = "<!doctype html><title>.</title><body>your user-agent: "
+##    let htmlmore = "<br>your accept-language: "
+##    
+##    const headerfields = ["user-agent", "accept-language"]
+##    var headervalues {.threadvar.}: array[2, string]
+##        
+##    proc onRequest(ctx: HttpCtx) =
+##      ctx.parseHeaders(headerfields, headervalues)
+##      let contentlength = htmlstart.len + headervalues[0].len  + htmlmore.len + headervalues[1].len
+##      if not ctx.replyStart(Http200, contentlength, htmlstart): return
+##      if not ctx.replyMore(headervalues[0]): return
+##      if not ctx.replyMore(htmlmore): return
+##      ctx.replyLast(headervalues[1])
+##        
+##    var server = new GuildenServer
+##    server.initHeaderCtx(onRequest, 5050)
+##    echo "Point your browser to localhost:5050"
+##    server.serve()
 
 from posix import recv, SocketHandle
 
@@ -70,7 +70,7 @@ proc handleHeaderRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, 
     {.gcsafe.}: requestCallback(ctx)
     
 
-proc initHeaderCtx*(gs: var GuildenServer, onrequestcallback: proc(ctx: HttpCtx){.gcsafe, nimcall, raises: [].}, port: int, parserequestline = true) =
+proc initHeaderCtx*(gs: var GuildenServer, onrequestcallback: proc(ctx: HttpCtx){.nimcall, raises: [].}, port: int, parserequestline = true) =
   ## Initializes the headerctx handler for given ports with given request callback. By setting `parserequestline` to false this becomes a pass-through handler
   ## that does no handling for the request.
   {.gcsafe.}: 

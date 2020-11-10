@@ -72,8 +72,10 @@ proc processTimer(gs: ptr GuildenServer, data: ptr SocketData) =
   if not threadinitialized:
     threadinitialized = true
     if gs.threadinitializer != nil: gs.threadinitializer()
-  try: cast[TimerCallback](data.customdata)()
-  except: discard
+  {.gcsafe.}:  
+    try: cast[TimerCallback](data.customdata)()
+    except:
+      if defined(fulldebug): echo "timer: " & getCurrentExceptionMsg()
 
 
 template handleTimer() =

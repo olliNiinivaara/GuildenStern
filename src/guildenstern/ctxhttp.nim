@@ -232,7 +232,43 @@ proc parseHeaders*(ctx: HttpCtx, headers: StringTableRef) =
 include httpresponse
 
 
-#[proc replyStringStream*(ctx: HttpCtx, code: HttpCode=Http200, stringstream: StringStream, headers: ptr string) =
-  let length = stringstream.getPosition()
-  if length == 0: reply(ctx, code, headers)
-  else: discard ctx.reply(code, addr stringstream.data, $length, length, headers, false)]#
+template reply*(ctx: HttpCtx, code: HttpCode, headers: openArray[string]) =
+  reply(ctx, code, nil, headers)
+
+template reply*(ctx: HttpCtx, body: string) =
+  when compiles(unsafeAddr body):
+    reply(ctx, Http200, unsafeAddr body, nil)
+  else: {.fatal: "posix.send requires taking pointer to body, but body has no address".}
+
+template reply*(ctx: HttpCtx,  code: HttpCode, body: string) =
+  when compiles(unsafeAddr body):
+    reply(ctx, code, unsafeAddr body, nil)
+  else: {.fatal: "posix.send requires taking pointer to body, but body has no address".} 
+
+template reply*(ctx: HttpCtx, code: HttpCode, body: string, headers: openArray[string]) =
+  when compiles(unsafeAddr body):
+    reply(ctx, code, unsafeAddr body, headers)
+  else: {.fatal: "posix.send requires taking pointer to body, but body has no address".}
+
+template replyStart*(ctx: HttpCtx, code: HttpCode, contentlength: int, firstpart: string, headers: openArray[string]): bool =
+  when compiles(unsafeAddr firstpart):
+    replyStart(ctx, code, contentlength, unsafeAddr firstpart, headers)
+  else: {.fatal: "posix.send requires taking pointer to firstpart, but firstpart has no address".}
+
+template replyStart*(ctx: HttpCtx, code: HttpCode, contentlength: int, firstpart: string): bool =
+  when compiles(unsafeAddr firstpart):
+    replyStart(ctx, code, contentlength, unsafeAddr firstpart, nil)
+  else: {.fatal: "posix.send requires taking pointer to firstpart, but firstpart has no address".}
+
+template replyMore*(ctx: HttpCtx, bodypart: string): bool =
+  when compiles(unsafeAddr bodypart):
+    replyMore(ctx, unsafeAddr bodypart)
+  else: {.fatal: "posix.send requires taking pointer to bodypart, but bodypart has no address".}
+
+template replyLast*(ctx: HttpCtx, lastpart: string) =
+  when compiles(unsafeAddr lastpart):
+    replyLast(ctx, unsafeAddr lastpart)
+  else: {.fatal: "posix.send requires taking pointer to lastpart, but lastpart has no address".} 
+
+template replyLast*(ctx: HttpCtx) =
+  replyLast(ctx, nil)

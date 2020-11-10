@@ -5,42 +5,50 @@
 ## .. code-block:: Nim
 ##
 ##    
-##    import nativesockets
+##    import nativesockets, locks
 ##    import guildenstern/[ctxws, ctxheader]
 ##    
+##    let html = """<!doctype html><title>WsCtx</title>
+##      <script>
+##      let websocket = new WebSocket("ws://" + location.host.slice(0, -1) + '1')
+##      websocket.onmessage = function(evt) {
+##        document.getElementById("ul").appendChild(document.createElement("li")).innerHTML = evt.data }
+##      </script>
+##      <body><button onclick="websocket.send('hallo')">say hallo</button>
+##      <button onclick="websocket.close()">close</button><ul id="ul">"""
+##    
 ##    var server = new GuildenServer
+##    var lock: Lock # playing it safe by always serializing access to mutating globals (socket, in this case)
 ##    var socket = osInvalidSocket
 ##    
-##    proc onUpgradeRequest(ctx: WsCtx): bool = socket = ctx.socketdata.socket; true
+##    proc onUpgradeRequest(ctx: WsCtx): bool =
+##      withLock(lock): socket = ctx.socketdata.socket
+##      true
 ##    
 ##    proc onMessage(ctx: WsCtx) = echo "client says: ", ctx.getRequest()
 ##      
 ##    proc sendMessage() =
-##      {.gcsafe.}: # in reality, use locks to make handling connected (web) sockets thread safe
+##      withLock(lock):
 ##        if socket != osInvalidSocket:
 ##          let reply = "hello"
-##          discard server.sendWs(socket, unsafeAddr reply)
+##          discard server.sendWs(socket, reply)
 ##    
 ##    proc onLost(gs: ptr GuildenServer, data: ptr SocketData, lostsocket: SocketHandle) =
-##      if lostsocket.int == socket.int:
-##        echo "websocket connection lost"
-##        {.gcsafe.}: socket = osInvalidSocket
-##          
-##    proc onRequest(ctx: HttpCtx) =
-##      let html = """<!doctype html><title>WsCtx</title>
-##      <script>
-##      let websocket = new WebSocket("ws://" + location.host.slice(0, -1) + '1')
-##      websocket.onmessage = function(evt) { document.getElementById("table").insertRow(0).insertCell(0).innerHTML = evt.data }
-##      </script>
-##      <body><button onclick="websocket.send('hallo')">say hallo</button><button onclick="websocket.close()">close</button><table id="table">"""
-##      ctx.reply(Http200, unsafeAddr html)
+##      withLock(lock):
+##        if lostsocket.int == socket.int:
+##          echo "websocket connection lost"
+##          socket = osInvalidSocket
+##           
+##    proc onRequest(ctx: HttpCtx) = ctx.reply(Http200, html)
 ##    
 ##    server.initHeaderCtx(onRequest, 5050)
 ##    server.initWsCtx(onUpgradeRequest, onMessage, 5051)
 ##    server.registerTimerhandler(sendMessage, 2000)
 ##    server.registerConnectionlosthandler(onLost)
 ##    echo "Point your browser to localhost:5050"
+##    initLock(lock)
 ##    server.serve()
+##    deinitLock(lock)
 
 import nativesockets, net, posix, os, std/sha1, base64
 from httpcore import Http101
@@ -217,7 +225,7 @@ proc handleWsUpgradehandshake(gs: ptr GuildenServer, data: ptr SocketData) {.gcs
   ctx.requestlen = 0
   if replyHandshake(): data.ctxid = WsCtxId
   else:
-    ctx.replyCode(Http204)
+    ctx.reply(Http204)
     sleep(3000)
     ctx.closeSocket()
 
@@ -291,14 +299,24 @@ proc createWsHeader(len: int, binary = false) =
     wsresponseheader.add char(len and 255)
 
 
-proc sendWs*(gs: GuildenServer, socket: nativesockets.SocketHandle, text: ptr string, length: int = -1, binary = false): bool =
-  if length == 0 or text == nil: return
-  let len = if length == -1: text[].len else: length
+proc sendWs*(gs: GuildenServer, socket: nativesockets.SocketHandle, message: ptr string, length: int = -1, binary = false): bool =
+  if length == 0 or message == nil: return
+  let len = if length == -1: message[].len else: length
   createWsHeader(len, binary)
-  if send(unsafeAddr gs, posix.SocketHandle(socket), addr wsresponseheader): return send(unsafeAddr gs, posix.SocketHandle(socket), text, len)
+  if send(unsafeAddr gs, posix.SocketHandle(socket), addr wsresponseheader): return send(unsafeAddr gs, posix.SocketHandle(socket), message, len)
+
+template sendWs*(gs: GuildenServer, socket: nativesockets.SocketHandle, message: string, length: int = -1, binary = false): bool =
+  when compiles(unsafeAddr message):
+    sendWs(gs, socket, unsafeAddr message, length, binary)
+  else:  {.fatal: "posix.send requires taking pointer to message, but message has no address".}
 
 
 proc replyWs*(ctx: Ctx, text: ptr string, length = -1, binary = false): bool {.inline.} =
   return ctx.gs[].sendWs(ctx.socketdata.socket, text, length, binary)
-    
+
+template replyWs*(ctx: Ctx, message: string, length = -1, binary = false): bool =
+  when compiles(unsafeAddr message):
+    replyWs(ctx, unsafeAddr message, length, binary) 
+  else:  {.fatal: "posix.send requires taking pointer to message, but message has no address".}
+
 {.pop.}

@@ -11,7 +11,7 @@ const
 type
   CtxId* = distinct int
 
-  RequestCallback* = proc(ctx: Ctx) {.gcsafe, raises: [].}
+  RequestCallback* = proc(ctx: Ctx) {.nimcall, raises: [].}
   HandlerAssociation* = tuple[port: int, ctxid: CtxId]
   
   SocketData* = object
@@ -24,10 +24,10 @@ type
     gs*: ptr GuildenServer
     socketdata*: ptr SocketData
 
-  HandlerCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData){.gcsafe, nimcall, raises: [].}
-  TimerCallback* = proc() {.nimcall, gcsafe, raises: [].}
+  HandlerCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData){.nimcall, raises: [].}
+  TimerCallback* = proc() {.nimcall, raises: [].}
   ThreadInitializationCallback* = proc() {.nimcall, gcsafe, raises: [].}
-  LostCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData, closedsocket: SocketHandle){.gcsafe, nimcall, raises: [].}
+  LostCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData, closedsocket: SocketHandle){.nimcall, raises: [].}
   ErrorCallback* = proc(msg: string) {.gcsafe, raises: [].}
   
   GuildenServer* {.inheritable.} = ref object
@@ -89,6 +89,9 @@ proc registerHandler*(gs: var GuildenServer, callback: HandlerCallback, port: in
 
 
 proc registerTimerhandler*(gs: GuildenServer, callback: TimerCallback, interval: int) =
+  if gs.nextctxid == 0:
+    gs.nextctxid = 1
+    gs.selector = newSelector[SocketData]()
   discard gs.selector.registerTimer(interval, false, SocketData(ctxid: TimerCtx, customdata: cast[pointer](callback)))
 
 
@@ -102,7 +105,7 @@ proc registerErrornotifier*(gs: GuildenServer, callback: ErrorCallback) =
 
 proc handleRead*(gs: ptr GuildenServer, data: ptr SocketData) =
   assert(gs.handlercallbacks[data.ctxid] != nil, "No ctx registered for CtxId " & $data.ctxid)
-  gs.handlercallbacks[data.ctxid](gs, data)
+  {.gcsafe.}: gs.handlercallbacks[data.ctxid](gs, data)
 
 
 proc closeSocket*(ctx: Ctx) {.raises: [].} =
@@ -126,4 +129,5 @@ proc closeSocket*(gs: ptr GuildenServer, socket: SocketHandle) {.raises: [].} =
 
 
 proc  handleConnectionlost*(gs: ptr GuildenServer, data: ptr SocketData, lostsocket: SocketHandle) {.raises: [].} =
-  if gs.lostcallback != nil: gs.lostcallback(gs, data, lostsocket)
+  {.gcsafe.}:
+    if gs.lostcallback != nil: gs.lostcallback(gs, data, lostsocket)

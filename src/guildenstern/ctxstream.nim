@@ -37,7 +37,7 @@
 ##      <input type="file" id="file" name="file">
 ##      <input type="submit">"""
 ##      if ctx.startsUri("/upload"): ctx.handleUpload() else: ctx.handleGet()
-##      ctx.reply(Http200, unsafeaddr html)
+##      ctx.reply(Http200, html)
 ##    
 ##    var server = new GuildenServer
 ##    server.initStreamCtx(onRequest, 5050)

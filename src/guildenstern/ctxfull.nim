@@ -6,32 +6,32 @@
 ##
 ##    import cgi
 ##    import guildenstern/ctxfull
-##    
+##        
 ##    proc handleGet(ctx: HttpCtx, headers: StringTableRef) =
-##      var htmlstart = "<!doctype html><title>GuildenStern FullCtx Example</title><body>request-URI: "
-##      var htmlmore = "<br>user-agent: "
-##      var htmllast = """<br><form action="/post" method="post"><input name="say" id="say" value="Hi"><button>Send"""
-##      if not headers.hasKey("user-agent"): (ctx.replyCode(Http412); return)
+##      let htmlstart = "<!doctype html><title>GuildenStern FullCtx Example</title><body>request-URI: "
+##      let htmlmore = "<br>user-agent: "
+##      let htmllast = """<br><form action="/post" method="post"><input name="say" id="say" value="Hi"><button>Send"""
+##      if not headers.hasKey("user-agent"): (ctx.reply(Http412); return)
 ##      var uri = ctx.getUri()
 ##      var useragent = headers.getOrDefault("user-agent")
 ##      let contentlength = htmlstart.len + uri.len + htmlmore.len + useragent.len + htmllast.len
-##      if not ctx.replyStart(Http200, contentlength, addr htmlstart): return
-##      discard ctx.replyMore(addr uri)
-##      discard ctx.replyMore(addr htmlmore)
-##      discard ctx.replyMore(addr useragent)
-##      ctx.replyLast(addr htmllast)
+##      if not ctx.replyStart(Http200, contentlength, htmlstart): return
+##      if not ctx.replyMore(uri): return
+##      if not ctx.replyMore(htmlmore): return
+##      if not ctx.replyMore(useragent): return
+##      ctx.replyLast(htmllast)
 ##    
 ##    proc handlePost(ctx: HttpCtx) =
 ##      var html = "<!doctype html><title>GuildenStern FullCtx Example</title><body>You said: "
 ##      try:
 ##        html.add(readData(ctx.getBody()).getOrDefault("say"))  
-##        ctx.reply(Http200, addr html)
-##      except: ctx.replyCode(Http412)
-##        
+##        ctx.reply(Http200, html)
+##      except: ctx.reply(Http412)
+##           
 ##    proc onRequest(ctx: HttpCtx, headers: StringTableRef) =
 ##      if ctx.isMethod("POST"): ctx.handlePost()
 ##      else: ctx.handleGet(headers)
-##    
+##      
 ##    var server = new GuildenServer
 ##    server.initFullCtx(onRequest, 5050)
 ##    echo "Point your browser to localhost:5050/any/request-uri/path/"
@@ -51,7 +51,7 @@ else:
 
 
 type
-  FullRequestCallback* = proc(ctx: HttpCtx, headers: StringTableRef){.gcsafe, nimcall, raises: [].}
+  FullRequestCallback* = proc(ctx: HttpCtx, headers: StringTableRef){.nimcall, raises: [].}
 
 
 var
@@ -92,7 +92,7 @@ proc receiveHttp(): bool {.gcsafe, raises:[] .} =
   true
 
 
-proc handleHttpRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
+proc handleHttpRequest(gs: ptr GuildenServer, data: ptr SocketData) {.nimcall, raises: [].} =
   if ctx == nil: ctx = new HttpCtx
   if request.len < MaxRequestLength + 1: request = newString(MaxRequestLength + 1)
   if headers == nil: headers = newStringTable()

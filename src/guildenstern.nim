@@ -20,24 +20,28 @@
 ## Example
 ## =======
 ## 
+## In this example port number is coded to html just for demonstration purposes. In reality, use your
+## reverse proxy to route different types of requests to different ports.
+## 
 ## .. code-block:: Nim
 ##
 ##    # nim c -r --gc:arc --d:release --threads:on --d:threadsafe example.nim
-##    import cgi, guildenstern/[ctxheader, ctxfull]
 ##    
+##    import cgi, guildenstern/[ctxheader, ctxfull]
+##       
 ##    let origin = "http://localhost:5050"
 ##    let html = """
 ##    <!doctype html><title>GuildenStern Example</title><body>
 ##    <form action="http://localhost:5051" method="post">
 ##    <input name="say" id="say" value="Hi"><button>Send"""
 ##      
-##    proc handleGet(ctx: HttpCtx) = {.gcsafe.}: ctx.reply(Http200, unsafeAddr html)
+##    proc handleGet(ctx: HttpCtx) = ctx.reply(Http200, html)
 ##    
 ##    proc handlePost(ctx: HttpCtx, headers: StringTableRef) =
 ##      try: echo readData(ctx.getBody()).getOrDefault("say")
 ##      except: discard
-##      {.gcsafe.}: ctx.reply(Http303, ["location: " & origin])
-##        
+##      ctx.reply(Http303, ["location: " & origin])
+##          
 ##    var server = new GuildenServer
 ##    server.initHeaderCtx(handleGet, 5050)
 ##    server.initFullCtx(handlePost, 5051)
@@ -96,18 +100,19 @@ else:
     HttpCtx* = ref object of Ctx
       ## | Common abstract base class for all HTTP handling request contexts.
 
-    RequestCallback* = proc(ctx: Ctx) {.gcsafe, raises: [].}
+    RequestCallback* = proc(ctx: Ctx) {.nimcall, raises: [].}
       ## Type for procs that are called when a socket request can be processed.
+      ## When multithreading, serialize mutations to global vars with locks (use threadvars instead unless memory usage is a problem).
        
-    TimerCallback* = proc() {.nimcall, gcsafe, raises: [].}
+    TimerCallback* = proc() {.raises: [].}
    
-    ThreadInitializationCallback* = proc() {.nimcall, gcsafe, raises: [].}
+    ThreadInitializationCallback* = proc() {.gcsafe, raises: [].}
 
-    LostCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData, lostsocket: SocketHandle){.gcsafe, nimcall, raises: [].}
+    LostCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData, lostsocket: SocketHandle){.raises: [].}
     
     ErrorCallback* = proc(msg: string) {.gcsafe, raises: [].}
  
-  proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
+  proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe.} =
     ## Starts server event dispatcher loop which runs until shutdown() is called or SIGINT received.
     ## If you want the server to run in a single thread, set multithreaded to false.
     ## 
@@ -115,13 +120,11 @@ else:
     ##
     ## .. code-block:: Nim
     ##
-    ##   import guildenstern/ctxfull
-    ##   
-    ##   proc onRequest(ctx: HttpCtx) = ctx.replyCode(Http200)
-    ##   
-    ##   var myserver = new GuildenServer
-    ##   myserver.initFullCtx(onRequest, 5050)
-    ##   myserver.serve(false)
+    ##    import guildenstern/ctxheader  
+    ##    proc onRequest(ctx: HttpCtx) = ctx.reply(Http200)
+    ##    var server = new GuildenServer
+    ##    server.initHeaderCtx(onRequest, 5050)
+    ##    server.serve(false)
     discard
 
   proc registerThreadInitializer*(gs: GuildenServer, callback: ThreadInitializationCallback) =
@@ -131,17 +134,29 @@ else:
     ##
     ## .. code-block:: Nim
     ##
-    ##   import guildenstern
-    ##   var x {.threadvar.}: string
-    ## 
-    ##   proc initializeThreadvars() =
-    ##     echo "initializer called!"
-    ##     x = "initialized"
-    ## 
-    ##   var myserver = newGuildenServer()
-    ##   myserver.registerThreadInitializer(initializeThreadvars)
-    ##   myserver.registerTimerhandler((proc() = echo "tick"), 1000)
-    ##   myserver.serve()
+    ##    import guildenstern, os, random
+    ##    
+    ##    var threadcount: int
+    ##    var rounds: int
+    ##    var x {.threadvar.}: int
+    ##     
+    ##    proc initializeThreadvars() =
+    ##      x = threadcount.atomicInc
+    ##      echo "new thread initialized: ", x
+    ##      
+    ##    proc tiktok() =
+    ##      echo "tik ", x
+    ##      sleep(500 + rand(2000))
+    ##      echo "tok ", x
+    ##      if rounds.atomicInc > 50: shutdown()
+    ##      
+    ##    randomize()
+    ##    var server = new GuildenServer
+    ##    server.registerThreadInitializer(initializeThreadvars)
+    ##    server.registerTimerhandler(tiktok, 100)
+    ##    server.serve()
+    ##    echo "----"
+    ##    sleep(2510)
     discard
 
   proc registerTimerhandler*(gs: GuildenServer, callback: TimerCallback, interval: int) =
@@ -242,68 +257,75 @@ else:
     ##
     ## .. code-block:: Nim
     ##
-    ##   import guildenstern, guildenstern/ctxheader
-    ##   import httpclient
-    ##   
-    ##   const headerfields = ["afield", "anotherfield"]
-    ##   var headers {.threadvar.}: array[2, string]
-    ##   var client {.threadvar.}: HttpClient
-    ## 
-    ##   proc initializeThreadvars() =
-    ##     try:
-    ##       client = newHttpClient()
-    ##       client.headers = newHttpHeaders(
-    ##         { "afield": "afieldvalue", "bfield": "bfieldvalue" })
-    ##     except: echo getCurrentExceptionMsg()
-    ## 
-    ##   proc sendRequest() =
-    ##     try:
-    ##       discard client.request("http://localhost:5050")
-    ##       client.close()
-    ##     except: echo getCurrentExceptionMsg()
-    ## 
-    ##   proc onRequest(ctx: HttpCtx) =
-    ##     ctx.parseHeaders(headerfields, headers)
-    ##     echo headers
-    ##     ctx.replyCode(Http200)
-    ## 
-    ##   doAssert(compileOption("threads"), """this example must be compiled with threads;
-    ##     "nim c -r --threads:on --d:threadsafe example.nim"""")
-    ##   var myserver = newGuildenServer()
-    ##   myserver.registerThreadInitializer(initializeThreadvars)
-    ##   myserver.initHeaderCtx(onRequest, 5050)
-    ##   myserver.registerTimerhandler(sendRequest, 1000)
-    ##   myserver.serve()
+    ##    import guildenstern/ctxheader
+    ##    import httpclient
+    ##       
+    ##    const headerfields = ["afield", "anotherfield"]
+    ##    var headers {.threadvar.}: array[2, string]
+    ##    var client {.threadvar.}: HttpClient
+    ##     
+    ##    proc initializeThreadvars() =
+    ##      try:
+    ##        client = newHttpClient()
+    ##        client.headers = newHttpHeaders(
+    ##          { "afield": "afieldvalue", "bfield": "bfieldvalue" })
+    ##      except: echo getCurrentExceptionMsg()
+    ##     
+    ##    proc sendRequest() =
+    ##      try: discard client.request("http://localhost:5050")
+    ##      except: echo getCurrentExceptionMsg()
+    ##     
+    ##    proc onRequest(ctx: HttpCtx) =
+    ##      ctx.parseHeaders(headerfields, headers)
+    ##      echo headers
+    ##      ctx.reply(Http204)
+    ##     
+    ##    doAssert(compileOption("threads"), """this example must be compiled with threads;
+    ##      "nim c -r --gc:arc --threads:on --d:threadsafe example.nim"""")
+    ##    var server = new GuildenServer
+    ##    server.registerThreadInitializer(initializeThreadvars)
+    ##    server.initHeaderCtx(onRequest, 5050)
+    ##    server.registerTimerhandler(sendRequest, 1000)
+    ##    server.serve()
     discard
     
   proc parseHeaders*(ctx: HttpCtx, headers: StringTableRef) =
     ## Parses all headers into given strtabs.StringTable.
+    discard
 
-  proc replyCode*(ctx: HttpCtx, code: HttpCode) {.inline, gcsafe, raises: [].} =
-    ## Replies with just the HTTP status code.
+  template reply*(ctx: HttpCtx, code: HttpCode, body: string, headers: openArray[string]) =
+    ## Sends a reply to the socket in context. Aborts silently if socket is closed (there's not much to do).
+    ## Note that body has to be addressable for posix, use lets instead of consts.
+    ## Syntactic sugar varations of this template below.
+    ## If you need even more control over replying, see procs in httpresponse module.
+    discard
 
-  proc reply*(ctx: HttpCtx, code: HttpCode, body: ptr string = nil, headers: ptr string = nil) {.inline, gcsafe, raises: [].} =
-    ## Sends a reply to the socket in context, failing silently if socket is closed. Pointers are used as optimization
-    ## (avoids deep copies and gc refcounting).
+  template reply*(ctx: HttpCtx, code: HttpCode, headers: openArray[string]) =    
+    discard
 
-  proc reply*(ctx: HttpCtx, code: HttpCode, body: ptr string = nil, headers: openArray[string]) {.inline, gcsafe, raises: [].} =
-    ## Replies with headers fields given as an openArray.
+  template reply*(ctx: HttpCtx, body: string) =
+    ## Http200 Ok
+    discard
 
-  proc reply*(ctx: HttpCtx, code: HttpCode, headers: openArray[string]) {.inline, gcsafe, raises: [].} =
-    ## Reply without body.
+  template reply*(ctx: HttpCtx,  code: HttpCode, body: string) =
+    discard
 
-  proc reply*(ctx: HttpCtx, headers: openArray[string]) {.inline, gcsafe, raises: [].} =
-    ## Http200 Ok and headers.
-
-  proc replyStart*(ctx: HttpCtx, code: HttpCode, contentlength: int, firstpart: ptr string, headers: ptr string = nil): bool =
-    ## Indicates that reply will be given in multiple chunks. This first part submits the HTTP status code, first part of body,
-    ## content-length, and, optionally, headers.
+  template replyStart*(ctx: HttpCtx, code: HttpCode, contentlength: int, firstpart: string, headers: openArray[string]): bool =
+    ## Indicates that reply will be given in multiple chunks. This first part submits the HTTP status code, content-length,
+    ## first part of body and headers.
     ## Zero or more replyMores can follow. Last chunk should be sent with replyLast (otherwise 200 ms wait for more data occurs).
     ## Returns `false` if socket was closed.
-    false
-  
-  proc replyMore*(ctx: HttpCtx, bodypart: ptr string, partlength: int = -1): bool {.inline, gcsafe, raises: [].} =
-    ## Continues a reply started with replyStart. The optional partlength parameter states how many chars will be written (-1 = all chars).
+    discard
 
-  proc replyLast*(ctx: HttpCtx, lastpart: ptr string, partlength: int = -1) {.inline, gcsafe, raises: [].} =
-    ## Ends a reply started with replyStart.  The optional partlength parameter states how many chars will be written (-1 = all chars).
+  template replyStart*(ctx: HttpCtx, code: HttpCode, contentlength: int, firstpart: string): bool =
+    discard
+
+  template replyMore*(ctx: HttpCtx, bodypart: string): bool =
+    discard
+
+  template replyLast*(ctx: HttpCtx, lastpart: string) =
+    ## Ends a reply started with replyStart.
+    discard
+
+  template replyLast*(ctx: HttpCtx) =
+    discard

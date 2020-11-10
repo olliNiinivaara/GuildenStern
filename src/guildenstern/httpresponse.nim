@@ -66,7 +66,7 @@ let
   zerocontent = "Content-Length: 0\c\L"
 
 
-proc replyCode*(ctx: HttpCtx, code: HttpCode = Http200) {.inline, gcsafe, raises: [].} =
+proc replyCode(ctx: HttpCtx, code: HttpCode = Http200) {.inline, gcsafe, raises: [].} =
   if not writeVersion(ctx): return
   if not writeCode(ctx, code): return
   {.gcsafe.}:
@@ -125,19 +125,21 @@ proc reply*(ctx: HttpCtx, code: HttpCode, body: ptr string = nil, headers: ptr s
     echo "reply: ", $ctx.reply(code, body, $length, length, headers, false)
   else: discard ctx.reply(code, body, $length, length, headers, false)
 
+
 proc reply*(ctx: HttpCtx, code: HttpCode, body: ptr string, headers: openArray[string]) {.inline, gcsafe, raises: [].} =
   let joinedheaders = headers.join("\c\L")
   reply(ctx, code, body, unsafeAddr joinedheaders)
 
-proc reply*(ctx: HttpCtx, code: HttpCode, headers: openArray[string]) {.inline, gcsafe, raises: [].} =
-  reply(ctx, code, nil, headers)
 
-proc reply*(ctx: HttpCtx, headers: openArray[string]) {.inline, gcsafe, raises: [].} =
-  reply(ctx, Http200, nil, headers)
+proc replyStart*(ctx: HttpCtx, code: HttpCode, contentlength: int, body: ptr string, headers: openArray[string]): bool {.inline, gcsafe, raises: [].} =
+  let joinedheaders = headers.join("\c\L")
+  replyStart(ctx, code, contentlength, body, unsafeAddr joinedheaders)
+
 
 proc replyMore*(ctx: HttpCtx, bodypart: ptr string, partlength: int = -1): bool {.inline, gcsafe, raises: [].} =
   let length = if partlength != -1: partlength else: bodypart[].len
   return ctx.writeToSocket(bodypart, length)
+
 
 proc replyLast*(ctx: HttpCtx, lastpart: ptr string, partlength: int = -1) {.inline, gcsafe, raises: [].} =
   let length = if partlength != -1: partlength else: lastpart[].len
