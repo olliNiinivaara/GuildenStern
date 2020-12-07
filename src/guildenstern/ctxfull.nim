@@ -68,8 +68,9 @@ proc receiveHttp(): bool {.gcsafe, raises:[] .} =
     if shuttingdown: return false
     let recvFlags = if ctx.requestlen == 0: MSG_DONTWAIT else: 0x00
     let ret = recv(posix.SocketHandle(ctx.socketdata.socket), addr request[ctx.requestlen], expectedlength - ctx.requestlen, recvFlags)
-    if ctx.requestlen == 0 and ret < 1:
-      # connection error or connection closed
+    if ctx.requestlen == 0 and ret == 0:
+      # connection closed
+      ctx.unregister()
       return false
     checkRet()
     let previouslen = ctx.requestlen
