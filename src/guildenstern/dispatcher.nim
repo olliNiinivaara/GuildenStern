@@ -140,6 +140,7 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
 
 
 proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
+  if gs.selector == nil: (echo "no handlers registered"; quit())
   gs.multithreading = multithreaded
   if gs.multithreading and not compileOption("threads"):
     echo "threads:off; serving single-threaded"
