@@ -1,12 +1,12 @@
 ## The go-to HttpCtx handler for most use cases, when optimal performance is not critical. Parses request line and headers automatically.
-## 
+##
 ## **Example:**
 ##
 ## .. code-block:: Nim
 ##
 ##    import cgi
 ##    import guildenstern/ctxfull
-##        
+##
 ##    proc handleGet(ctx: HttpCtx, headers: StringTableRef) =
 ##      let htmlstart = "<!doctype html><title>GuildenStern FullCtx Example</title><body>request-URI: "
 ##      let htmlmore = "<br>user-agent: "
@@ -20,18 +20,18 @@
 ##      if not ctx.replyMore(htmlmore): return
 ##      if not ctx.replyMore(useragent): return
 ##      ctx.replyLast(htmllast)
-##    
+##
 ##    proc handlePost(ctx: HttpCtx) =
 ##      var html = "<!doctype html><title>GuildenStern FullCtx Example</title><body>You said: "
 ##      try:
-##        html.add(readData(ctx.getBody()).getOrDefault("say"))  
+##        html.add(readData(ctx.getBody()).getOrDefault("say"))
 ##        ctx.reply(Http200, html)
 ##      except: ctx.reply(Http412)
-##           
+##
 ##    proc onRequest(ctx: HttpCtx, headers: StringTableRef) =
 ##      if ctx.isMethod("POST"): ctx.handlePost()
 ##      else: ctx.handleGet(headers)
-##      
+##
 ##    var server = new GuildenServer
 ##    server.initFullCtx(onRequest, 5050)
 ##    echo "Point your browser to localhost:5050/any/request-uri/path/"
@@ -59,32 +59,37 @@ var
   ctx {.threadvar.}: HttpCtx
   headers {.threadvar.}: StringTableRef
 
+const
+  MSG_DONTWAIT = 0x40.cint
 
 proc receiveHttp(): bool {.gcsafe, raises:[] .} =
   var expectedlength = MaxRequestLength + 1
   while true:
     if shuttingdown: return false
-    let ret = if ctx.requestlen == 0: recv(posix.SocketHandle(ctx.socketdata.socket), addr request[ctx.requestlen], expectedlength - ctx.requestlen, 0x40) # MSG_DONTWAIT
-      else: recv(posix.SocketHandle(ctx.socketdata.socket), addr request[ctx.requestlen], expectedlength - ctx.requestlen, 0)
-    if ctx.requestlen == 0 and ret == -1: return false
-    checkRet()   
+    let recvFlags = if ctx.requestlen == 0: MSG_DONTWAIT else: 0x00
+    let ret = recv(posix.SocketHandle(ctx.socketdata.socket), addr request[ctx.requestlen], expectedlength - ctx.requestlen, recvFlags)
+    if ctx.requestlen == 0 and ret == 0:
+      # connection closed
+      ctx.unregister()
+      return false
+    checkRet()
     let previouslen = ctx.requestlen
     ctx.requestlen += ret
-    
+
     if ctx.requestlen >= MaxRequestLength:
       ctx.gs.notifyError("recvHttp: Max request size exceeded")
       ctx.closeSocket()
       return false
-    
+
     if ctx.requestlen == expectedlength: break
-    
+
     if not ctx.isHeaderreceived(previouslen, ctx.requestlen):
       if ctx.requestlen >= MaxHeaderLength:
         ctx.gs.notifyError("recvHttp: Max header size exceeded")
         ctx.closeSocket()
         return false
       continue
-    
+
     let contentlength = ctx.getContentLength()
     if contentlength == 0: return true
     expectedlength = ctx.bodystart + contentlength
@@ -101,10 +106,10 @@ proc handleHttpRequest(gs: ptr GuildenServer, data: ptr SocketData) {.nimcall, r
     headers.clear() # slow...
     ctx.parseHeaders(headers)
     {.gcsafe.}: requestCallback(ctx, headers)
-      
+
 
 proc initFullCtx*(gs: var GuildenServer, onrequestcallback: FullRequestCallback, port: int) =
   ## Initializes the fullctx handler for given ports with given request callback. See example above.
-  {.gcsafe.}: 
+  {.gcsafe.}:
     requestCallback = onrequestcallback
     discard gs.registerHandler(handleHttpRequest, port)

@@ -7,13 +7,13 @@ import locks
 const
   MaxCtxHandlers* {.intdefine.} = 100
   RcvTimeOut* {.intdefine.} = 5 # SO_RCVTIMEO, https://linux.die.net/man/7/socket
-  
+
 type
   CtxId* = distinct int
 
   RequestCallback* = proc(ctx: Ctx) {.nimcall, raises: [].}
   HandlerAssociation* = tuple[port: int, ctxid: CtxId]
-  
+
   SocketData* = object
     port*: uint16
     socket*: nativesockets.SocketHandle
@@ -29,14 +29,14 @@ type
   ThreadInitializationCallback* = proc() {.nimcall, gcsafe, raises: [].}
   LostCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData, closedsocket: SocketHandle){.nimcall, raises: [].}
   ErrorCallback* = proc(msg: string) {.gcsafe, raises: [].}
-  
+
   GuildenServer* {.inheritable.} = ref object
     multithreading*: bool
     selector*: Selector[SocketData]
     lock*: Lock
     porthandlers*: array[MaxCtxHandlers, HandlerAssociation]
     portcount*: int
-    threadinitializer*: ThreadInitializationCallback   
+    threadinitializer*: ThreadInitializationCallback
     handlercallbacks*: array[0.CtxId .. MaxCtxHandlers.CtxId, HandlerCallback]
     errornotifier*: ErrorCallback
     lostcallback*: LostCallback
@@ -65,7 +65,7 @@ proc getCtxId(gs: var GuildenServer): CtxId {.gcsafe, nimcall.} =
   if gs.nextctxid == 0:
     gs.nextctxid = 1
     gs.selector = newSelector[SocketData]()
-  assert(gs.nextctxid < MaxCtxHandlers, "Cannot create more handlers")    
+  assert(gs.nextctxid < MaxCtxHandlers, "Cannot create more handlers")
   result = gs.nextctxid.CtxId
   gs.nextctxid += 1
 
@@ -118,12 +118,18 @@ proc closeSocket*(ctx: Ctx) {.raises: [].} =
   except:
     if defined(fulldebug): echo "close error: ", getCurrentExceptionMsg()
 
+proc unregister*(ctx: Ctx) {.raises: [].} =
+  try:
+    if ctx.gs.selector.contains(ctx.socketdata.socket): ctx.gs.selector.unregister(ctx.socketdata.socket)
+  except:
+    if defined(fulldebug): echo "unregister error: ", getCurrentExceptionMsg()
+
 
 proc closeSocket*(gs: ptr GuildenServer, socket: SocketHandle) {.raises: [].} =
   try:
     when defined(fulldebug): echo "closing socket: ", socket
     if gs.selector.contains(socket): gs.selector.unregister(socket)
-    socket.close()    
+    socket.close()
   except:
     if defined(fulldebug): echo "close error: ", getCurrentExceptionMsg()
 
