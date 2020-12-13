@@ -11,6 +11,4 @@ jobs:
       -  run: |
            nimble test
            cd ./tests/err_empty_response/
-           pwd
-           ls
-           test_err_empty_response
+           ./test_err_empty_response
