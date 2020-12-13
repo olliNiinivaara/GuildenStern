@@ -74,5 +74,5 @@ echo "Starting err_empty_response test on port 8080..."
 var server = new GuildenServer
 server.registerThreadInitializer(initializeThreadvars)
 server.initFullCtx(handleHttpRequest, 8080)
-server.registerTimerhandler(sendRequest, 50)
+# server.registerTimerhandler(sendRequest, 50)
 server.serve(multithreaded = true)
