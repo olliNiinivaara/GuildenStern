@@ -1,4 +1,4 @@
-![Tests](https://github.com/olliNiinivaara/GuildenStern/workflows/Test/badge.svg)
+![Tests](https://github.com/olliNiinivaara/GuildenStern/workflows/Tests/badge.svg)
 
 # GuildenStern
 Modular multithreading Linux HTTP server
