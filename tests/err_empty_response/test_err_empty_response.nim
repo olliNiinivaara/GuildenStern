@@ -57,14 +57,14 @@ proc initializeThreadvars() =
 
 proc sendRequest() =
   if requestcount == 0: sleep(1000)
-  #[try:    
+  try:    
     let content = client.getContent("http://127.0.0.1:8080")
     doAssert(content.contains("foo1")) 
     doAssert(content.contains("foo2")) 
     doAssert(content.contains("foo3")) 
   except:
     echo getCurrentExceptionMsg()
-    quit(-4)]#
+    quit(-4)
   requestcount.atomicInc
   if requestcount > 150:
     echo "err_empty_response test passed"
