@@ -11,4 +11,4 @@ jobs:
       - run: nimble test
       - name: Test for ERR_EMPTY_RESPONSE bug
         working-directory: ./tests/err_empty_response/
-        run: test_err_empty_response
+        run: pwd
