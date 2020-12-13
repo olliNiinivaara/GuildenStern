@@ -1,7 +1,7 @@
 import guildenstern/ctxfull
 import httpclient
 import uri
-from os import fileExists
+from os import sleep, fileExists
 from strutils import contains, removePrefix
 
 proc error(body: string, ctx: HttpCtx) =
@@ -56,8 +56,9 @@ proc initializeThreadvars() =
     quit(-3)
 
 proc sendRequest() =
+  if requestcount == 0: sleep(1000)
   try:    
-    let content = client.getContent("http://localhost:8080")
+    let content = client.getContent("http://127.0.0.1:8080")
     doAssert(content.contains("foo1")) 
     doAssert(content.contains("foo2")) 
     doAssert(content.contains("foo3")) 
