@@ -8,7 +8,8 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: jiro4989/setup-nim-action@v1
+      - run: nimble test
       - run: |
-          nimble test &
-          sleep 2
+          ./tests/err_empty_response/test_err_empty_response &
+          sleep 1
           curl http://localhost:8080
