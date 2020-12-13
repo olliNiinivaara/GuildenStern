@@ -8,7 +8,4 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: jiro4989/setup-nim-action@v1
-      -  run: |
-           nimble test
-           cd ./tests/err_empty_response/
-           ./test_err_empty_response
+      - run: nimble test
