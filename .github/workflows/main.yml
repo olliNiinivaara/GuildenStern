@@ -9,7 +9,6 @@ jobs:
       - uses: actions/checkout@v2
       - uses: jiro4989/setup-nim-action@v1
       - run: nimble test
-      - run: |
-         ./tests/err_empty_response/test_err_empty_response &
-         sleep 1
-         curl 127.0.0.1:8080
+      - name: Test for ERR_EMPTY_RESPONSE bug
+        working-directory: ./tests/err_empty_response/
+        run: test_err_empty_response
