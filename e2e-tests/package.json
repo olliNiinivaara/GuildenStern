@@ -1,0 +1,9 @@
+{
+  "name": "e2e-tests",
+  "scripts": {
+    "err_empty_response": "node ./err_empty_response/client.js"
+  },
+  "dependencies": {
+    "playwright": "^1.0.0"
+  }
+}

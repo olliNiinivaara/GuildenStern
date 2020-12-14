@@ -1,8 +1,8 @@
 import guildenstern/ctxfull
-import httpclient
 import uri
-from os import sleep, fileExists
+from os import fileExists
 from strutils import contains, removePrefix
+from times import getTime
 
 proc error(body: string, ctx: HttpCtx) =
   ## Send back an error - HTTP/500
@@ -44,34 +44,12 @@ proc handleHttpRequest*(ctx: HttpCtx, headers: StringTableRef) {.gcsafe, raises:
     error(msg, ctx)
     quit(-2)
 
+proc doShutdown() =
+  echo "Stopping err_empty_response e2e test server at ", getTime()
+  shutdown()
 
-var client {.threadvar.}: HttpClient
-var requestcount = 0
-
-proc initializeThreadvars() =
-  try:
-    client = newHttpClient()
-  except:
-    echo getCurrentExceptionMsg()
-    quit(-3)
-
-proc sendRequest() =
-  try:    
-    let content = client.getContent("http://127.0.0.1:8080")
-    doAssert(content.contains("foo1")) 
-    doAssert(content.contains("foo2")) 
-    doAssert(content.contains("foo3")) 
-  except:
-    echo getCurrentExceptionMsg()
-    quit(-4)
-  requestcount.atomicInc
-  if requestcount > 200:
-    echo "err_empty_response test passed"
-    shutdown()
-
-echo "Starting err_empty_response test on port 8080..."
+echo "Starting err_empty_response e2e test server on port 8080 at ", getTime()
 var server = new GuildenServer
-server.registerThreadInitializer(initializeThreadvars)
 server.initFullCtx(handleHttpRequest, 8080)
-server.registerTimerhandler(sendRequest, 20)
+server.registerTimerhandler(doShutdown, 30000)
 server.serve(multithreaded = true)

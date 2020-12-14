@@ -8,4 +8,14 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: jiro4989/setup-nim-action@v1
+      - uses: microsoft/playwright-github-action@v1
       - run: nimble test
+      - run: |
+          cd e2e-tests/err_empty_response/
+          nim c -r --threads:on --d:threadsafe -p:../../src/ server.nim &
+          cd ..
+          
+          npm install
+          npm run err_empty_response
+          
+          kill -INT $!

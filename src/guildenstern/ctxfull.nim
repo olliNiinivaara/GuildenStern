@@ -70,7 +70,7 @@ proc receiveHttp(): bool {.gcsafe, raises:[] .} =
     let ret = recv(posix.SocketHandle(ctx.socketdata.socket), addr request[ctx.requestlen], expectedlength - ctx.requestlen, recvFlags)
     if ctx.requestlen == 0 and ret == 0:
       # connection closed
-      ctx.unregister()
+      # ctx.unregister()
       return false
     checkRet()
     let previouslen = ctx.requestlen
