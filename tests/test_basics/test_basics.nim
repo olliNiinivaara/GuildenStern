@@ -20,6 +20,7 @@ proc onRequest(ctx: HttpCtx) =
   ctx.parseHeaders(headerfields, headers)
   doAssert(headers[0] == "afieldvalue")
   ctx.reply(Http204)
+  shutdown()
    
 var server = new GuildenServer
 server.registerThreadInitializer(initializeThreadvars)
