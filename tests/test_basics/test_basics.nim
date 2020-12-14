@@ -19,7 +19,6 @@ proc sendRequest() =
 proc onRequest(ctx: HttpCtx) =
   ctx.parseHeaders(headerfields, headers)
   doAssert(headers[0] == "afieldvalue")
-  doAssert(headers[1] == "bfieldvalue")
   ctx.reply(Http204)
    
 var server = new GuildenServer
