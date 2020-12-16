@@ -1,6 +1,6 @@
-# nim c --d:danger --gc:arc -threads:on --d:threadsafe guildenfibo.nim
+# nim c --d:danger --gc:arc --threads:on --d:threadsafe guildenfibo.nim
 # ./guildenfibo &
-# wrk -t8 -c8 -d10s --latency http://127.0.0.1:5050
+# ./wrkbin -t8 -c8 -d10s --latency http://127.0.0.1:5050
 # kill -INT $!
 
 import random, guildenstern/ctxheader

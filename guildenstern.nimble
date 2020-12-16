@@ -9,4 +9,12 @@ skipDirs = @[".github", "bench", "e2e-tests"]
 requires "nim >= 1.4.2"
 
 task test, "run all tests":
-  exec "cd tests/test_basics/; nim c -r --gc:arc --threads:on --d:threadsafe test_basics.nim"
+  cd("tests")
+  exec "nim c -r --threads:on --d:threadsafe test_ctxheader.nim"
+  exec "nim c --d:release --threads:on --d:threadsafe test_wrk.nim"
+  exec "./test_wrk &"
+  cd("../bench/")
+  let outStr = gorge(getCurrentDir() & "/wrkbin -t8 -c8 -d10s --latency http://127.0.0.1:5050")
+  exec "curl http://127.0.0.1:5050/shutdown"
+  echo outStr
+  if outStr.contains("Socket errors") and not outStr.contains("read 0, write 0, timeout 0"): quit(-1)

@@ -20,7 +20,7 @@ proc writeVersion*(ctx: HttpCtx): bool {.inline, gcsafe, raises: [].} =
   {.gcsafe.}: ret = send(ctx.socketdata.socket, unsafeAddr version[0], 9, intermediateflags)
   checkRet()
   if ret != 9:
-    ctx.closeSocket()
+    ctx.closeSocket(ProtocolViolated)
     return false
   true
 
@@ -45,18 +45,23 @@ proc writeCode*(ctx: HttpCtx, code: HttpCode): bool {.inline, gcsafe, raises: []
 proc writeToSocket*(ctx: HttpCtx, text: ptr string, length: int, flags = intermediateflags): bool {.inline, gcsafe, raises: [].} =
   if length == 0: return true
   var bytessent = 0
+  var backoff = 1
   while bytessent < length:
     let ret =
       try: send(ctx.socketdata.socket, unsafeAddr text[bytessent], (length - bytessent).cint, flags + DONTWAIT)
       except: -2
     if ret == -1 and osLastError().cint in [EAGAIN, EWOULDBLOCK]:
-      sleep(50)
+      sleep(backoff)
+      backoff *= 2
+      if backoff > 3000:
+        ctx.closeSocket(TimedOut, "did'nt write to socket")
+        return false
       continue
     checkRet()
     bytessent.inc(ret)
   when defined(fulldebug):
     if text[0] != '\c': echo "writeToSocket ", ctx.socketdata.socket, ": ", text[0 ..< length]
-  true  
+  true
 
 
 let
@@ -78,8 +83,8 @@ proc replyCode(ctx: HttpCtx, code: HttpCode = Http200) {.inline, gcsafe, raises:
       
 
 proc reply*(ctx: HttpCtx, code: HttpCode, body: ptr string, lengths: string, length: int, headers: ptr string, moretocome: bool): bool {.gcsafe, raises: [].} =
-  let finalflag = if moretocome: intermediateflags else: lastflag
   if body == nil and headers == nil: (ctx.replyCode(code); return false)
+  let finalflag = if moretocome: intermediateflags else: lastflag
   {.gcsafe.}: 
     if not writeVersion(ctx): return false 
     if not writeCode(ctx, code): return false

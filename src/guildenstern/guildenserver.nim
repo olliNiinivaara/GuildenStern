@@ -24,12 +24,21 @@ type
     gs*: ptr GuildenServer
     socketdata*: ptr SocketData
 
+  SocketCloseCause* = enum
+    CloseCalled
+    AlreadyClosed
+    ClosedbyClient
+    ConnectionLost
+    TimedOut
+    ProtocolViolated
+    NetErrored
+    Excepted
+
   HandlerCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData){.nimcall, raises: [].}
   TimerCallback* = proc() {.nimcall, raises: [].}
   ThreadInitializationCallback* = proc() {.nimcall, gcsafe, raises: [].}
-  LostCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData, closedsocket: SocketHandle){.nimcall, raises: [].}
-  ErrorCallback* = proc(msg: string) {.gcsafe, raises: [].}
-
+  CloseCallback* = proc(ctx: Ctx, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
+  
   GuildenServer* {.inheritable.} = ref object
     multithreading*: bool
     selector*: Selector[SocketData]
@@ -38,8 +47,7 @@ type
     portcount*: int
     threadinitializer*: ThreadInitializationCallback
     handlercallbacks*: array[0.CtxId .. MaxCtxHandlers.CtxId, HandlerCallback]
-    errornotifier*: ErrorCallback
-    lostcallback*: LostCallback
+    closecallback*: CloseCallback
     nextctxid: int
 
 
@@ -70,12 +78,6 @@ proc getCtxId(gs: var GuildenServer): CtxId {.gcsafe, nimcall.} =
   gs.nextctxid += 1
 
 
-proc notifyError*(gs: ptr GuildenServer, msg: string) {.inline.} =
-  if gs.errorNotifier != nil: gs.errorNotifier(msg)
-  else:
-    if defined(fulldebug): echo msg
-
-
 proc registerThreadInitializer*(gs: GuildenServer, callback: ThreadInitializationCallback) =
   gs.threadinitializer = callback
 
@@ -95,12 +97,8 @@ proc registerTimerhandler*(gs: GuildenServer, callback: TimerCallback, interval:
   discard gs.selector.registerTimer(interval, false, SocketData(ctxid: TimerCtx, customdata: cast[pointer](callback)))
 
 
-proc registerConnectionlosthandler*(gs: GuildenServer, callback: LostCallback) =
-  gs.lostcallback = callback
-
-
-proc registerErrornotifier*(gs: GuildenServer, callback: ErrorCallback) =
-  gs.errorNotifier = callback
+proc registerConnectionclosedhandler*(gs: GuildenServer, callback: CloseCallback) =
+  gs.closecallback = callback
 
 
 proc handleRead*(gs: ptr GuildenServer, data: ptr SocketData) =
@@ -108,32 +106,30 @@ proc handleRead*(gs: ptr GuildenServer, data: ptr SocketData) =
   {.gcsafe.}: gs.handlercallbacks[data.ctxid](gs, data)
 
 
-proc closeSocket*(ctx: Ctx) {.raises: [].} =
+proc closeSocket*(ctx: Ctx, cause = CloseCalled, msg = "") {.raises: [].} =
+  if ctx.socketdata.socket.int == osInvalidSocket.int: return
   try:
-    when defined(fulldebug): echo "closing ctx socket: ", ctx.socketdata.socket
+    if ctx.gs.closecallback != nil: ctx.gs.closecallback(ctx, cause, msg)
     if ctx.gs.selector.contains(ctx.socketdata.socket): ctx.gs.selector.unregister(ctx.socketdata.socket)
-    # finally got it?
-    ctx.socketdata.socket.close()
+    if cause notin [ClosedbyClient, ConnectionLost]: ctx.socketdata.socket.close()
     ctx.socketdata.socket = osInvalidSocket
   except:
     if defined(fulldebug): echo "close error: ", getCurrentExceptionMsg()
 
-proc unregister*(ctx: Ctx) {.raises: [].} =
+
+proc internalCloseSocket*(gs: ptr GuildenServer, data: ptr SocketData, cause: SocketCloseCause, msg: string) {.raises: [].} =
   try:
-    if ctx.gs.selector.contains(ctx.socketdata.socket): ctx.gs.selector.unregister(ctx.socketdata.socket)
+    if gs.closecallback != nil:
+      var ctx = new Ctx
+      ctx.gs = gs
+      ctx.socketdata = data
+      ctx.gs.closecallback(ctx, cause, msg)
+    if gs.selector.contains(data.socket): gs.selector.unregister(data.socket)
+    data.socket.close()
   except:
-    if defined(fulldebug): echo "unregister error: ", getCurrentExceptionMsg()
+    if defined(fulldebug): echo "internal close error: ", getCurrentExceptionMsg()
 
 
-proc closeSocket*(gs: ptr GuildenServer, socket: SocketHandle) {.raises: [].} =
-  try:
-    when defined(fulldebug): echo "closing socket: ", socket
-    if gs.selector.contains(socket): gs.selector.unregister(socket)
-    socket.close()
-  except:
-    if defined(fulldebug): echo "close error: ", getCurrentExceptionMsg()
-
-
-proc  handleConnectionlost*(gs: ptr GuildenServer, data: ptr SocketData, lostsocket: SocketHandle) {.raises: [].} =
+#[proc handleConnectionlost*(gs: ptr GuildenServer, data: ptr SocketData, lostsocket: SocketHandle) {.raises: [].} =
   {.gcsafe.}:
-    if gs.lostcallback != nil: gs.lostcallback(gs, data, lostsocket)
+    if gs.lostcallback != nil: gs.lostcallback(gs, data, lostsocket)]#

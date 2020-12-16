@@ -108,13 +108,24 @@ else:
    
     ThreadInitializationCallback* = proc() {.gcsafe, raises: [].}
 
-    LostCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData, lostsocket: SocketHandle){.raises: [].}
+    SocketCloseCause* = enum
+      ## Paremeter in CloseCallback.
+      CloseCalled ## "you" called closeSocket from application code
+      ClosedbyClient ## Client closed the connection
+      ConnectionLost ## TCP/IP connection was dropped
+      TimedOut ## Client did not send/receive all expected data
+      ProtocolViolated ## Client was sending garbage
+      AlreadyClosed ## Another thread has closed the socket
+      NetErrored ## Some operating system level error happened
+      Excepted ## A Nim exception happened
     
-    ErrorCallback* = proc(msg: string) {.gcsafe, raises: [].}
- 
+    CloseCallback* = proc(ctx: Ctx, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
+      ## Called whenever a socket is closed.
+   
   proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe.} =
     ## Starts server event dispatcher loop which runs until shutdown() is called or SIGINT received.
     ## If you want the server to run in a single thread, set multithreaded to false.
+    ## Note: debug info is echoed to console if compiled with switch -d:fulldebug.
     ## 
     ## **Example:**
     ##
@@ -156,55 +167,28 @@ else:
     ##    server.registerTimerhandler(tiktok, 100)
     ##    server.serve()
     ##    echo "----"
+    ##    echo "waiting for processes to finish..."
     ##    sleep(2510)
+    ##    echo "graceful shutdown handling here!"
     discard
 
   proc registerTimerhandler*(gs: GuildenServer, callback: TimerCallback, interval: int) =
     ## Registers a new timer that fires the TimerCallback every `interval` milliseconds.
     discard
 
-  proc registerConnectionlosthandler*(gs: GuildenServer, callback: LostCallback) =
-    ## Registers procedure that is called when socket connection was dropped.
-    ## This is not called when closeSocket() is called.
-    discard
+  proc registerConnectionclosedhandler*(gs: GuildenServer, callback: CloseCallback) =
+      ## Registers procedure that is called whenever socket connection is closed.
+      discard
 
-  proc registerErrornotifier*(gs: GuildenServer, callback: ErrorCallback) =
-    ## Registers a proc that gets called when an internal error occurs.
-    ## Note that you can get even more debug info by compiling with switch -d:fulldebug.
-    discard
-
-  proc closeSocket*(ctx: Ctx) {.raises: [].} =
-    ## Closes the socket associated with the request context.
-    discard
-
-  proc closeSocket*(gs: ptr GuildenServer, socket: nativesockets.SocketHandle) {.raises: [].} =
-    ## Closes the socket.
+  proc closeSocket*(ctx: Ctx, cause = CloseCalled, msg = "") {.raises: [].} =
+      ## Closes the socket.
+      ## | Important: when you call this from application code, let cause be `CloseCalled`.
+      ## | `msg` can be any further info that will be delivered to registered CloseCallback.
+      discard
   
   proc shutdown*() =
     ## Cancels pending network I/O and breaks event dispatcher loops of all servers. Sending SIGINT / pressing Ctrl-C will automatically call shutdown().
-    ## 
-    ## **Example:**
-    ##
-    ## .. code-block:: Nim
-    ##
-    ##   import guildenstern, threadpool, os
-    ##   
-    ##   echo "Hit Ctrl-C or wait until B hits 10..."
-    ##    
-    ##   var a: int ; var serverA = new GuildenServer
-    ##   serverA.registerTimerhandler((proc() =
-    ##     a += 1 ;  let aa = a; echo "A ", aa, "->" ; sleep(2000) ; echo "<-A ", aa), 600)
-    ##   spawn serverA.serve()
-    ##   
-    ##   var b: int ; var serverB = new GuildenServer
-    ##   serverB.registerTimerhandler((proc() =
-    ##     b += 1 ; let bb = b; echo "B ", bb, "->" ; sleep(2000) ; echo "<-B ", bb
-    ##     if b == 10: b += 1; echo "commencing shutdown."; shutdown()), 750)
-    ##   serverB.serve()
-    ##   
-    ##   echo "waiting for processes to finish..."
-    ##   sleep(2010)
-    ##   echo "graceful shutdown handling here!"
+    ## | See `registerThreadInitializer` for example.
     discard
 
   proc getUri*(ctx: HttpCtx): string {.raises: [].} =

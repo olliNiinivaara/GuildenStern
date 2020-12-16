@@ -72,10 +72,10 @@ proc receiveHeader(): bool {.gcsafe, raises:[].} =
   while true:
     if shuttingdown: return false
     let ret = recv(posix.SocketHandle(ctx.socketdata.socket), addr request[ctx.requestlen], MaxHeaderLength + 1, 0)
-    if ret < 1:
-      ctx.closeSocket()
+    checkRet()
+    if ret > MaxHeaderLength:
+      ctx.closeSocket(ProtocolViolated, "stream receiveHeader: Max header size exceeded")
       return false
-    if ret > MaxHeaderLength: (ctx.gs.notifyError("receiveHeader: Max header size exceeded"); return false)
     ctx.requestlen += ret
     if ctx.isHeaderreceived(ctx.requestlen - ret, ctx.requestlen): break
   ctx.contentlength = ctx.getContentLength()
@@ -87,6 +87,21 @@ proc hasData*(ctx: StreamCtx): bool  =
   return ctx.contentlength > 0 and ctx.contentdelivered < ctx.contentlength
 
 
+template checkChunckRet() =
+  if shuttingdown: return -1
+  if ret < 1:
+    if ret == -1:
+      let lastError = osLastError().int
+      let cause =
+        if lasterror in [2,9]: AlreadyClosed
+        elif lasterror == 32: ConnectionLost
+        elif lasterror == 104: ClosedbyClient
+        else: NetErrored
+      ctx.closeSocket(cause, osErrorMsg(OSErrorCode(lastError)))
+    else: ctx.closeSocket(ClosedbyClient) # ret == 0      
+    return -1
+
+
 proc receiveChunk*(ctx: StreamCtx): int {.gcsafe, raises:[] .} =
   if shuttingdown: return -1
   if ctx.contentdelivered == 0 and ctx.contentreceived > 0:
@@ -95,12 +110,7 @@ proc receiveChunk*(ctx: StreamCtx): int {.gcsafe, raises:[] .} =
     ctx.requestlen = ctx.contentdelivered.int
     return ctx.contentdelivered.int
   let ret = recv(posix.SocketHandle(ctx.socketdata.socket), addr request[0], (ctx.contentlength - ctx.contentreceived).int, 0)        
-  if ret < 1:
-    let lastError = osLastError().int
-    if lastError != 2 and lastError != 9 and lastError != 32 and lastError != 104:
-      ctx.gs.notifyError("socket error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
-    ctx.closeSocket()
-    return -1
+  checkChunckRet()
   ctx.contentreceived += ret
   ctx.contentdelivered += ret
   ctx.requestlen = ret

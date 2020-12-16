@@ -37,27 +37,28 @@ template checkRet*() =
   if ret < 1:
     if ret == -1:
       let lastError = osLastError().int
-      if lastError != 2 and lastError != 9 and lastError != 32 and lastError != 104:
-        ctx.gs.notifyError("socket " & $ctx.socketdata.socket & " error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
-      when defined(fulldebug): echo "socket " & $ctx.socketdata.socket & " error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError))
-    elif ret < -1:
-      ctx.gs.notifyError("exception while send/recv, socket " & $ctx.socketdata.socket & ": " & getCurrentExceptionMsg())
-      when defined(fulldebug): echo "exception while send/recv, socket " & $ctx.socketdata.socket & ": " & getCurrentExceptionMsg()
-    else: # ret == 0
-      when defined(fulldebug): echo "close received"
-    ctx.closeSocket()
+      let cause =
+        # https://www-numi.fnal.gov/offline_software/srt_public_context/WebDocs/Errors/unix_system_errors.html
+        if lasterror in [2,9]: AlreadyClosed
+        elif lasterror == 11: TimedOut
+        elif lasterror == 32: ConnectionLost
+        elif lasterror == 104: ClosedbyClient
+        else: NetErrored
+      ctx.closeSocket(cause, osErrorMsg(OSErrorCode(lastError)))
+    elif ret < -1: ctx.closeSocket(Excepted, getCurrentExceptionMsg())
+    else: ctx.closeSocket(ClosedbyClient)        
     return false
       
 
 proc parseRequestLine*(ctx: HttpCtx): bool {.gcsafe, raises: [].} =
   if ctx.requestlen < 13:
     when defined(fulldebug): echo "too short request (", ctx.requestlen,"): ", request
-    (ctx.closeSocket(); return false)
+    (ctx.closeSocket(ProtocolViolated); return false)
 
   while ctx.methlen < ctx.requestlen and request[ctx.methlen] != ' ': ctx.methlen.inc
   if ctx.methlen == ctx.requestlen:
     when defined(fulldebug): echo "http method missing"
-    (ctx.closeSocket(); return false)
+    (ctx.closeSocket(ProtocolViolated); return false)
 
   var i = ctx.methlen + 1
   let start = i
@@ -66,11 +67,11 @@ proc parseRequestLine*(ctx: HttpCtx): bool {.gcsafe, raises: [].} =
   ctx.urilen = i - start
   if ctx.requestlen < ctx.uristart + ctx.urilen + 9:
     when defined(fulldebug): echo ("parseRequestLine: no version")
-    (ctx.closeSocket(); return false)
+    (ctx.closeSocket(ProtocolViolated); return false)
   
   if request[ctx.uristart + ctx.urilen + 1] != 'H' or request[ctx.uristart + ctx.urilen + 8] != '1':
     when defined(fulldebug): echo "request not HTTP/1.1: ", request[ctx.uristart + ctx.urilen + 1 .. ctx.uristart + ctx.urilen + 8]
-    (ctx.closeSocket(); return false)
+    (ctx.closeSocket(ProtocolViolated); return false)
   when defined(fulldebug): echo ctx.socketdata.port, ": ", request[0 .. ctx.uristart + ctx.urilen + 8]
   true
 

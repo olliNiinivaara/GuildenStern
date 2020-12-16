@@ -118,8 +118,9 @@ template `[]`(value: uint8, index: int): bool =
 
 template error(msg: string) =
   let errormsg = "websocket " & $ctx.socketdata.socket & " fail: " & msg
-  ctx.gs.notifyError(errormsg)
+  ctx.gs.errormsg &= " | " & errormsg
   when defined(fulldebug): echo errormsg
+  ctx.closeSocket(ProtocolViolated)
   ctx.opcode = Fail
   return -1
 
@@ -156,7 +157,9 @@ proc recvHeader(): int =
 proc recvFrame() =
   var expectedlen: int  
   expectedlen = recvHeader()
-  if ctx.opcode in [Fail, Close]: return
+  if ctx.opcode in [Fail, Close]:
+    if ctx.opcode == Close: ctx.closeSocket(ClosedbyClient)
+    return
   while true:
     if shuttingdown: (ctx.opcode = Fail; return)
     let ret =
@@ -164,12 +167,18 @@ proc recvFrame() =
       else: recv(ctx.socketdata.socket, addr request[ctx.requestlen], (expectedLen - ctx.requestlen).cint, 0)
     if shuttingdown: (ctx.opcode = Fail; return)
 
-    if ret == 0: (ctx.closeSocket(); ctx.opcode = Fail; return)
+    if ret == 0: (ctx.closeSocket(ClosedbyClient); ctx.opcode = Fail; return)
     if ret == -1:
       let lastError = osLastError().int
-      if lastError != 2 and lastError != 9 and lastError != 32 and lastError != 104:
-        ctx.gs.notifyError("websocket error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
+      let cause =
+        if lasterror in [2,9]: AlreadyClosed
+        elif lasterror == 32: ConnectionLost
+        elif lasterror == 104: ClosedbyClient
+        else: NetErrored
+      when defined(fulldebug): echo "websocket " & $ctx.socketdata.socket & " receive error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError))
+      ctx.gs.errormsg &= " | " & osErrorMsg(OSErrorCode(lastError))
       ctx.opcode = Fail
+      ctx.closeSocket(cause)
       return
 
     ctx.requestlen += ret
@@ -184,7 +193,8 @@ proc receiveWs() =
     while ctx.opcode == Cont: recvFrame()
     for i in 0 ..< ctx.requestlen: request[i] = (request[i].uint8 xor maskkey[i mod 4].uint8).char
   except:
-    ctx.gs.notifyError("receiveWs: " & getCurrentExceptionMsg())
+    ctx.gs.errormsg &= " | " & getCurrentExceptionMsg()
+    ctx.closeSocket(Excepted)
     ctx.opcode = Fail
 
 
@@ -227,7 +237,7 @@ proc handleWsUpgradehandshake(gs: ptr GuildenServer, data: ptr SocketData) {.gcs
   else:
     ctx.reply(Http204)
     sleep(3000)
-    ctx.closeSocket()
+    ctx.closeSocket(ProtocolViolated)
 
 
 proc handleWsMessage(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
@@ -239,11 +249,7 @@ proc handleWsMessage(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimc
   ctx.socketdata = data
   ctx.requestlen = 0
   receiveWs()
-  if ctx.opcode in [Fail, Close]:
-    let lostsocket = data.socket    
-    ctx.closeSocket()
-    handleConnectionlost(gs, data, lostsocket)
-  else:
+  if ctx.opcode notin [Fail, Close]:
     {.gcsafe.}: messageCallback(ctx)
   
 
@@ -264,10 +270,17 @@ proc send(gs: ptr GuildenServer, socket: posix.SocketHandle, text: ptr string, l
     if ret < 1:
       if ret == -1:
         let lastError = osLastError().int
-        if lastError != 2 and lastError != 9 and lastError != 32 and lastError != 104:
-          gs.notifyError("websocket error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
-      elif ret < -1: gs.notifyError("websocket exception: " & getCurrentExceptionMsg())
-      gs.closeSocket(nativesockets.SocketHandle(socket))
+        let cause =
+          if lasterror in [2,9]: AlreadyClosed
+          elif lasterror == 32: ConnectionLost
+          elif lasterror == 104: ClosedbyClient
+          else: NetErrored
+        when defined(fulldebug): echo "websocket " & $ctx.socketdata.socket & " send error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError))
+        ctx.gs.errormsg &= " | " & osErrorMsg(OSErrorCode(lastError))
+        ctx.closeSocket(cause)
+      elif ret < -1:
+        ctx.gs.errormsg &= " | " & getCurrentExceptionMsg()
+        ctx.closeSocket(Excepted)
       return false
     sent.inc(ret)
     if sent == len: return true

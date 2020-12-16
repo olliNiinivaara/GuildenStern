@@ -20,7 +20,6 @@ proc process(gs: ptr GuildenServer, fd: posix.SocketHandle, data: ptr SocketData
     if gs.selector.contains(fd):
       try: gs.selector.updateHandle(fd, {Event.Read})
       except: echo "addHandle error: " & getCurrentExceptionMsg()
-    else: fd.close()
 
 
 proc handleAccept(gs: ptr GuildenServer, fd: posix.SocketHandle, data: ptr SocketData) =
@@ -46,8 +45,8 @@ proc handleAccept(gs: ptr GuildenServer, fd: posix.SocketHandle, data: ptr Socke
   var tv = (RcvTimeOut,0)
   if setsockopt(fd, cint(SOL_SOCKET), cint(RcvTimeOut), addr(tv), SockLen(sizeof(tv))) < 0'i32:
     gs.selector.unregister(fd)
-    raise newException(CatchableError, "setting timeout failed")
-  
+    when defined(fulldebug): echo "setting timeout failed: ", fd
+
 
 template handleEvent() =
   if data.ctxid == ServerCtx:
@@ -115,21 +114,19 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
       if Event.Error in event.events:
         if data.ctxid == ServerCtx: echo "server error: " & osErrorMsg(event.errorCode)
         else:
-          if event.errorCode.cint != 2 and event.errorCode.cint != 9 and event.errorCode.cint != 32 and event.errorCode.cint != 104: echo "socket error: ", event.errorCode.cint," ", osErrorMsg(event.errorCode)
-          if gs.selector.contains(fd):
-            try: gs.selector.unregister(fd)
-            except:
-              when defined(fulldebug): echo "unregister failed: ", fd
-          fd.close()
-          when defined(fulldebug): echo "socket connection was lost: ", fd
-          handleConnectionlost(unsafeAddr gs, data, fd)
+          data.socket = fd
+          let cause =
+            if event.errorCode.cint in [2,9]: AlreadyClosed
+            elif event.errorCode.cint == 32: ConnectionLost
+            elif event.errorCode.cint == 104: ClosedbyClient
+            else: NetErrored 
+          internalCloseSocket(unsafeAddr gs, data, cause, osErrorMsg(event.errorCode))
         continue
 
       if Event.Read notin event.events:
         try:
           when defined(fulldebug): echo "non-read ", fd, ": ", event.events
-          fd.close()
-          if gs.selector.contains(fd): gs.selector.unregister(fd)          
+          internalCloseSocket(unsafeAddr gs, data, NetErrored, "non-read " & $fd & ": " & $event.events)        
         except: discard
         finally: continue       
       handleEvent()
@@ -164,5 +161,6 @@ proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
 
   {.gcsafe.}: signal(SIG_PIPE, SIG_IGN)
   
+  sleep(10)
   eventLoop(gs)
   for portserver in portservers: portserver.close()

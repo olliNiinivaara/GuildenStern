@@ -59,8 +59,6 @@ var
   ctx {.threadvar.}: HttpCtx
   headers {.threadvar.}: StringTableRef
 
-const
-  MSG_DONTWAIT = 0x40.cint
 
 proc receiveHttp(): bool {.gcsafe, raises:[] .} =
   var expectedlength = MaxRequestLength + 1
@@ -68,25 +66,19 @@ proc receiveHttp(): bool {.gcsafe, raises:[] .} =
     if shuttingdown: return false
     let recvFlags = if ctx.requestlen == 0: MSG_DONTWAIT else: 0x00
     let ret = recv(posix.SocketHandle(ctx.socketdata.socket), addr request[ctx.requestlen], expectedlength - ctx.requestlen, recvFlags)
-    if ctx.requestlen == 0 and ret == 0:
-      # connection closed
-      ctx.unregister()
-      return false
     checkRet()
     let previouslen = ctx.requestlen
     ctx.requestlen += ret
 
     if ctx.requestlen >= MaxRequestLength:
-      ctx.gs.notifyError("recvHttp: Max request size exceeded")
-      ctx.closeSocket()
+      ctx.closeSocket(ProtocolViolated, "recvHttp: Max request size exceeded")
       return false
 
     if ctx.requestlen == expectedlength: break
 
     if not ctx.isHeaderreceived(previouslen, ctx.requestlen):
       if ctx.requestlen >= MaxHeaderLength:
-        ctx.gs.notifyError("recvHttp: Max header size exceeded")
-        ctx.closeSocket()
+        ctx.closeSocket(ProtocolViolated, "recvHttp: Max header size exceeded" )
         return false
       continue
 

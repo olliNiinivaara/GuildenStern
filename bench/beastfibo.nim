@@ -1,7 +1,7 @@
 # nimble install httpbeast
 # nim c --gc:arc --d:danger --threads:on --d:threadsafe beastfibo.nim
 # ./beastfibo &
-# wrk -t8 -c8 -d10s --latency http://127.0.0.1:8080
+# ./wrkbin -t8 -c8 -d10s --latency http://127.0.0.1:8080
 # kill -INT $!
 
 import random, asyncdispatch, httpbeast

@@ -50,11 +50,11 @@ proc receiveHeader*(context: HttpCtx): bool {.gcsafe, raises:[].} =
   ## only useful when writing new handlers
   while true:
     if shuttingdown: return false
-    let ret =
-      if context.requestlen == 0: recv(posix.SocketHandle(context.socketdata.socket), addr request[0], MaxHeaderLength + 1, 0x40) # 0x40 = MSG_DONTWAIT
-      else: recv(posix.SocketHandle(context.socketdata.socket), addr request[context.requestlen], MaxHeaderLength + 1, 0)
+    let ret = recv(posix.SocketHandle(context.socketdata.socket), addr request[context.requestlen], MaxHeaderLength + 1, 0)
     checkRet()
-    if ret == MaxHeaderLength + 1: (context.gs.notifyError("receiveHeader: Max header size exceeded"); return false)
+    if ret == MaxHeaderLength + 1:
+      ctx.closeSocket(ProtocolViolated, "receiveHeader: Max header size exceeded")
+      return false
     context.requestlen += ret
     if isFinished: break
   return context.requestlen > 0
