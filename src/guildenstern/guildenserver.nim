@@ -108,10 +108,12 @@ proc handleRead*(gs: ptr GuildenServer, data: ptr SocketData) =
 
 proc closeSocket*(ctx: Ctx, cause = CloseCalled, msg = "") {.raises: [].} =
   if ctx.socketdata.socket.int == osInvalidSocket.int: return
+  # ctx.socketdata is zero'ed during unregister(), so need to save `fd`
+  let fd = ctx.socketdata.socket
   try:
     if ctx.gs.closecallback != nil: ctx.gs.closecallback(ctx, cause, msg)
-    if ctx.gs.selector.contains(ctx.socketdata.socket): ctx.gs.selector.unregister(ctx.socketdata.socket)
-    if cause notin [ClosedbyClient, ConnectionLost]: ctx.socketdata.socket.close()
+    if ctx.gs.selector.contains(fd): ctx.gs.selector.unregister(fd)
+    if cause notin [ClosedbyClient, ConnectionLost]: fd.close()
     ctx.socketdata.socket = osInvalidSocket
   except:
     if defined(fulldebug): echo "close error: ", getCurrentExceptionMsg()
