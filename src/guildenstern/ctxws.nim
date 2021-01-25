@@ -117,9 +117,7 @@ template `[]`(value: uint8, index: int): bool =
 
 
 template error(msg: string) =
-  let errormsg = "websocket " & $ctx.socketdata.socket & " fail: " & msg
-  ctx.gs.errormsg &= " | " & errormsg
-  when defined(fulldebug): echo errormsg
+  when defined(fulldebug): echo "websocket " & $ctx.socketdata.socket & " fail: " & msg
   ctx.closeSocket(ProtocolViolated)
   ctx.opcode = Fail
   return -1
@@ -176,7 +174,6 @@ proc recvFrame() =
         elif lasterror == 104: ClosedbyClient
         else: NetErrored
       when defined(fulldebug): echo "websocket " & $ctx.socketdata.socket & " receive error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError))
-      ctx.gs.errormsg &= " | " & osErrorMsg(OSErrorCode(lastError))
       ctx.opcode = Fail
       ctx.closeSocket(cause)
       return
@@ -193,7 +190,7 @@ proc receiveWs() =
     while ctx.opcode == Cont: recvFrame()
     for i in 0 ..< ctx.requestlen: request[i] = (request[i].uint8 xor maskkey[i mod 4].uint8).char
   except:
-    ctx.gs.errormsg &= " | " & getCurrentExceptionMsg()
+    when defined(fulldebug): echo "websocket " & $ctx.socketdata.socket & " receive exception: " & getCurrentExceptionMsg()
     ctx.closeSocket(Excepted)
     ctx.opcode = Fail
 
@@ -276,10 +273,9 @@ proc send(gs: ptr GuildenServer, socket: posix.SocketHandle, text: ptr string, l
           elif lasterror == 104: ClosedbyClient
           else: NetErrored
         when defined(fulldebug): echo "websocket " & $ctx.socketdata.socket & " send error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError))
-        ctx.gs.errormsg &= " | " & osErrorMsg(OSErrorCode(lastError))
         ctx.closeSocket(cause)
       elif ret < -1:
-        ctx.gs.errormsg &= " | " & getCurrentExceptionMsg()
+        when defined(fulldebug): echo "websocket " & $ctx.socketdata.socket & " send error: " & getCurrentExceptionMsg()
         ctx.closeSocket(Excepted)
       return false
     sent.inc(ret)
