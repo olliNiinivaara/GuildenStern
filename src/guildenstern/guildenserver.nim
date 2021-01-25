@@ -107,29 +107,30 @@ proc handleRead*(gs: ptr GuildenServer, data: ptr SocketData) =
 
 
 proc closeSocket*(ctx: Ctx, cause = CloseCalled, msg = "") {.raises: [].} =
-  if ctx.socketdata.socket.int == osInvalidSocket.int: return
+  if ctx.socketdata.socket.int in [0, osInvalidSocket.int]: return
+  when defined(fulldebug): echo "socket ", cause, ": ", ctx.socketdata.socket
+  # ctx.socketdata is zero'ed during unregister(), so need to save `fd`
+  let fd = ctx.socketdata.socket
   try:
     if ctx.gs.closecallback != nil: ctx.gs.closecallback(ctx, cause, msg)
-    if ctx.gs.selector.contains(ctx.socketdata.socket): ctx.gs.selector.unregister(ctx.socketdata.socket)
-    if cause notin [ClosedbyClient, ConnectionLost]: ctx.socketdata.socket.close()
+    if ctx.gs.selector.contains(fd): ctx.gs.selector.unregister(fd)
+    if cause notin [ClosedbyClient, ConnectionLost]: fd.close()
     ctx.socketdata.socket = osInvalidSocket
   except:
-    if defined(fulldebug): echo "close error: ", getCurrentExceptionMsg()
+    when defined(fulldebug): echo "close error: ", getCurrentExceptionMsg()
 
 
 proc internalCloseSocket*(gs: ptr GuildenServer, data: ptr SocketData, cause: SocketCloseCause, msg: string) {.raises: [].} =
+  when defined(fulldebug): echo "internally socket ", cause, ": ", data.socket
   try:
     if gs.closecallback != nil:
       var ctx = new Ctx
       ctx.gs = gs
       ctx.socketdata = data
       ctx.gs.closecallback(ctx, cause, msg)
-    if gs.selector.contains(data.socket): gs.selector.unregister(data.socket)
-    data.socket.close()
+    let fd = data.socket  
+    if gs.selector.contains(fd): gs.selector.unregister(fd)
+    fd.close()
+    data.socket = osInvalidSocket
   except:
-    if defined(fulldebug): echo "internal close error: ", getCurrentExceptionMsg()
-
-
-#[proc handleConnectionlost*(gs: ptr GuildenServer, data: ptr SocketData, lostsocket: SocketHandle) {.raises: [].} =
-  {.gcsafe.}:
-    if gs.lostcallback != nil: gs.lostcallback(gs, data, lostsocket)]#
+    when defined(fulldebug): echo "internal close error: ", getCurrentExceptionMsg()
