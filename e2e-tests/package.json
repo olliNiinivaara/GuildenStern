@@ -1,6 +1,8 @@
 {
   "name": "e2e-tests",
   "scripts": {
+    "test_ctxheader": "node --unhandled-rejections=strict ./test_ctxheader/client.js",
+    "test_ctxws": "node --unhandled-rejections=strict ./test_ctxws/client.js",
     "err_empty_response": "node ./err_empty_response/client.js"
   },
   "dependencies": {

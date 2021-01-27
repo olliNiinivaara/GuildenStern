@@ -44,27 +44,26 @@ var
 {.push checks: off.}
 
 template isFinished: bool =
-  request[context.requestlen-4] == '\c' and request[context.requestlen-3] == '\l' and request[context.requestlen-2] == '\c' and request[context.requestlen-1] == '\l'
+  request[ctx.requestlen-4] == '\c' and request[ctx.requestlen-3] == '\l' and request[ctx.requestlen-2] == '\c' and request[ctx.requestlen-1] == '\l'
 
-proc receiveHeader*(context: HttpCtx): bool {.gcsafe, raises:[].} =
+proc receiveHeader*(ctx: HttpCtx): bool {.gcsafe, raises:[].} =
   ## only useful when writing new handlers
   while true:
     if shuttingdown: return false
-    let ret = recv(posix.SocketHandle(context.socketdata.socket), addr request[context.requestlen], MaxHeaderLength + 1, 0)
+    let ret = recv(posix.SocketHandle(ctx.socketdata.socket), addr request[ctx.requestlen], MaxHeaderLength + 1, 0)
     checkRet()
     if ret == MaxHeaderLength + 1:
       ctx.closeSocket(ProtocolViolated, "receiveHeader: Max header size exceeded")
       return false
-    context.requestlen += ret
+    ctx.requestlen += ret
     if isFinished: break
-  return context.requestlen > 0
+  return ctx.requestlen > 0
 
 {.pop.}
 
 
 proc handleHeaderRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
   if ctx == nil: ctx = new HttpCtx
-  if request.len < MaxRequestLength + 1: request = newString(MaxRequestLength + 1)
   initHttpCtx(ctx, gs, data)    
   if ctx.receiveHeader() and (not requestlineparsing or ctx.parseRequestLine()):
     {.gcsafe.}: requestCallback(ctx)

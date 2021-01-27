@@ -23,6 +23,7 @@ var
   request* {.threadvar.}: string
 
 proc initHttpCtx*(ctx: HttpCtx, gs: ptr GuildenServer, socketdata: ptr SocketData) {.inline.} =
+  if request.len < MaxRequestLength + 1: request = newString(MaxRequestLength + 1)
   ctx.gs = gs
   ctx.socketdata = socketdata
   ctx.requestlen = 0
@@ -48,18 +49,23 @@ template checkRet*() =
     elif ret < -1: ctx.closeSocket(Excepted, getCurrentExceptionMsg())
     else: ctx.closeSocket(ClosedbyClient)        
     return false
-      
+  
+  if ctx.methlen > 0: return true
 
-proc parseRequestLine*(ctx: HttpCtx): bool {.gcsafe, raises: [].} =
-  if ctx.requestlen < 13:
-    when defined(fulldebug): echo "too short request (", ctx.requestlen,"): ", request
+  if ctx.requestlen + ret < 13:
+    when defined(fulldebug): echo "too short request (", ret,"): ", request
     (ctx.closeSocket(ProtocolViolated); return false)
 
-  while ctx.methlen < ctx.requestlen and request[ctx.methlen] != ' ': ctx.methlen.inc
-  if ctx.methlen == ctx.requestlen:
+  while ctx.methlen < ret and request[ctx.methlen] != ' ': ctx.methlen.inc
+  if ctx.methlen == ret:
     when defined(fulldebug): echo "http method missing"
     (ctx.closeSocket(ProtocolViolated); return false)
+  if request[0 .. 1] notin ["GE", "PO", "HE", "PU", "DE", "CO", "OP", "TR", "PA"]:
+    when defined(fulldebug): echo "invalid http method: ", request[0 .. 12]
+    (ctx.closeSocket(ProtocolViolated); return false)
 
+
+proc parseRequestLine*(ctx: HttpCtx): bool {.gcsafe, raises: [].} =
   var i = ctx.methlen + 1
   let start = i
   while i < ctx.requestlen and request[i] != ' ': i.inc()
@@ -138,6 +144,7 @@ proc isMethod*(ctx: HttpCtx, amethod: string): bool {.raises: [].} =
 
 
 proc getHeaders*(ctx: HttpCtx): string =
+  if ctx.bodystart < 1: return request
   request[0 .. ctx.bodystart - 4]
 
 
@@ -151,6 +158,7 @@ proc getBodylen*(ctx: HttpCtx): int =
 
 
 proc getBody*(ctx: HttpCtx): string =
+  if ctx.bodystart < 1: return ""
   request[ctx.bodystart ..< ctx.requestlen]
   
 

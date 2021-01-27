@@ -108,10 +108,10 @@ function main() {
   Close = 8,                ## connection close
   Ping = 9,                 ## ping
   Pong = 10,                ## pong
-  Fail = 14                  ## protocol failure / connection lost in flight"><wbr />Opcode<span class="attachedType"></span></a></li>
+  Fail = 14                  ## protocol failure / connection lost in flight">Opcode</a></li>
   <li><a class="reference" href="#WsCtx"
     title="WsCtx = ref object of HttpCtx
-  opcode*: Opcode"><wbr />Ws<wbr />Ctx<span class="attachedType"></span></a></li>
+  opcode*: Opcode">WsCtx</a></li>
 
   </ul>
 </li>
@@ -119,7 +119,7 @@ function main() {
   <a class="reference reference-toplevel" href="#10" id="60">Consts</a>
   <ul class="simple simple-toc-section">
       <li><a class="reference" href="#MaxWsRequestLength"
-    title="MaxWsRequestLength = 100000"><wbr />Max<wbr />Ws<wbr />Request<wbr />Length<span class="attachedType"></span></a></li>
+    title="MaxWsRequestLength = 100000">MaxWsRequestLength</a></li>
 
   </ul>
 </li>
@@ -128,20 +128,20 @@ function main() {
   <ul class="simple simple-toc-section">
       <ul class="simple nested-toc-section">replyWs
       <li><a class="reference" href="#replyWs%2CCtx%2Cptr.string"
-    title="replyWs(ctx: Ctx; text: ptr string; length = -1; binary = false): bool">replyWs,Ctx,ptr.string<span class="attachedType"></span></a></li>
+    title="replyWs(ctx: Ctx; text: ptr string; length = -1; binary = false): bool">replyWs,<wbr>Ctx,<wbr>ptr.string</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">sendWs
       <li><a class="reference" href="#sendWs%2CGuildenServer%2C%2Cptr.string%2Cint"
     title="sendWs(gs: GuildenServer; socket: nativesockets.SocketHandle;
-       message: ptr string; length: int = -1; binary = false): bool">sendWs,GuildenServer,,ptr.string,int<span class="attachedType"></span></a></li>
+       message: ptr string; length: int = -1; binary = false): bool">sendWs,<wbr>GuildenServer,<wbr>,<wbr>ptr.string,<wbr>int</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">initWsCtx
       <li><a class="reference" href="#initWsCtx%2CGuildenServer%2CWsUpgradeRequestCallback%2CWsMessageCallback%2Cint"
     title="initWsCtx(gs: var GuildenServer;
           onwsupgraderequestcallback: WsUpgradeRequestCallback;
-          onwsmessage: WsMessageCallback; port: int)">initWsCtx,GuildenServer,WsUpgradeRequestCallback,WsMessageCallback,int<span class="attachedType"></span></a></li>
+          onwsmessage: WsMessageCallback; port: int)">initWsCtx,<wbr>GuildenServer,<wbr>WsUpgradeRequestCallback,<wbr>WsMessageCallback,<wbr>int</a></li>
 
   </ul>
 
@@ -152,9 +152,9 @@ function main() {
   <ul class="simple simple-toc-section">
       <li><a class="reference" href="#sendWs.t%2CGuildenServer%2C%2Cstring%2Cint"
     title="sendWs(gs: GuildenServer; socket: nativesockets.SocketHandle; message: string;
-       length: int = -1; binary = false): bool"><wbr />send<wbr />Ws<span class="attachedType"></span></a></li>
+       length: int = -1; binary = false): bool">sendWs</a></li>
   <li><a class="reference" href="#replyWs.t%2CCtx%2Cstring"
-    title="replyWs(ctx: Ctx; message: string; length = -1; binary = false): bool"><wbr />reply<wbr />Ws<span class="attachedType"></span></a></li>
+    title="replyWs(ctx: Ctx; message: string; length = -1; binary = false): bool">replyWs</a></li>
 
   </ul>
 </li>
@@ -195,10 +195,10 @@ function main() {
       <span class="Keyword">let</span> <span class="Identifier">reply</span> <span class="Operator">=</span> <span class="StringLit">&quot;hello&quot;</span>
       <span class="Keyword">discard</span> <span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">sendWs</span><span class="Punctuation">(</span><span class="Identifier">socket</span><span class="Punctuation">,</span> <span class="Identifier">reply</span><span class="Punctuation">)</span>
 
-<span class="Keyword">proc</span> <span class="Identifier">onLost</span><span class="Punctuation">(</span><span class="Identifier">gs</span><span class="Punctuation">:</span> <span class="Keyword">ptr</span> <span class="Identifier">GuildenServer</span><span class="Punctuation">,</span> <span class="Identifier">data</span><span class="Punctuation">:</span> <span class="Keyword">ptr</span> <span class="Identifier">SocketData</span><span class="Punctuation">,</span> <span class="Identifier">lostsocket</span><span class="Punctuation">:</span> <span class="Identifier">SocketHandle</span><span class="Punctuation">)</span> <span class="Operator">=</span>
+<span class="Keyword">proc</span> <span class="Identifier">onLost</span><span class="Punctuation">(</span><span class="Identifier">ctx</span><span class="Punctuation">:</span> <span class="Identifier">Ctx</span><span class="Punctuation">,</span> <span class="Identifier">cause</span><span class="Punctuation">:</span> <span class="Identifier">SocketCloseCause</span><span class="Punctuation">,</span> <span class="Identifier">msg</span><span class="Punctuation">:</span> <span class="Identifier">string</span><span class="Punctuation">)</span> <span class="Operator">=</span>
   <span class="Identifier">withLock</span><span class="Punctuation">(</span><span class="Identifier">lock</span><span class="Punctuation">)</span><span class="Punctuation">:</span>
-    <span class="Keyword">if</span> <span class="Identifier">lostsocket</span><span class="Operator">.</span><span class="Identifier">int</span> <span class="Operator">==</span> <span class="Identifier">socket</span><span class="Operator">.</span><span class="Identifier">int</span><span class="Punctuation">:</span>
-      <span class="Identifier">echo</span> <span class="StringLit">&quot;websocket connection lost&quot;</span>
+    <span class="Keyword">if</span> <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">socketdata</span><span class="Operator">.</span><span class="Identifier">socket</span><span class="Operator">.</span><span class="Identifier">int</span> <span class="Operator">==</span> <span class="Identifier">socket</span><span class="Operator">.</span><span class="Identifier">int</span><span class="Punctuation">:</span>
+      <span class="Identifier">echo</span> <span class="Identifier">cause</span>
       <span class="Identifier">socket</span> <span class="Operator">=</span> <span class="Identifier">osInvalidSocket</span>
 
 <span class="Keyword">proc</span> <span class="Identifier">onRequest</span><span class="Punctuation">(</span><span class="Identifier">ctx</span><span class="Punctuation">:</span> <span class="Identifier">HttpCtx</span><span class="Punctuation">)</span> <span class="Operator">=</span> <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">reply</span><span class="Punctuation">(</span><span class="Identifier">Http200</span><span class="Punctuation">,</span> <span class="Identifier">html</span><span class="Punctuation">)</span>
@@ -206,7 +206,7 @@ function main() {
 <span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">initHeaderCtx</span><span class="Punctuation">(</span><span class="Identifier">onRequest</span><span class="Punctuation">,</span> <span class="DecNumber">5050</span><span class="Punctuation">)</span>
 <span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">initWsCtx</span><span class="Punctuation">(</span><span class="Identifier">onUpgradeRequest</span><span class="Punctuation">,</span> <span class="Identifier">onMessage</span><span class="Punctuation">,</span> <span class="DecNumber">5051</span><span class="Punctuation">)</span>
 <span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">registerTimerhandler</span><span class="Punctuation">(</span><span class="Identifier">sendMessage</span><span class="Punctuation">,</span> <span class="DecNumber">2000</span><span class="Punctuation">)</span>
-<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">registerConnectionlosthandler</span><span class="Punctuation">(</span><span class="Identifier">onLost</span><span class="Punctuation">)</span>
+<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">registerConnectionclosedhandler</span><span class="Punctuation">(</span><span class="Identifier">onLost</span><span class="Punctuation">)</span>
 <span class="Identifier">echo</span> <span class="StringLit">&quot;Point your browser to localhost:5050&quot;</span>
 <span class="Identifier">initLock</span><span class="Punctuation">(</span><span class="Identifier">lock</span><span class="Punctuation">)</span>
 <span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">serve</span><span class="Punctuation">(</span><span class="Punctuation">)</span>
@@ -316,7 +316,7 @@ function main() {
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2020-11-10 12:03:07 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2021-01-27 11:20:40 UTC</small>
       </div>
     </div>
   </div>

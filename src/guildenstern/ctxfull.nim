@@ -90,7 +90,6 @@ proc receiveHttp(): bool {.gcsafe, raises:[] .} =
 
 proc handleHttpRequest(gs: ptr GuildenServer, data: ptr SocketData) {.nimcall, raises: [].} =
   if ctx == nil: ctx = new HttpCtx
-  if request.len < MaxRequestLength + 1: request = newString(MaxRequestLength + 1)
   if headers == nil: headers = newStringTable()
   initHttpCtx(ctx, gs, data)
   if receiveHttp() and ctx.parseRequestLine():

@@ -62,7 +62,7 @@ when not defined(nimdoc):
   import guildenstern/guildenserver
   export guildenserver
   import guildenstern/dispatcher
-  export serve  
+  export serve, getLoads
   import guildenstern/ctxhttp
   export ctxhttp
 else:
@@ -85,7 +85,7 @@ else:
    
     SocketData* = object
       ## | Data associated with a request context.
-      ## | This is available in request context as ``socketdata`` property (probably not needed in application development, though).
+      ## | This is available in request context as ``socketdata`` property.
       port*: uint16
       socket*: nativesockets.SocketHandle
       ctxid*: CtxId
@@ -185,9 +185,16 @@ else:
       ## | Important: when you call this from application code, let cause be `CloseCalled`.
       ## | `msg` can be any further info that will be delivered to registered CloseCallback.
       discard
+
+  proc getLoads*(): (int, int, int) =
+    ## returns load statistics over all guildenservers as tuple, where:
+    ## | 0 = current load; amount of currently active threads, i.e. requests being currently simultaneously served
+    ## | 1 = peek load; maximum current load since current load was zero
+    ## | 2 = max load; maximum load since first server was started    
+    discard
   
   proc shutdown*() =
-    ## Cancels pending network I/O and breaks event dispatcher loops of all servers. Sending SIGINT / pressing Ctrl-C will automatically call shutdown().
+    ## Cancels pending network I/O and breaks event dispatcher loops of all guildenservers. Sending SIGINT / pressing Ctrl-C will automatically call shutdown().
     ## | See `registerThreadInitializer` for example.
     discard
 

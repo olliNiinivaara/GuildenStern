@@ -119,7 +119,6 @@ proc receiveChunk*(ctx: StreamCtx): int {.gcsafe, raises:[] .} =
 
 proc handleHeaderRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
   if ctx == nil: ctx = new StreamCtx
-  if request.len < MaxRequestLength + 1: request = newString(MaxRequestLength + 1)
   initHttpCtx(ctx, gs, data)
   ctx.contentlength = -1
   ctx.contentreceived = 0

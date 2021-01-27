@@ -4,8 +4,11 @@ import selectors, net, nativesockets, os, httpcore, posix
 
 when compileOption("threads"): import threadpool
 
-
+var currentload, peekload, maxload: int
 var threadinitialized {.threadvar.}: bool
+
+
+proc getLoads*(): (int, int, int) = (currentload, peekload, maxload)
 
 
 proc process(gs: ptr GuildenServer, fd: posix.SocketHandle, data: ptr SocketData) {.gcsafe, raises: [].} =
@@ -17,9 +20,12 @@ proc process(gs: ptr GuildenServer, fd: posix.SocketHandle, data: ptr SocketData
   data.socket = fd
   handleRead(gs, data)
   if gs.multithreading:
+    currentload.atomicDec()
+    if currentload == 0: peekload = 0
     if gs.selector.contains(fd):
       try: gs.selector.updateHandle(fd, {Event.Read})
       except: echo "addHandle error: " & getCurrentExceptionMsg()
+
 
 
 proc handleAccept(gs: ptr GuildenServer, fd: posix.SocketHandle, data: ptr SocketData) =
@@ -60,6 +66,11 @@ template handleEvent() =
 
   if not gs.multithreading: process(unsafeAddr gs, fd, data)
   else:
+    currentload.atomicInc()
+    if currentload > peekload:
+      peekload = currentload
+      if peekload > maxload:
+        maxload = peekload
     try: gs.selector.updateHandle(fd, {})
     except:
       echo "removeHandle error: " & getCurrentExceptionMsg()

@@ -33,10 +33,10 @@
 ##          let reply = "hello"
 ##          discard server.sendWs(socket, reply)
 ##    
-##    proc onLost(gs: ptr GuildenServer, data: ptr SocketData, lostsocket: SocketHandle) =
+##    proc onLost(ctx: Ctx, cause: SocketCloseCause, msg: string) =
 ##      withLock(lock):
-##        if lostsocket.int == socket.int:
-##          echo "websocket connection lost"
+##        if ctx.socketdata.socket.int == socket.int:
+##          echo cause
 ##          socket = osInvalidSocket
 ##           
 ##    proc onRequest(ctx: HttpCtx) = ctx.reply(Http200, html)
@@ -44,7 +44,7 @@
 ##    server.initHeaderCtx(onRequest, 5050)
 ##    server.initWsCtx(onUpgradeRequest, onMessage, 5051)
 ##    server.registerTimerhandler(sendMessage, 2000)
-##    server.registerConnectionlosthandler(onLost)
+##    server.registerConnectionclosedhandler(onLost)
 ##    echo "Point your browser to localhost:5050"
 ##    initLock(lock)
 ##    server.serve()

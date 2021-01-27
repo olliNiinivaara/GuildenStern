@@ -216,6 +216,11 @@ function main() {
     title="serve(gs: GuildenServer; multithreaded = true)">serve,<wbr>GuildenServer</a></li>
 
   </ul>
+  <ul class="simple nested-toc-section">getLoads
+      <li><a class="reference" href="#getLoads"
+    title="getLoads(): (int, int, int)">getLoads</a></li>
+
+  </ul>
   <ul class="simple nested-toc-section">isUri
       <li><a class="reference" href="#isUri%2CHttpCtx%2Cstring"
     title="isUri(ctx: HttpCtx; uri: string): bool">isUri,<wbr>HttpCtx,<wbr>string</a></li>
@@ -480,11 +485,18 @@ Registers procedure that is called whenever socket connection is closed.
 Closes the socket.<p>Important: when you call this from application code, let cause be <tt class="docutils literal"><span class="pre">CloseCalled</span></tt>.<br /><tt class="docutils literal"><span class="pre">msg</span></tt> can be any further info that will be delivered to registered CloseCallback.<br /></p>
 
 </dd>
+<a id="getLoads"></a>
+<dt><pre><span class="Keyword">proc</span> <a href="#getLoads"><span class="Identifier">getLoads</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Other">(</span><span class="Identifier">int</span><span class="Other">,</span> <span class="Identifier">int</span><span class="Other">,</span> <span class="Identifier">int</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<dd>
+
+returns load statistics over all guildenservers as tuple, where:<p>0 = current load; amount of currently active threads, i.e. requests being currently simultaneously served<br />1 = peek load; maximum current load since current load was zero<br />2 = max load; maximum load since first server was started    <br /></p>
+
+</dd>
 <a id="shutdown"></a>
 <dt><pre><span class="Keyword">proc</span> <a href="#shutdown"><span class="Identifier">shutdown</span></a><span class="Other">(</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
 <dd>
 
-Cancels pending network I/O and breaks event dispatcher loops of all servers. Sending SIGINT / pressing Ctrl-C will automatically call shutdown().<p>See <tt class="docutils literal"><span class="pre">registerThreadInitializer</span></tt> for example.<br /></p>
+Cancels pending network I/O and breaks event dispatcher loops of all guildenservers. Sending SIGINT / pressing Ctrl-C will automatically call shutdown().<p>See <tt class="docutils literal"><span class="pre">registerThreadInitializer</span></tt> for example.<br /></p>
 
 </dd>
 <a id="getUri,HttpCtx"></a>
@@ -691,7 +703,7 @@ Ends a reply started with replyStart.
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2020-12-16 08:43:50 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2021-01-26 14:22:16 UTC</small>
       </div>
     </div>
   </div>
