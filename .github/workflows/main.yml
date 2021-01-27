@@ -16,7 +16,10 @@ jobs:
           
           cd test_ctxheader/
           nim c -r --gc:arc --threads:on --d:threadsafe -p:../../src/ server.nim &
+          echo "build started"
+          sleep 5
           cd ..
+          echo "running..."
           npm run test_ctxheader
           
           cd err_empty_response/
