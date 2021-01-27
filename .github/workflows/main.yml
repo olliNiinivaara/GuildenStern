@@ -11,11 +11,15 @@ jobs:
       - uses: microsoft/playwright-github-action@v1
       - run: nimble test
       - run: |
+          npm install
+          
+          cd e2e-tests/test_ctxheader/
+          nim c -r --gc:arc --threads:on --d:threadsafe -p:../../src/ server.nim &
+          cd ..          
+          npm run test_ctxheader
+          
           cd e2e-tests/err_empty_response/
           nim c -r --threads:on --d:threadsafe -p:../../src/ server.nim &
-          cd ..
-          
-          npm install
+          cd ..          
           npm run err_empty_response
-          
           kill -INT $!
