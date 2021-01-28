@@ -1,4 +1,4 @@
-version       = "0.9.0"
+version       = "1.0.0"
 author        = "Olli"
 description   = "Modular multithreading Linux HTTP server"
 license       = "MIT"
