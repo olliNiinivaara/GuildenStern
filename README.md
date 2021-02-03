@@ -8,14 +8,14 @@ http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blo
 
 ## Installation
 
-`nimble install https://github.com/olliNiinivaara/GuildenStern@#master`
+`nimble install guildenstern`
 
 ## Features
 
-- Modular architecture let's you add new handlers without forking the project
-- Modularity means fewer bugs and more opportunities for performance optimization
-- Can listen to multiple ports with different handlers
-- Already supports streaming requests, streaming replies, and websocket
+- Modular architecture means simpler codebase, easy customization and more opportunities for performance optimization
+- Every request is served in dedicated thread, requests won't slow each other down 
 - Preemptive multithreading guarantees low latencies by fair access to CPU cores
+- Can listen to multiple ports with different handlers
+- Supports streaming requests, streaming replies, and websocket
 - Supports --gc:arc, doesn't need asyncdispatch
 - Runs in single-threaded mode, too
