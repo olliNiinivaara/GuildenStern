@@ -3,6 +3,25 @@
 # GuildenStern
 Modular multithreading Linux HTTP server
 
+## Example
+
+```nim
+# nim c -r --gc:arc --d:release --threads:on --d:threadsafe example.nim
+
+import guildenstern/ctxfull
+
+let replystring = "hello"
+
+proc handleGet(ctx: HttpCtx, headers: StringTableRef) =
+  echo "uri: ", ctx.getUri()
+  echo "headers: ", headers
+  ctx.reply(Http200, replystring)
+
+var server = new GuildenServer
+server.initFullCtx(handleGet, 8080)
+server.serve()
+```
+
 ## Documentation
 http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/guildenstern.html
 
