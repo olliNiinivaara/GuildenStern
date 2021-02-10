@@ -28,6 +28,7 @@ jobs:
           
           cd err_empty_response/
           nim c -r --threads:on --d:threadsafe -p:../../src/ server.nim &
+          sleep 5
           cd ..          
           npm run err_empty_response
           kill -INT $!
