@@ -38,3 +38,28 @@ http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blo
 - Supports streaming requests, streaming replies, and websocket
 - Supports --gc:arc, doesn't need asyncdispatch
 - Runs in single-threaded mode, too
+
+## Change Log
+
+### 1.0.1
+
+- MaxWsRequestLength removed (just use MaxRequestLength)
+- Bug fix in WebSocket handler (now initializes WsCtx properly)
+- Bug fix in result code checker (wrong usage of return inside template...)
+
+## Baseline latency (unoptimized Ubuntu, Intel Core i5-760 Processor)
+
+```
+olli@nexus:~/Nim/Testit/SuberGuilden$ wrk -d10 -t2 --latency http://localhost:5050
+Running 10s test @ http://localhost:5050
+  2 threads and 10 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   146.83us   40.33us   4.28ms   98.10%
+    Req/Sec    33.88k   745.53    34.91k    92.57%
+  Latency Distribution
+     50%  144.00us
+     75%  147.00us
+     90%  149.00us
+     99%  199.00us
+  681017 requests in 10.10s, 536.46MB read
+```

@@ -50,19 +50,17 @@ template checkRet*() =
     else: ctx.closeSocket(ClosedbyClient)        
     return false
   
-  if ctx.methlen > 0: return true
-
-  if ctx.requestlen + ret < 13:
-    when defined(fulldebug): echo "too short request (", ret,"): ", request
-    (ctx.closeSocket(ProtocolViolated); return false)
-
-  while ctx.methlen < ret and request[ctx.methlen] != ' ': ctx.methlen.inc
-  if ctx.methlen == ret:
-    when defined(fulldebug): echo "http method missing"
-    (ctx.closeSocket(ProtocolViolated); return false)
-  if request[0 .. 1] notin ["GE", "PO", "HE", "PU", "DE", "CO", "OP", "TR", "PA"]:
-    when defined(fulldebug): echo "invalid http method: ", request[0 .. 12]
-    (ctx.closeSocket(ProtocolViolated); return false)
+  if ctx.methlen == 0:
+    if ctx.requestlen + ret < 13:
+      when defined(fulldebug): echo "too short request (", ret,"): ", request
+      (ctx.closeSocket(ProtocolViolated); return false)
+    while ctx.methlen < ret and request[ctx.methlen] != ' ': ctx.methlen.inc
+    if ctx.methlen == ret:
+      when defined(fulldebug): echo "http method missing"
+      (ctx.closeSocket(ProtocolViolated); return false)
+    if request[0 .. 1] notin ["GE", "PO", "HE", "PU", "DE", "CO", "OP", "TR", "PA"]:
+      when defined(fulldebug): echo "invalid http method: ", request[0 .. 12]
+      (ctx.closeSocket(ProtocolViolated); return false)
 
 
 proc parseRequestLine*(ctx: HttpCtx): bool {.gcsafe, raises: [].} =

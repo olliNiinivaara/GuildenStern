@@ -61,9 +61,6 @@ else:
 
 from ctxheader import receiveHeader
 
-
-const MaxWsRequestLength* {.intdefine.} = 100000
-
 type
   Opcode* = enum
     Cont = 0x0                ## continuation frame
@@ -147,7 +144,7 @@ proc recvHeader(): int =
   let maskKeylen = posix.SocketHandle(ctx.socketdata.socket).bytesRecv(maskkey[0].addr, 4)
   if maskKeylen != 4: error("length")
 
-  if expectedLen > MaxWsRequestLength: error("Maximum request size bound to be exceeded: " & $(expectedLen))
+  if expectedLen > MaxRequestLength: error("Maximum request size bound to be exceeded: " & $(expectedLen))
   
   return expectedLen
 
@@ -223,13 +220,8 @@ proc replyHandshake(): bool =
   true
 
 proc handleWsUpgradehandshake(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
-  if ctx == nil:
-    ctx = new WsCtx
-    initHttpCtx(ctx, gs, data)
-    if request.len < MaxWsRequestLength + 1: request = newString(MaxWsRequestLength + 1)
-  ctx.gs = gs
-  ctx.socketdata = data
-  ctx.requestlen = 0
+  if ctx == nil: ctx = new WsCtx
+  initHttpCtx(ctx, gs, data)
   if replyHandshake(): data.ctxid = WsCtxId
   else:
     ctx.reply(Http204)
@@ -238,13 +230,8 @@ proc handleWsUpgradehandshake(gs: ptr GuildenServer, data: ptr SocketData) {.gcs
 
 
 proc handleWsMessage(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
-  if ctx == nil:
-    ctx = new WsCtx
-    initHttpCtx(ctx, gs, data)
-    if request.len < MaxWsRequestLength + 1: request = newString(MaxWsRequestLength + 1)
-  ctx.gs = gs
-  ctx.socketdata = data
-  ctx.requestlen = 0
+  if ctx == nil: ctx = new WsCtx
+  initHttpCtx(ctx, gs, data)
   receiveWs()
   if ctx.opcode notin [Fail, Close]:
     {.gcsafe.}: messageCallback(ctx)
