@@ -1032,8 +1032,8 @@ span.attachedType {
   NetErrored,               ## Some operating system level error happened
   Excepted                   ## A Nim exception happened">SocketCloseCause</a></li>
   <li><a class="reference" href="#CloseCallback"
-    title="CloseCallback = proc (ctx: Ctx; cause: SocketCloseCause; msg: string) {.gcsafe,
-    nimcall, raises: [].}">CloseCallback</a></li>
+    title="CloseCallback = proc (ctx: Ctx; socket: SocketHandle; cause: SocketCloseCause;
+                      msg: string) {.gcsafe, nimcall, raises: [].}">CloseCallback</a></li>
 
   </ul>
 </li>
@@ -1116,6 +1116,11 @@ span.attachedType {
     title="isBody(ctx: HttpCtx; body: string): bool">isBody,<wbr>HttpCtx,<wbr>string</a></li>
 
   </ul>
+  <ul class="simple nested-toc-section">getProtocolName
+      <li><a class="reference" href="#getProtocolName%2CCtx"
+    title="getProtocolName(ctx: Ctx): string">getProtocolName,<wbr>Ctx</a></li>
+
+  </ul>
   <ul class="simple nested-toc-section">serve
       <li><a class="reference" href="#serve%2CGuildenServer"
     title="serve(gs: GuildenServer; multithreaded = true)">serve,<wbr>GuildenServer</a></li>
@@ -1142,6 +1147,12 @@ span.attachedType {
              toarray: var openArray[string])">parseHeaders,<wbr>HttpCtx,<wbr>openArray[string],<wbr>openArray[string]</a></li>
   <li><a class="reference" href="#parseHeaders%2CHttpCtx%2CStringTableRef"
     title="parseHeaders(ctx: HttpCtx; headers: StringTableRef)">parseHeaders,<wbr>HttpCtx,<wbr>StringTableRef</a></li>
+
+  </ul>
+  <ul class="simple nested-toc-section">closeOtherSocket
+      <li><a class="reference" href="#closeOtherSocket%2CGuildenServer%2CSocketHandle%2CSocketCloseCause%2Cstring"
+    title="closeOtherSocket(gs: GuildenServer; socket: SocketHandle;
+                 cause: SocketCloseCause; msg: string = &quot;&quot;)">closeOtherSocket,<wbr>GuildenServer,<wbr>SocketHandle,<wbr>SocketCloseCause,<wbr>string</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">getBodystart
@@ -1287,11 +1298,11 @@ Paremeter in CloseCallback.
 
 </dd>
 <a id="CloseCallback"></a>
-<dt><pre><a href="guildenstern.html#CloseCallback"><span class="Identifier">CloseCallback</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#Ctx"><span class="Identifier">Ctx</span></a><span class="Other">;</span> <span class="Identifier">cause</span><span class="Other">:</span> <a href="guildenstern.html#SocketCloseCause"><span class="Identifier">SocketCloseCause</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span>
-    <span class="Identifier">nimcall</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<dt><pre><a href="guildenstern.html#CloseCallback"><span class="Identifier">CloseCallback</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#Ctx"><span class="Identifier">Ctx</span></a><span class="Other">;</span> <span class="Identifier">socket</span><span class="Other">:</span> <span class="Identifier">SocketHandle</span><span class="Other">;</span> <span class="Identifier">cause</span><span class="Other">:</span> <a href="guildenstern.html#SocketCloseCause"><span class="Identifier">SocketCloseCause</span></a><span class="Other">;</span>
+                      <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">nimcall</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
 <dd>
 
-Called whenever a socket is closed.
+Called whenever a socket is closed. The closed socket is always given as <tt class="docutils literal"><span class="pre">socket</span></tt> parameter. Moreover:<p>if ctx.socketdata.socket == socket: request processing thread is running and closed socket is the requester.<br />if ctx.socketdata.socket != socket: request processing thread is running but closed socket is some other socket. This is most usually the case when a connection is lost to websocket that the requester was sending messages to.<br />ctx.socketdata.socket == INVALID_SOCKET: dispatcher noticed that socket was closed and spawned a ctx just for calling this callback. In this case Ctx is of generic type Ctx, but <tt class="docutils literal"><span class="pre">getProtocolName</span></tt> lets you check the type of the closed socket.<br /></p>
 
 </dd>
 
@@ -1310,7 +1321,7 @@ Maximum acceptable character length for HTTP header.
 <dt><pre><a href="guildenstern.html#MaxRequestLength"><span class="Identifier">MaxRequestLength</span></a> <span class="Other">=</span> <span class="DecNumber">100000</span></pre></dt>
 <dd>
 
-Maximum acceptable length (header length + content length) for a HTTP request (Note: in streaming handlers, this denotes chunk size).
+Maximum acceptable length for a received message.<p>For normal HTTP handlers, this denotes header length + content length<br />For streaming handlers, this denotes chunk size<br />For websockets this denotes payload size<br /></p> If a client tries to send more than this, socket will be immediately closed with <tt class="docutils literal"><span class="pre">ProtocolViolated</span></tt> close cause
 
 </dd>
 
@@ -1387,7 +1398,23 @@ Registers procedure that is called whenever socket connection is closed.
 <dt><pre><span class="Keyword">proc</span> <a href="#closeSocket%2CCtx%2Cstring"><span class="Identifier">closeSocket</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#Ctx"><span class="Identifier">Ctx</span></a><span class="Other">;</span> <span class="Identifier">cause</span> <span class="Other">=</span> <span class="Identifier">CloseCalled</span><span class="Other">;</span> <span class="Identifier">msg</span> <span class="Other">=</span> <span class="StringLit">&quot;&quot;</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
 <dd>
 
-Closes the socket.<p>Important: when you call this from application code, let cause be <tt class="docutils literal"><span class="pre">CloseCalled</span></tt>.<br /><tt class="docutils literal"><span class="pre">msg</span></tt> can be any further info that will be delivered to registered CloseCallback.<br /></p>
+Closes the socket of the current requester.<p>Important: when you call this from application code, let cause be <tt class="docutils literal"><span class="pre">CloseCalled</span></tt>.<br /><tt class="docutils literal"><span class="pre">msg</span></tt> can be any further info that will be delivered to registered CloseCallback.<br /></p>
+
+</dd>
+<a id="closeOtherSocket,GuildenServer,SocketHandle,SocketCloseCause,string"></a>
+<dt><pre><span class="Keyword">proc</span> <a href="#closeOtherSocket%2CGuildenServer%2CSocketHandle%2CSocketCloseCause%2Cstring"><span class="Identifier">closeOtherSocket</span></a><span class="Other">(</span><span class="Identifier">gs</span><span class="Other">:</span> <a href="guildenstern.html#GuildenServer"><span class="Identifier">GuildenServer</span></a><span class="Other">;</span> <span class="Identifier">socket</span><span class="Other">:</span> <span class="Identifier">SocketHandle</span><span class="Other">;</span>
+                      <span class="Identifier">cause</span><span class="Other">:</span> <a href="guildenstern.html#SocketCloseCause"><span class="Identifier">SocketCloseCause</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">string</span> <span class="Other">=</span> <span class="StringLit">&quot;&quot;</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<dd>
+
+Closes arbitrary socket.
+
+</dd>
+<a id="getProtocolName,Ctx"></a>
+<dt><pre><span class="Keyword">proc</span> <a href="#getProtocolName%2CCtx"><span class="Identifier">getProtocolName</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#Ctx"><span class="Identifier">Ctx</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<dd>
+
+Helper proc to use in closecallbacks to get type of the closed socket when closed socket was not in request context. For websockets returns &quot;websocket&quot; and for other default handlers &quot;http&quot;. Your custom handlers can register other protocol names.
 
 </dd>
 <a id="getLoads"></a>
@@ -1608,7 +1635,7 @@ Ends a reply started with replyStart.
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2021-02-10 13:27:47 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2021-03-14 14:15:57 UTC</small>
       </div>
     </div>
   </div>

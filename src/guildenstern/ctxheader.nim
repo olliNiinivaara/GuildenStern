@@ -43,20 +43,18 @@ var
 
 {.push checks: off.}
 
-template isFinished: bool =
-  request[ctx.requestlen-4] == '\c' and request[ctx.requestlen-3] == '\l' and request[ctx.requestlen-2] == '\c' and request[ctx.requestlen-1] == '\l'
-
 proc receiveHeader*(ctx: HttpCtx): bool {.gcsafe, raises:[].} =
   ## only useful when writing new handlers
   while true:
     if shuttingdown: return false
-    let ret = recv(posix.SocketHandle(ctx.socketdata.socket), addr request[ctx.requestlen], MaxHeaderLength + 1, 0)
+    let ret = recv(ctx.socketdata.socket, addr request[ctx.requestlen], MaxHeaderLength + 1, 0)
     checkRet()
     if ret == MaxHeaderLength + 1:
       ctx.closeSocket(ProtocolViolated, "receiveHeader: Max header size exceeded")
       return false
     ctx.requestlen += ret
-    if isFinished: break
+    if request[ctx.requestlen-4] == '\c' and request[ctx.requestlen-3] == '\l' and
+     request[ctx.requestlen-2] == '\c' and request[ctx.requestlen-1] == '\l': break
   return ctx.requestlen > 0
 
 {.pop.}
@@ -69,10 +67,12 @@ proc handleHeaderRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, 
     {.gcsafe.}: requestCallback(ctx)
     
 
-proc initHeaderCtx*(gs: var GuildenServer, onrequestcallback: proc(ctx: HttpCtx){.nimcall, raises: [].}, port: int, parserequestline = true) =
-  ## Initializes the headerctx handler for given ports with given request callback. By setting `parserequestline` to false this becomes a pass-through handler
+proc initHeaderCtx*(gs: var GuildenServer,
+ onrequestcallback: proc(ctx: HttpCtx){.nimcall, raises: [].}, port: int, parserequestline = true) =
+  ## Initializes the headerctx handler for given ports with given request callback.
+  ## By setting `parserequestline` to false this becomes a pass-through handler
   ## that does no handling for the request.
   {.gcsafe.}: 
     requestCallback = onrequestcallback
     requestlineparsing = parserequestline
-    discard gs.registerHandler(handleHeaderRequest, port)
+    discard gs.registerHandler(handleHeaderRequest, port, "http")

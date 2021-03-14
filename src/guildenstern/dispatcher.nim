@@ -1,6 +1,7 @@
 import guildenserver
 
-import selectors, net, nativesockets, os, httpcore, posix
+import selectors, net, os, httpcore, posix
+from nativesockets import accept, setBlocking
 
 when compileOption("threads"): import threadpool
 
@@ -22,35 +23,36 @@ proc process(gs: ptr GuildenServer, fd: posix.SocketHandle, data: ptr SocketData
   if gs.multithreading:
     currentload.atomicDec()
     if currentload == 0: peekload = 0
-    if gs.selector.contains(fd):
-      try: gs.selector.updateHandle(fd, {Event.Read})
+    if gs.selector.contains(fd.int):
+      try: gs.selector.updateHandle(fd.int, {Event.Read})
       except: echo "addHandle error: " & getCurrentExceptionMsg()
 
 
-
 proc handleAccept(gs: ptr GuildenServer, fd: posix.SocketHandle, data: ptr SocketData) =
-  let fd = fd.accept()[0]
-  if fd == osInvalidSocket: return
+  when not defined(nimdoc):
+    let fd = fd.accept()[0]
+  if fd == INVALID_SOCKET: return
 
-  if data.socket == fd and gs.selector.contains(fd):
-    gs.selector.updateHandle(fd, {Event.Read})
+  if data.socket == fd and gs.selector.contains(fd.int):
+    gs.selector.updateHandle(fd.int, {Event.Read})
     when defined(fulldebug): echo "socket reconnected: ", fd
     return
 
-  if gs.selector.contains(fd):
-    try: gs.selector.unregister(fd)
+  if gs.selector.contains(fd.int):
+    try: gs.selector.unregister(fd.int)
     except:
       when defined(fulldebug): echo "could not unregister contained socket: ", fd
       return
 
   var porthandler = 0
   while gs.porthandlers[porthandler].port != data.port.int: porthandler += 1
-  
-  gs.selector.registerHandle(fd, {Event.Read}, SocketData(port: gs.porthandlers[porthandler].port.uint16, ctxid: gs.porthandlers[porthandler].ctxid, socket: fd))
+  gs.selector.registerHandle(fd.int, {Event.Read},
+   SocketData(port: gs.porthandlers[porthandler].port.uint16, ctxid: gs.porthandlers[porthandler].ctxid, protocol: gs.porthandlers[porthandler].protocol, socket: fd))
+
   when defined(fulldebug): echo "socket connected: ", fd
   var tv = (RcvTimeOut,0)
-  if setsockopt(fd, cint(SOL_SOCKET), cint(RcvTimeOut), addr(tv), SockLen(sizeof(tv))) < 0'i32:
-    gs.selector.unregister(fd)
+  if setsockopt(fd, cint(posix.SOL_SOCKET), cint(RcvTimeOut), addr(tv), SockLen(sizeof(tv))) < 0'i32:
+    gs.selector.unregister(fd.int)
     when defined(fulldebug): echo "setting timeout failed: ", fd
 
 
@@ -71,7 +73,7 @@ template handleEvent() =
       peekload = currentload
       if peekload > maxload:
         maxload = peekload
-    try: gs.selector.updateHandle(fd, {})
+    try: gs.selector.updateHandle(fd.int, {})
     except:
       echo "removeHandle error: " & getCurrentExceptionMsg()
       continue
@@ -100,7 +102,8 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
     try:
       var ret: int
       try: ret = gs.selector.selectInto(-1, eventbuffer)
-      except: discard    
+      except: discard
+      when defined(fulldebug): echo "event"    
       if shuttingdown: break
       
       let event = eventbuffer[0]
@@ -113,7 +116,7 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
       var data: ptr SocketData
       try:
         {.push warning[ProveInit]: off.}
-        data = addr(gs.selector.getData(fd))
+        data = addr(gs.selector.getData(fd.int))
         {.pop.}
         if data == nil: continue
       except:
@@ -131,13 +134,17 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
             elif event.errorCode.cint == 32: ConnectionLost
             elif event.errorCode.cint == 104: ClosedbyClient
             else: NetErrored 
-          internalCloseSocket(unsafeAddr gs, data, cause, osErrorMsg(event.errorCode))
+          if not gs.multithreading: closeOtherSocket(unsafeAddr gs, data, cause, osErrorMsg(event.errorCode))
+          else:
+            when compileOption("threads"): spawn closeOtherSocket(unsafeAddr gs, data, cause, osErrorMsg(event.errorCode))
         continue
 
       if Event.Read notin event.events:
         try:
           when defined(fulldebug): echo "non-read ", fd, ": ", event.events
-          internalCloseSocket(unsafeAddr gs, data, NetErrored, "non-read " & $fd & ": " & $event.events)        
+          if not gs.multithreading: closeOtherSocket(unsafeAddr gs, data, NetErrored, "non-read " & $fd & ": " & $event.events)
+          else:
+            when compileOption("threads"): closeOtherSocket(unsafeAddr gs, data, NetErrored, "non-read " & $fd & ": " & $event.events)
         except: discard
         finally: continue       
       handleEvent()
@@ -147,7 +154,9 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
       continue
 
 
-proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
+proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =  
+  var linger = TLinger(l_onoff: 1, l_linger: 0)
+
   if gs.selector == nil: (echo "no handlers registered"; quit())
   gs.multithreading = multithreaded
   if gs.multithreading and not compileOption("threads"):
@@ -157,16 +166,15 @@ proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
   var portservers: seq[Socket]
   {.gcsafe.}:
     for i in 0 ..< gs.portcount:
-      let portserver = newSocket()
+      let portserver = newSocket()      
       portservers.add(portserver)
-      portserver.setSockOpt(OptReuseAddr, true)
-      portserver.setSockOpt(OptReusePort, true)
       try:
+        discard setsockopt(posix.SocketHandle(portserver.getFd()), cint(SOL_SOCKET), cint(SO_LINGER), addr linger, SockLen(sizeof(TLinger)))
         portserver.bindAddr(net.Port(gs.porthandlers[i].port), "")
       except:
         echo "Could not open port ", gs.porthandlers[i].port
         raise
-      gs.selector.registerHandle(portserver.getFd(), {Event.Read}, SocketData(port: gs.porthandlers[i].port.uint16, ctxid: ServerCtx))
+      gs.selector.registerHandle(portserver.getFd().int, {Event.Read}, SocketData(port: gs.porthandlers[i].port.uint16, ctxid: ServerCtx))
       portserver.listen()
       portserver.getFd().setBlocking(false)
 

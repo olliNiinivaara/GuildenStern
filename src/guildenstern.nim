@@ -67,13 +67,17 @@ when not defined(nimdoc):
   export ctxhttp
 else:
   import strtabs, httpcore
-  from nativesockets import SocketHandle
-  const
+  from posix import SocketHandle
+  const    
     MaxHeaderLength* {.intdefine.} = 10000
       ## Maximum acceptable character length for HTTP header.
+    
     MaxRequestLength* {.intdefine.} = 100000
-      ## Maximum acceptable length (header length + content length) for a HTTP request
-      ## (Note: in streaming handlers, this denotes chunk size).
+      ## Maximum acceptable length for a received message.
+      ## | For normal HTTP handlers, this denotes header length + content length
+      ## | For streaming handlers, this denotes chunk size
+      ## | For websockets this denotes payload size
+      ## If a client tries to send more than this, socket will be immediately closed with `ProtocolViolated` close cause
   
  
   type
@@ -87,7 +91,7 @@ else:
       ## | Data associated with a request context.
       ## | This is available in request context as ``socketdata`` property.
       port*: uint16
-      socket*: nativesockets.SocketHandle
+      socket*: posix.SocketHandle
       ctxid*: CtxId
       customdata*: pointer
 
@@ -119,8 +123,12 @@ else:
       NetErrored ## Some operating system level error happened
       Excepted ## A Nim exception happened
     
-    CloseCallback* = proc(ctx: Ctx, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
-      ## Called whenever a socket is closed.
+    CloseCallback* = proc(ctx: Ctx, socket: SocketHandle, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
+      ## Called whenever a socket is closed. The closed socket is always given as `socket` parameter. Moreover:
+      ##  
+      ## | if ctx.socketdata.socket == socket: request processing thread is running and closed socket is the requester.
+      ## | if ctx.socketdata.socket != socket: request processing thread is running but closed socket is some other socket. This is most usually the case when a connection is lost to websocket that the requester was sending messages to.
+      ## | ctx.socketdata.socket == INVALID_SOCKET: dispatcher noticed that socket was closed and spawned a ctx just for calling this callback. In this case Ctx is of generic type Ctx, but `getProtocolName` lets you check the type of the closed socket.
    
   proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe.} =
     ## Starts server event dispatcher loop which runs until shutdown() is called or SIGINT received.
@@ -181,10 +189,19 @@ else:
       discard
 
   proc closeSocket*(ctx: Ctx, cause = CloseCalled, msg = "") {.raises: [].} =
-      ## Closes the socket.
+      ## Closes the socket of the current requester.
       ## | Important: when you call this from application code, let cause be `CloseCalled`.
       ## | `msg` can be any further info that will be delivered to registered CloseCallback.
       discard
+  
+  proc closeOtherSocket*(gs: GuildenServer, socket: SocketHandle, cause: SocketCloseCause, msg: string = "") {.raises: [].} =
+    ## Closes arbitrary socket.
+    discard
+
+  proc getProtocolName*(ctx: Ctx): string =
+    ## Helper proc to use in closecallbacks to get type of the closed socket when closed socket was not in request context.
+    ## For websockets returns "websocket" and for other default handlers "http". Your custom handlers can register other protocol names.
+    discard
 
   proc getLoads*(): (int, int, int) =
     ## returns load statistics over all guildenservers as tuple, where:

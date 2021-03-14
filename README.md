@@ -47,7 +47,18 @@ http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blo
 - Bug fix in WebSocket handler (now initializes WsCtx properly)
 - Bug fix in result code checker (wrong usage of return inside template...)
 
-## Baseline latency (unoptimized Ubuntu, Intel Core i5-760 Processor)
+### 2.0.0
+- CloseCallback has new parameter `socket` that allows receiving closecallbacks also for sockets other than current request
+- new `proc closeOtherSocket` allows closing sockets other than current request (such as websockets)
+- new `proc getProtocolName` for checking type (http, websocket, ...) of closed sockets other than current request
+- new `proc multiSendWs` uses non-blocking I/O to cleverly deliver multiple messages to multiple websockets in one shot (even when some receivers have sloppy connections)
+- avoids weird behavior by refusing to use socket address or port that is already in use
+- unreserves sockets at shutdown with SO_LINGER 0 close option so that they can be reused immediately
+- `posix.SocketHandle` is used instead of `nativesockets.SocketHandle`
+- `posix.INVALID_SOCKET` is used instead of `nativesockets.osInvalidSocket`
+
+
+## Baseline latency ([Intel i5-760](https://ark.intel.com/content/www/us/en/ark/products/48496/intel-core-i5-760-processor-8m-cache-2-80-ghz.html))
 
 ```
 olli@nexus:~/Nim/Testit/SuberGuilden$ wrk -d10 -t2 --latency http://localhost:5050

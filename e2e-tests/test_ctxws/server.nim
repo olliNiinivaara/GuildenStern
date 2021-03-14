@@ -17,7 +17,7 @@ let html = """<!doctype html><title>WsCtx</title>
   
 var server = new GuildenServer
 var lock: Lock
-var socket = osInvalidSocket
+var thesocket = INVALID_SOCKET
 var halloreceived: bool
 
 proc doShutdown() =
@@ -25,24 +25,26 @@ proc doShutdown() =
   shutdown()
 
 proc onUpgradeRequest(ctx: WsCtx): bool =
-  withLock(lock): socket = ctx.socketdata.socket
+  withLock(lock): thesocket = ctx.socketdata.socket
   true
 
 proc onMessage(ctx: WsCtx) =
-  doAssert(ctx.getRequest() == "hallo")
-  halloreceived = true
+  if ctx.getRequest() == "hallo": halloreceived = true
+  else:
+    echo "ctxws failed: could not receive hallo"
+    shutdown()
   
 proc sendMessage() =
   withLock(lock):
-    if socket != osInvalidSocket:
+    if thesocket != INVALID_SOCKET:
       let reply = "hello"
-      discard server.sendWs(socket, reply)
+      server.sendWs(thesocket, reply)
 
-proc onLost(ctx: Ctx, cause: SocketCloseCause, msg: string) =
+proc onLost(ctx: Ctx, socket: SocketHandle, cause: SocketCloseCause, msg: string) =
   withLock(lock):
-    if ctx.socketdata.socket.int == socket.int:
+    if socket == thesocket:
       echo cause
-      socket = osInvalidSocket
+      thesocket = INVALID_SOCKET
       doShutdown()
         
 proc onRequest(ctx: HttpCtx) = ctx.reply(Http200, html)
@@ -56,4 +58,4 @@ echo "Starting ctxws e2e test server on port 5050 at ", now().format("HH:mm:ss")
 initLock(lock)
 server.serve()
 deinitLock(lock)
-doAssert(halloreceived)
+if not(halloreceived): quit(-500)

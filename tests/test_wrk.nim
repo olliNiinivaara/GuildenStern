@@ -9,8 +9,8 @@ proc process(ctx: HttpCtx) =
     shutdown()
   c.atomicInc
 
-proc onClose(ctx: Ctx, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].} =
-  echo c, " ", cause, " ", msg, ": ", ctx.socketdata.socket
+proc onClose(ctx: Ctx, socket: SocketHandle, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].} =
+  echo c, " ", cause, " ", msg, ": ", socket
 
 var server = new GuildenServer
 server.initHeaderCtx(process, 5050)
