@@ -23,7 +23,8 @@ server.serve()
 ```
 
 ## Documentation
-http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/guildenstern.html
+[User Guide](http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/guildenstern.html)
+[How to implement a custom handler](https://github.com/olliNiinivaara/GuildenStern/doc/customhandler.nim)
 
 ## Installation
 
@@ -39,15 +40,7 @@ http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blo
 - Supports --gc:arc, doesn't need asyncdispatch
 - Runs in single-threaded mode, too
 
-## Change Log
-
-### 1.0.1
-
-- MaxWsRequestLength removed (just use MaxRequestLength)
-- Bug fix in WebSocket handler (now initializes WsCtx properly)
-- Bug fix in result code checker (wrong usage of return inside template...)
-
-### 2.0.0
+### 2.0.0 release notes
 - CloseCallback has new parameter `socket` that allows receiving closecallbacks also for sockets other than current request
 - new `proc closeOtherSocket` allows closing sockets other than current request (such as websockets)
 - new `proc getProtocolName` for checking type (http, websocket, ...) of closed sockets other than current request

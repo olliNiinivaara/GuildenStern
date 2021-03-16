@@ -113,7 +113,7 @@ else:
     ThreadInitializationCallback* = proc() {.gcsafe, raises: [].}
 
     SocketCloseCause* = enum
-      ## Paremeter in CloseCallback.
+      ## Parameter in CloseCallback.
       CloseCalled ## "you" called closeSocket from application code
       ClosedbyClient ## Client closed the connection
       ConnectionLost ## TCP/IP connection was dropped
