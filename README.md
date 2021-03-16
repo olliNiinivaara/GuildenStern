@@ -24,7 +24,8 @@ server.serve()
 
 ## Documentation
 [User Guide](http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/guildenstern.html)
-[How to implement a custom handler](https://github.com/olliNiinivaara/GuildenStern/doc/customhandler.nim)
+
+[How to implement a custom handler](https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/customhandler.nim)
 
 ## Installation
 
