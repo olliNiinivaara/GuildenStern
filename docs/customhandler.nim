@@ -15,9 +15,9 @@ var ctx {.threadvar.}: MyCustomCtx
 proc receive(): bool  =
   while true:
     if shuttingdown: return false
-    let ret = recv(ctx.socketdata.socket, addr ctx.buf[ctx.requestlen], MaxHeaderLength + 1, 0)
-    if ret < 5 or ret == MaxHeaderLength + 1: (ctx.closeSocket(ProtocolViolated) ; return false)
+    let ret = recv(ctx.socketdata.socket, addr ctx.buf[ctx.requestlen], 1 + MaxHeaderLength - ctx.requestlen, 0)
     ctx.requestlen += ret
+    if ret < 5 or ctx.requestlen > MaxHeaderLength: (ctx.closeSocket(ProtocolViolated) ; return false)
     if ctx.buf[ctx.requestlen - 4 ..< ctx.requestlen] == "\c\L\c\L": break
   return ctx.requestlen > 0
 
