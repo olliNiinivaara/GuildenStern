@@ -51,10 +51,10 @@
 ## See also
 ## ========
 ## 
-## | `ctxheader <http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/ctxheader.html>`_
-## | `ctxfull <http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/ctxfull.html>`_
-## | `ctxstream <http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/ctxstream.html>`_
-## | `ctxws <http://htmlpreview.github.io/?https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/ctxws.html>`_
+## | `ctxheader <http://olliNiinivaara.github.io/GuildenStern/ctxheader.html>`_
+## | `ctxfull <http://olliNiinivaara.github.io/GuildenStern/ctxfull.html>`_
+## | `ctxstream <http://olliNiinivaara.github.io/GuildenStern/ctxstream.html>`_
+## | `ctxws <http://olliNiinivaara.github.io/GuildenStern/ctxws.html>`_
 ##
 
 
@@ -71,13 +71,18 @@ else:
   const    
     MaxHeaderLength* {.intdefine.} = 10000
       ## Maximum acceptable character length for HTTP header.
+      ## 
+      ## This is modifiable with a `compile-time define <https://nim-lang.org/docs/manual.html#implementation-specific-pragmas-compileminustime-define-pragmas>`_.
     
     MaxRequestLength* {.intdefine.} = 100000
       ## Maximum acceptable length for a received message.
       ## | For normal HTTP handlers, this denotes header length + content length
       ## | For streaming handlers, this denotes chunk size
       ## | For websockets this denotes payload size
+      ## 
       ## If a client tries to send more than this, socket will be immediately closed with `ProtocolViolated` close cause
+      ## 
+      ## This is modifiable with a `compile-time define <https://nim-lang.org/docs/manual.html#implementation-specific-pragmas-compileminustime-define-pragmas>`_.
   
  
   type

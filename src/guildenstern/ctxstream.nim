@@ -130,4 +130,4 @@ proc handleHeaderRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, 
 proc initStreamCtx*(gs: var GuildenServer, onrequestcallback: proc(ctx: StreamCtx){.gcsafe, nimcall, raises: [].}, port: int) =
   {.gcsafe.}: 
     requestCallback = onrequestcallback
-    discard gs.registerHandler(handleHeaderRequest, port)
+    discard gs.registerHandler(handleHeaderRequest, port, "http")

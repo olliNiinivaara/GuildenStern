@@ -34,6 +34,7 @@ type
     ProtocolViolated
     NetErrored
     Excepted
+    SecurityThreatened
     DontClose
 
   HandlerCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData){.nimcall, raises: [].}
