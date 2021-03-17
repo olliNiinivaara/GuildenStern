@@ -9,32 +9,33 @@ type
     buf: string
     requestlen: int
 
+var server = new GuildenServer
 var ctx {.threadvar.}: MyCustomCtx
 
 proc receive(): bool  =
   while true:
     if shuttingdown: return false
     let ret = recv(ctx.socketdata.socket, addr ctx.buf[ctx.requestlen], MaxHeaderLength + 1, 0)
-    if ret < 1 or ret == MaxHeaderLength + 1: (ctx.closeSocket(NetErrored) ; return false)
+    if ret < 5 or ret == MaxHeaderLength + 1: (ctx.closeSocket(ProtocolViolated) ; return false)
     ctx.requestlen += ret
-    if ctx.buf[ctx.requestlen-4] == '\c' and ctx.buf[ctx.requestlen-3] == '\l' and
-     ctx.buf[ctx.requestlen-2] == '\c' and ctx.buf[ctx.requestlen-1] == '\l': break
+    if ctx.buf[ctx.requestlen - 4 ..< ctx.requestlen] == "\c\L\c\L": break
   return ctx.requestlen > 0
 
 proc reply() =
-  const content = "Hello World!"
-  var response = "HTTP/1.1 200 OK\r\LContent-Length: " & $content.len & "\r\L\r\L" & content
+  var response = "HTTP/1.1 200 OK\r\LContent-Length: 12\r\L\r\LHello World!"
   let ret = send(ctx.socketdata.socket, addr response[0], response.len, 0)
-  if ret != response.len: ctx.closeSocket(NetErrored)
+  if ret != response.len: ctx.closeSocket(ProtocolViolated)
+
+proc initThread() =
+  ctx = new MyCustomCtx
+  {.gcsafe.}: ctx.gs = addr server
+  ctx.buf = newString(MaxHeaderLength + 1)
   
-proc handleCustomRequest(gs: ptr GuildenServer, socketdata: ptr SocketData) {.gcsafe, raises: [].} =
-  if ctx == nil:
-    ctx = new MyCustomCtx
-    ctx.buf = newString(MaxRequestLength + 1)
+proc handleCustomRequest(gs: ptr GuildenServer, socketdata: ptr SocketData) =
   ctx.socketdata = socketdata
   ctx.requestlen = 0
   if receive(): reply()
     
-var server = new GuildenServer
 discard server.registerHandler(handleCustomRequest, 8080, "mycustomprotocol")
+server.registerThreadInitializer(initThread)
 server.serve()
