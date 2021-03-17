@@ -119,7 +119,8 @@ else:
 
     SocketCloseCause* = enum
       ## Parameter in CloseCallback.
-      CloseCalled ## "you" called closeSocket from application code
+      CloseCalled ## available for applications to use when calling closeSocket
+      SecurityThreatened ## available for applications to use when calling closeSocket      
       ClosedbyClient ## Client closed the connection
       ConnectionLost ## TCP/IP connection was dropped
       TimedOut ## Client did not send/receive all expected data
@@ -195,7 +196,6 @@ else:
 
   proc closeSocket*(ctx: Ctx, cause = CloseCalled, msg = "") {.raises: [].} =
       ## Closes the socket of the current requester.
-      ## | Important: when you call this from application code, let cause be `CloseCalled`.
       ## | `msg` can be any further info that will be delivered to registered CloseCallback.
       discard
   

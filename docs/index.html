@@ -118,7 +118,8 @@ function main() {
     title="ThreadInitializationCallback = proc () {.gcsafe, raises: [].}">ThreadInitializationCallback</a></li>
   <li><a class="reference" href="#SocketCloseCause"
     title="SocketCloseCause = enum
-  CloseCalled,              ## &quot;you&quot; called closeSocket from application code
+  CloseCalled,              ## available for applications to use when calling closeSocket
+  SecurityThreatened,       ## available for applications to use when calling closeSocket      
   ClosedbyClient,           ## Client closed the connection
   ConnectionLost,           ## TCP/IP connection was dropped
   TimedOut,                 ## Client did not send/receive all expected data
@@ -379,7 +380,8 @@ Type for procs that are called when a socket request can be processed. When mult
 </dd>
 <a id="SocketCloseCause"></a>
 <dt><pre><a href="guildenstern.html#SocketCloseCause"><span class="Identifier">SocketCloseCause</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
-  <span class="Identifier">CloseCalled</span><span class="Other">,</span>              <span class="Comment">## &quot;you&quot; called closeSocket from application code</span>
+  <span class="Identifier">CloseCalled</span><span class="Other">,</span>              <span class="Comment">## available for applications to use when calling closeSocket</span>
+  <span class="Identifier">SecurityThreatened</span><span class="Other">,</span>       <span class="Comment">## available for applications to use when calling closeSocket      </span>
   <span class="Identifier">ClosedbyClient</span><span class="Other">,</span>           <span class="Comment">## Client closed the connection</span>
   <span class="Identifier">ConnectionLost</span><span class="Other">,</span>           <span class="Comment">## TCP/IP connection was dropped</span>
   <span class="Identifier">TimedOut</span><span class="Other">,</span>                 <span class="Comment">## Client did not send/receive all expected data</span>
@@ -497,7 +499,7 @@ Registers procedure that is called whenever socket connection is closed.
 <dt><pre><span class="Keyword">proc</span> <a href="#closeSocket%2CCtx%2Cstring"><span class="Identifier">closeSocket</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="guildenstern.html#Ctx"><span class="Identifier">Ctx</span></a><span class="Other">;</span> <span class="Identifier">cause</span> <span class="Other">=</span> <span class="Identifier">CloseCalled</span><span class="Other">;</span> <span class="Identifier">msg</span> <span class="Other">=</span> <span class="StringLit">&quot;&quot;</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
 <dd>
 
-Closes the socket of the current requester.<p>Important: when you call this from application code, let cause be <tt class="docutils literal"><span class="pre">CloseCalled</span></tt>.<br /><tt class="docutils literal"><span class="pre">msg</span></tt> can be any further info that will be delivered to registered CloseCallback.<br /></p>
+Closes the socket of the current requester.<p><tt class="docutils literal"><span class="pre">msg</span></tt> can be any further info that will be delivered to registered CloseCallback.<br /></p>
 
 </dd>
 <a id="closeOtherSocket,GuildenServer,SocketHandle,SocketCloseCause,string"></a>
@@ -734,7 +736,7 @@ Ends a reply started with replyStart.
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2021-03-17 12:06:59 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2021-03-17 12:49:38 UTC</small>
       </div>
     </div>
   </div>

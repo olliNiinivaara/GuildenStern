@@ -41,7 +41,9 @@ server.serve()
 - Supports --gc:arc, doesn't need asyncdispatch
 - Runs in single-threaded mode, too
 
-### 2.0.0 release notes
+## Release notes
+  
+### 2.0.0 (2021-03-14)
 - CloseCallback has new parameter `socket` that allows receiving closecallbacks also for sockets other than current request
 - new `proc closeOtherSocket` allows closing sockets other than current request (such as websockets)
 - new `proc getProtocolName` for checking type (http, websocket, ...) of closed sockets other than current request
@@ -51,6 +53,11 @@ server.serve()
 - `posix.SocketHandle` is used instead of `nativesockets.SocketHandle`
 - `posix.INVALID_SOCKET` is used instead of `nativesockets.osInvalidSocket`
 
+### Current master
+- better documentation (intdefines, custom handler example. github docs, ...)
+- prevents potential buffer overflow in header receiver
+- adds protocolname to ctxstream's registerHandler
+- SecurityThreatened -close cause available for applications to use
 
 ## Baseline latency ([Intel i5-760](https://ark.intel.com/content/www/us/en/ark/products/48496/intel-core-i5-760-processor-8m-cache-2-80-ghz.html))
 

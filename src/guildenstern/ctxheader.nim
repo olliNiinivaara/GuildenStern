@@ -47,12 +47,12 @@ proc receiveHeader*(ctx: HttpCtx): bool {.gcsafe, raises:[].} =
   ## only useful when writing new handlers
   while true:
     if shuttingdown: return false
-    let ret = recv(ctx.socketdata.socket, addr request[ctx.requestlen], MaxHeaderLength + 1, 0)
+    let ret = recv(ctx.socketdata.socket, addr request[ctx.requestlen], 1 + MaxHeaderLength - ctx.requestlen, 0)
     checkRet()
-    if ret == MaxHeaderLength + 1:
+    ctx.requestlen += ret
+    if ctx.requestlen > MaxHeaderLength:
       ctx.closeSocket(ProtocolViolated, "receiveHeader: Max header size exceeded")
       return false
-    ctx.requestlen += ret
     if request[ctx.requestlen-4] == '\c' and request[ctx.requestlen-3] == '\l' and
      request[ctx.requestlen-2] == '\c' and request[ctx.requestlen-1] == '\l': break
   return ctx.requestlen > 0

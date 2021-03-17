@@ -71,12 +71,12 @@ var
 proc receiveHeader(): bool {.gcsafe, raises:[].} =
   while true:
     if shuttingdown: return false
-    let ret = recv(posix.SocketHandle(ctx.socketdata.socket), addr request[ctx.requestlen], MaxHeaderLength + 1, 0)
+    let ret = recv(ctx.socketdata.socket, addr request[ctx.requestlen], 1 + MaxHeaderLength - ctx.requestlen, 0)
     checkRet()
-    if ret > MaxHeaderLength:
+    ctx.requestlen += ret
+    if ctx.requestlen > MaxHeaderLength:
       ctx.closeSocket(ProtocolViolated, "stream receiveHeader: Max header size exceeded")
       return false
-    ctx.requestlen += ret
     if ctx.isHeaderreceived(ctx.requestlen - ret, ctx.requestlen): break
   ctx.contentlength = ctx.getContentLength()
   ctx.contentreceived = ctx.requestlen - ctx.bodystart
