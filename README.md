@@ -25,7 +25,7 @@ server.serve()
 ## Documentation
 [User Guide](http://olliNiinivaara.github.io/GuildenStern/)
 
-[How to implement a custom handler](https://github.com/olliNiinivaara/GuildenStern/blob/master/doc/customhandler.nim)
+[How to implement a custom handler](https://github.com/olliNiinivaara/GuildenStern/blob/master/docs/customhandler.nim)
 
 ## Installation
 
