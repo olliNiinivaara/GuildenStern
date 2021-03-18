@@ -1,5 +1,6 @@
 from selectors import Selector, newselector, contains, registerTimer, unregister, getData
-from posix import SocketHandle, INVALID_SOCKET
+from posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid
+from posix_utils import sendSignal
 from nativesockets import close
 export SocketHandle, INVALID_SOCKET
 
@@ -66,10 +67,15 @@ proc `==`*(x, y: CtxId): bool {.borrow.}
 
 var shuttingdown* = false
 
-proc shutdown*() {.gcsafe, noconv.} =
+proc shutdown*() =
   {.gcsafe.}: shuttingdown = true
+  try: sendSignal(getpid(), SIGINT)
+  except: discard
 
-setControlCHook(shutdown)
+proc doShutdown() {.gcsafe, noconv.} =
+  shutdown()
+
+setControlCHook(doShutdown)
 
 
 proc getCtxId(gs: var GuildenServer, protocolname: string): (CtxId, int) {.gcsafe, nimcall.} =

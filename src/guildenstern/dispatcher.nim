@@ -182,4 +182,6 @@ proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
   
   sleep(10)
   eventLoop(gs)
+
+  when defined(fulldebug): echo "guildenstern dispatcher loop stopped"
   for portserver in portservers: portserver.close()

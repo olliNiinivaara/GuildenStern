@@ -58,6 +58,7 @@ server.serve()
 - prevents potential buffer overflow in header receiver
 - adds protocolname to ctxstream's registerHandler
 - SecurityThreatened -close cause available for applications to use
+- calling `shutdown` automatically sends SIGINT signal, i.e. "presses Ctrl-C"
 
 ## Baseline latency ([Intel i5-760](https://ark.intel.com/content/www/us/en/ark/products/48496/intel-core-i5-760-processor-8m-cache-2-80-ghz.html))
 
