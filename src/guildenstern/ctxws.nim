@@ -21,9 +21,9 @@
 ##    var lock: Lock # serializing access to mutating globals is usually good idea (socket, in this case)
 ##    var socket = INVALID_SOCKET
 ##    
-##    proc onUpgradeRequest(ctx: WsCtx): bool =
+##    proc onUpgradeRequest(ctx: WsCtx): (bool , string) =
 ##      withLock(lock): socket = ctx.socketdata.socket
-##      true
+##      (true , "request accepted!")
 ##    
 ##    proc onMessage(ctx: WsCtx) = echo "client says: ", ctx.getRequest()
 ##      
@@ -70,7 +70,11 @@ type
   WsCtx* = ref object of HttpCtx
     opcode*: OpCode
 
-  WsUpgradeRequestCallback =  proc(ctx: WsCtx): bool {.gcsafe, nimcall, raises: [].}
+  WsUpgradeRequestCallback =  proc(ctx: WsCtx): (bool , string) {.gcsafe, nimcall, raises: [].}
+  ## This must be set with initWsCtx.
+  ## Return tuple with following parameters:
+  ## | `bool`: whether to accept the upgrade request or to close the socket
+  ## | `string`: If upgrade request is accepted and this is not empty, this will be sent to client as the first websocket message
   WsMessageCallback = proc(ctx: WsCtx){.gcsafe, nimcall, raises: [].}
 
   WsDelivery* = tuple[sockets: seq[posix.SocketHandle], message: string, length: int, binary: bool]
@@ -210,50 +214,12 @@ proc decodeBase16(str: string): string =
       (nibbleFromChar(str[2 * i]) shl 4) or
       nibbleFromChar(str[2 * i + 1]))
 
-proc replyHandshake(): SocketCloseCause =
-  if not ctx.receiveHeader(): return ProtocolViolated
-  if not ctx.parseRequestLine(): return ProtocolViolated
-  var headers = [""]  
-  ctx.parseHeaders(["sec-websocket-key"], headers)
-  if headers[0] == "": return ProtocolViolated
-  if not ctx.upgraderequestcallback(): return CloseCalled
-  let 
-    sh = secureHash(headers[0] & "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
-    acceptKey = base64.encode(decodeBase16($sh))
-  ctx.reply(Http101, ["Sec-WebSocket-Accept: " & acceptKey, "Connection: Upgrade", "Upgrade: webSocket"])
-  DontClose
-
-proc handleWsUpgradehandshake(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
-  if ctx == nil: ctx = new WsCtx
-  initHttpCtx(ctx, gs, data)
-  let state = replyHandshake()
-  if state == DontClose: data.ctxid = WsCtxId
-  else:
-    #ctx.reply(Http204)
-    ctx.closeSocket(state)
-
-
-proc handleWsMessage(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
-  if ctx == nil: ctx = new WsCtx
-  initHttpCtx(ctx, gs, data)
-  receiveWs()
-  if ctx.opcode notin [Fail, Close]:
-    {.gcsafe.}: messageCallback(ctx)
-  
-
-proc initWsCtx*(gs: var GuildenServer, onwsupgraderequestcallback: WsUpgradeRequestCallback, onwsmessage: WsMessageCallback, port: int) =
-  {.gcsafe.}:
-    upgraderequestcallback = onwsupgraderequestcallback
-    messageCallback = onwsmessage
-    discard gs.registerHandler(handleWsUpgradehandshake, port, "http")
-    WsCtxId = gs.registerHandler(handleWsMessage, -1, "websocket")
-
 
 proc send(gs: GuildenServer, socket: posix.SocketHandle, text: ptr string, length: int = -1): bool =
   let len = if length == -1: text[].len else: length
   var sent = 0
   while sent < len:
-    if shuttingdown: return false    
+    if shuttingdown: return false
     let ret = send(socket, addr text[sent], len - sent, 0)
     if ret < 1:
       if ret == -1:
@@ -273,7 +239,7 @@ proc send(gs: GuildenServer, socket: posix.SocketHandle, text: ptr string, lengt
       return false
     sent.inc(ret)
     if sent == len: return true
-  
+
 
 proc createWsHeader(len: int, binary = false) =
   wsresponseheader = ""
@@ -287,7 +253,7 @@ proc createWsHeader(len: int, binary = false) =
 
   wsresponseheader.add(b0.char)
   wsresponseheader.add(b1.char)
-    
+
   if len > 125 and len <= 0xffff:
     wsresponseheader.add($nativesockets.htons(len.uint16))
   elif len > 0xffff:
@@ -306,6 +272,47 @@ proc sendWs*(gs: GuildenServer, socket: posix.SocketHandle, message: ptr string,
   let len = if length == -1: message[].len else: length
   createWsHeader(len, binary)
   if gs.send(socket, addr wsresponseheader): return gs.send(socket, message, len)
+
+
+proc replyHandshake(): (SocketCloseCause , string) =
+  if not ctx.receiveHeader(): return (ProtocolViolated , "")
+  if not ctx.parseRequestLine(): return (ProtocolViolated , "")
+  var headers = [""]  
+  ctx.parseHeaders(["sec-websocket-key"], headers)
+  if headers[0] == "": return (ProtocolViolated , "")
+  let (accept , firstmessage) = ctx.upgraderequestcallback()
+  if not accept: return (CloseCalled , firstmessage)
+  let 
+    sh = secureHash(headers[0] & "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
+    acceptKey = base64.encode(decodeBase16($sh))
+  ctx.reply(Http101, ["Sec-WebSocket-Accept: " & acceptKey, "Connection: Upgrade", "Upgrade: webSocket"])
+  (DontClose , firstmessage)
+
+
+proc handleWsUpgradehandshake(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
+  if ctx == nil: ctx = new WsCtx
+  initHttpCtx(ctx, gs, data)
+  var (state , firstmessage) = replyHandshake()
+  if state != DontClose: ctx.closeSocket(state)
+  else:
+    data.ctxid = WsCtxId
+    if firstmessage != "": gs[].sendWs(data.socket, addr firstmessage)
+
+
+proc handleWsMessage(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
+  if ctx == nil: ctx = new WsCtx
+  initHttpCtx(ctx, gs, data)
+  receiveWs()
+  if ctx.opcode notin [Fail, Close]:
+    {.gcsafe.}: messageCallback(ctx)
+  
+
+proc initWsCtx*(gs: var GuildenServer, onwsupgraderequestcallback: WsUpgradeRequestCallback, onwsmessage: WsMessageCallback, port: int) =
+  {.gcsafe.}:
+    upgraderequestcallback = onwsupgraderequestcallback
+    messageCallback = onwsmessage
+    discard gs.registerHandler(handleWsUpgradehandshake, port, "http")
+    WsCtxId = gs.registerHandler(handleWsMessage, -1, "websocket")
 
 
 proc sendWs*(gs: GuildenServer, socket: posix.SocketHandle, message: string, length: int = -1, binary = false): bool {.discardable.} =
@@ -353,6 +360,7 @@ proc closeSocketsInFlight(gs: GuildenServer, sockets: seq[posix.SocketHandle], s
 
 
 proc multiSendWs*(gs: GuildenServer, messages: openArray[WsDelivery], timeoutsecs = 20, sleepmillisecs = 100): int {.discardable.} =
+  # TODO: try with io_uring, https://github.com/axboe/liburing
   ## Sends multiple messages to multiple websockets at once. Uses non-blocking I/O so that slow receivers do not slow down fast receivers.
   ## | `timeoutsecs`: a timeout after which sending is given up and all sockets with messages in-flight are closed
   ## | `sleepmillisecs`: if all in-flight receivers are blocking, will sleep for (sleepmillisecs * current thread load) milliseconds

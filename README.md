@@ -42,23 +42,15 @@ server.serve()
 - Runs in single-threaded mode, too
 
 ## Release notes
-  
-### 2.0.0 (2021-03-14)
-- CloseCallback has new parameter `socket` that allows receiving closecallbacks also for sockets other than current request
-- new `proc closeOtherSocket` allows closing sockets other than current request (such as websockets)
-- new `proc getProtocolName` for checking type (http, websocket, ...) of closed sockets other than current request
-- new `proc multiSendWs` uses non-blocking I/O to cleverly deliver multiple messages to multiple websockets in one shot (even when some receivers have sloppy connections)
-- avoids weird behavior by refusing to use socket address or port that is already in use
-- unreserves sockets at shutdown with SO_LINGER 0 close option so that they can be reused immediately
-- `posix.SocketHandle` is used instead of `nativesockets.SocketHandle`
-- `posix.INVALID_SOCKET` is used instead of `nativesockets.osInvalidSocket`
 
-### Current master
-- better documentation (intdefines, custom handler example. github docs, ...)
-- prevents potential buffer overflow in header receiver
-- adds protocolname to ctxstream's registerHandler
+### 3.0.0 (2021-03-26)
+- breaking API change: Websocket handler's *WsUpgradeRequestCallback* now accepts *first message* to send back to client
+- better documentation
+- buffer overflow prevention in header receiver
+- protocolname in ctxstream's registerHandler
 - SecurityThreatened -close cause available for applications to use
 - calling `shutdown` automatically sends SIGINT signal, i.e. "presses Ctrl-C"
+- SIGTERM is now caught and handled as SIGINT (graceful shutdown)
 
 ## Baseline latency ([Intel i5-760](https://ark.intel.com/content/www/us/en/ark/products/48496/intel-core-i5-760-processor-8m-cache-2-80-ghz.html))
 

@@ -24,9 +24,9 @@ proc doShutdown() =
   echo "Stopping ctxws e2e test server at ", now().format("HH:mm:ss")
   shutdown()
 
-proc onUpgradeRequest(ctx: WsCtx): bool =
+proc onUpgradeRequest(ctx: WsCtx): (bool , string) =
   withLock(lock): thesocket = ctx.socketdata.socket
-  true
+  (true , "")
 
 proc onMessage(ctx: WsCtx) =
   if ctx.getRequest() == "hallo": halloreceived = true

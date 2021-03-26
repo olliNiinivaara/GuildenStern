@@ -1,3 +1,5 @@
+const GuildenSternVersion* = "3.0.0"
+
 #   Guildenstern
 #
 #  Modular multithreading Linux HTTP server
