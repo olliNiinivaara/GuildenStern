@@ -102,7 +102,9 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
     try:
       var ret: int
       try: ret = gs.selector.selectInto(-1, eventbuffer)
-      except: discard
+      except:
+        when defined(fulldebug): echo "select: ", getCurrentExceptionMsg()
+        continue
       when defined(fulldebug): echo "event"    
       if shuttingdown: break
       
@@ -163,6 +165,7 @@ proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
     echo "threads:off; serving single-threaded"
     gs.multithreading = false
   if gs.multithreading: doAssert(defined(threadsafe), "Selectors module requires compiling with -d:threadsafe")
+
   var portservers: seq[Socket]
   {.gcsafe.}:
     for i in 0 ..< gs.portcount:

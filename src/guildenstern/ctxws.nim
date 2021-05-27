@@ -5,7 +5,7 @@
 ## .. code-block:: Nim
 ##
 ##    
-##    import nativesockets, locks
+##    import locks
 ##    import guildenstern/[ctxws, ctxheader]
 ##    
 ##    let html = """<!doctype html><title>WsCtx</title>
@@ -241,30 +241,38 @@ proc send(gs: GuildenServer, socket: posix.SocketHandle, text: ptr string, lengt
     if sent == len: return true
 
 
+func swapBytesBuiltin(x: uint64): uint64 {.importc: "__builtin_bswap64", nodecl.}
+
 proc createWsHeader(len: int, binary = false) =
   wsresponseheader = ""
+
   var b0 = if binary: (0x2.uint8 and 0x0f) else: (0x1.uint8 and 0x0f)
   b0 = b0 or 128u8
-
-  var b1 = 0u8
-  if len <= 125: b1 = len.uint8
-  elif len > 125 and len <= 0xffff: b1 = 126u8
-  else: b1 = 127u8
-
   wsresponseheader.add(b0.char)
+
+  # Payload length can be 7 bits, 7+16 bits, or 7+64 bits.
+  # 1st byte: payload len start and mask bit.
+  var b1 = 0'u8
+
+  if len <= 125:
+    b1 = len.uint8
+  elif len > 125 and len <= 0xFFFF:
+    b1 = 126'u8
+  else:
+    b1 = 127'u8
   wsresponseheader.add(b1.char)
 
-  if len > 125 and len <= 0xffff:
-    wsresponseheader.add($nativesockets.htons(len.uint16))
-  elif len > 0xffff:
-    wsresponseheader.add char((len shr 56) and 255)
-    wsresponseheader.add char((len shr 48) and 255)
-    wsresponseheader.add char((len shr 40) and 255)
-    wsresponseheader.add char((len shr 32) and 255)
-    wsresponseheader.add char((len shr 24) and 255)
-    wsresponseheader.add char((len shr 16) and 255)
-    wsresponseheader.add char((len shr 8) and 255)
-    wsresponseheader.add char(len and 255)
+  # Only need more bytes if data len is 7+16 bits, or 7+64 bits.
+  if len > 125 and len <= 0xFFFF:
+    # Data len is 7+16 bits.
+    var len16 = len.uint16
+    wsresponseheader.add char(((len16 shr 8) and 0xFF).uint8)
+    wsresponseheader.add char((len16 and 0xFF).uint8)
+  elif len > 0xFFFF:
+    # Data len is 7+64 bits.
+    var len64 = swapBytesBuiltin(len.uint64) # AMD64 is little endian, Internet is big endian
+    for i in 0..<sizeof(len64):
+      wsresponseheader.add char((len64 shr (i * 8)) and 0xff)
 
 
 proc sendWs*(gs: GuildenServer, socket: posix.SocketHandle, message: ptr string, length: int = -1, binary = false): bool {.inline, discardable.} =

@@ -1,8 +1,8 @@
-from selectors import Selector, newselector, contains, registerTimer, unregister, getData
-from posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onSignal
+from selectors import Selector, newselector, contains, registerTimer, unregister, getData, newSelectEvent, registerEvent, trigger
+from posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onSignal, `==`
 from posix_utils import sendSignal
 from nativesockets import close
-export SocketHandle, INVALID_SOCKET
+export SocketHandle, INVALID_SOCKET, posix.`==`
 
 
 const
@@ -65,25 +65,23 @@ proc `$`*(x: SocketHandle): string {.inline.} = $(x.cint)
 proc `$`*(x: CtxId): string {.inline.} = $(x.int)
 proc `==`*(x, y: CtxId): bool {.borrow.}
 
+
 var shuttingdown* = false
+var shutdownevent = newSelectEvent()
 
 proc shutdown*() =
   {.gcsafe.}: shuttingdown = true
-  try: sendSignal(getpid(), SIGINT)
-  except: discard
+  trigger(shutdownevent)
 
-proc doShutdown() {.gcsafe, noconv.} =
-  shutdown()
+onSignal(SIGTERM): shutdown()
+onSignal(SIGINT): shutdown()
 
-setControlCHook(doShutdown)
-
-onSignal(SIGTERM):
-  shutdown()
 
 proc getCtxId(gs: var GuildenServer, protocolname: string): (CtxId, int) {.gcsafe, nimcall.} =
   if gs.nextctxid == 0:
     gs.nextctxid = 1
     gs.selector = newSelector[SocketData]()
+    gs.selector.registerEvent(shutdownevent, SocketData())
     gs.protocolnames = @["unknown"]
   assert(gs.nextctxid < MaxCtxHandlers, "Cannot create more handlers")
   var protocol = gs.protocolnames.find(protocolname)
