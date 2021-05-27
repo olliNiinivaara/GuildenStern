@@ -71,7 +71,10 @@ var shutdownevent = newSelectEvent()
 
 proc shutdown*() =
   {.gcsafe.}: shuttingdown = true
-  trigger(shutdownevent)
+  try: trigger(shutdownevent)
+  except:
+    echo getCurrentExceptionMsg()
+    quit(-666)
 
 onSignal(SIGTERM): shutdown()
 onSignal(SIGINT): shutdown()
