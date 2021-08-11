@@ -13,6 +13,7 @@ task test, "run all tests":
   exec "nim c -r --threads:on --d:threadsafe test_ctxheader.nim"
   exec "nim c --d:release --threads:on --d:threadsafe test_wrk.nim"
   exec "./test_wrk &"
+  exec "sleep 1"
   cd("../bench/")
   let outStr = gorge(getCurrentDir() & "/wrkbin -t8 -c8 -d10s --latency http://127.0.0.1:5050")
   exec "curl http://127.0.0.1:5050/shutdown"

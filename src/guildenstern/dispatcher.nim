@@ -213,7 +213,7 @@ proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
           var thread: Thread[void]
           createThread(thread, threadProc)
         workerthreadscreated = true
-        sleep(100)
+        sleep(10)
 
     var portservers: seq[Socket]
     for i in 0 .. MaxCtxHandlers:
@@ -232,8 +232,8 @@ proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
         portserver.getFd().setBlocking(false)
 
   {.gcsafe.}: signal(SIG_PIPE, SIG_IGN)
-  
-  sleep(100)
+
+  sleep(10)
   eventLoop(gs)
 
   when defined(fulldebug): echo "guildenstern dispatcher loop stopped"
