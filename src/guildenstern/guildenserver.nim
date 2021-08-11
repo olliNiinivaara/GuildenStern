@@ -121,6 +121,7 @@ proc handleRead*(gs: ptr GuildenServer, data: ptr SocketData) =
   {.gcsafe.}: gs.porthandlers[data.ctxid].handler(gs, data)
 
 
+{.push hints:off.}
 proc closeSocket*(ctx: Ctx, cause = CloseCalled, msg = "") {.raises: [].} =
   if ctx.socketdata.socket.int in [0, INVALID_SOCKET.int]: return
   when defined(fulldebug): echo "socket ", cause, ": ", ctx.socketdata.socket, "  ", msg
@@ -150,6 +151,7 @@ proc closeOtherSocket*(gs: ptr GuildenServer, data: ptr SocketData, cause: Socke
     if cause notin [ClosedbyClient, ConnectionLost]: nativesockets.SocketHandle(fd).close()
   except:
     when defined(fulldebug): echo "internal close error: ", getCurrentExceptionMsg()
+{.pop.}
 
 
 proc closeOtherSocket*(gs: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause, msg: string = "") {.raises: [].} =

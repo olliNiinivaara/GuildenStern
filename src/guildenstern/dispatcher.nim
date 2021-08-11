@@ -192,6 +192,7 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
       continue
 
 
+{.push hints:off.}
 proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =  
   var linger = TLinger(l_onoff: 1, l_linger: 0)
 
@@ -237,3 +238,4 @@ proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
 
   when defined(fulldebug): echo "guildenstern dispatcher loop stopped"
   for portserver in portservers: portserver.close()
+{.pop.}
