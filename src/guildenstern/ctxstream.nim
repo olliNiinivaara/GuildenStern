@@ -109,7 +109,7 @@ proc receiveChunk*(ctx: StreamCtx): int {.gcsafe, raises:[] .} =
     ctx.contentdelivered = ctx.requestlen - ctx.bodystart
     ctx.requestlen = ctx.contentdelivered.int
     return ctx.contentdelivered.int
-  let ret = recv(posix.SocketHandle(ctx.socketdata.socket), addr request[0], (ctx.contentlength - ctx.contentreceived).int, 0)        
+  let ret = recv(ctx.socketdata.socket, addr request[0], (ctx.contentlength - ctx.contentreceived).int, 0)
   checkChunckRet()
   ctx.contentreceived += ret
   ctx.contentdelivered += ret
@@ -130,4 +130,4 @@ proc handleHeaderRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, 
 proc initStreamCtx*(gs: var GuildenServer, onrequestcallback: proc(ctx: StreamCtx){.gcsafe, nimcall, raises: [].}, port: int) =
   {.gcsafe.}: 
     requestCallback = onrequestcallback
-    discard gs.registerHandler(handleHeaderRequest, port, "http")
+    gs.registerHandler(handleHeaderRequest, port, "http")

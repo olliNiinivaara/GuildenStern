@@ -172,6 +172,13 @@ proc getRequest*(ctx: HttpCtx): string =
   request[0 ..< ctx.requestlen]
 
 
+proc isRequest*(ctx: HttpCtx, request: string): bool =
+  if ctx.requestlen != request.len: return false
+  for i in countup(0, ctx.requestlen - 1):
+    if request[i] != request[i]: return false
+  true
+
+
 proc parseHeaders*(ctx: HttpCtx, fields: openArray[string], toarray: var openArray[string]) =
   assert(fields.len == toarray.len)
   for j in 0 ..< fields.len: assert(fields[j][0].isLowerAscii(), "Header field names must be given in all lowercase, wrt. " & fields[j])

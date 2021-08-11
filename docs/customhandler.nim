@@ -12,7 +12,7 @@ type
 var server = new GuildenServer
 var ctx {.threadvar.}: MyCustomCtx
 
-proc receive(): bool  =
+proc receive(): bool =
   while true:
     if shuttingdown: return false
     let ret = recv(ctx.socketdata.socket, addr ctx.buf[ctx.requestlen], 1 + MaxHeaderLength - ctx.requestlen, 0)
@@ -36,6 +36,6 @@ proc handleCustomRequest(gs: ptr GuildenServer, socketdata: ptr SocketData) =
   ctx.requestlen = 0
   if receive(): reply()
     
-discard server.registerHandler(handleCustomRequest, 8080, "mycustomprotocol")
-server.registerThreadInitializer(initThread)
+registerThreadInitializer(initThread)
+server.registerHandler(handleCustomRequest, 8080, "mycustomprotocol")
 server.serve()

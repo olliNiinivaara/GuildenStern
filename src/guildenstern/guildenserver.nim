@@ -1,6 +1,5 @@
 from selectors import Selector, newselector, contains, registerTimer, unregister, getData, newSelectEvent, registerEvent, trigger
 from posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onSignal, `==`
-from posix_utils import sendSignal
 from nativesockets import close
 export SocketHandle, INVALID_SOCKET, posix.`==`
 
@@ -13,14 +12,17 @@ type
   CtxId* = distinct int
 
   RequestCallback* = proc(ctx: Ctx) {.nimcall, raises: [].}
-  HandlerAssociation* = tuple[port: int, ctxid: CtxId, protocol: int]
+
+  HandlerCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData){.nimcall, gcsafe, raises: [].}
+
+  HandlerAssociation* = tuple[port: uint16, protocol: int, handler: HandlerCallback]
 
   SocketData* = object
     port*: uint16
     socket*: posix.SocketHandle
     ctxid*: CtxId
-    protocol*: int
     customdata*: pointer
+    flags*: int
 
   Ctx* {.inheritable, shallow.} = ref object
     gs*: ptr GuildenServer
@@ -38,18 +40,13 @@ type
     SecurityThreatened
     DontClose
 
-  HandlerCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData){.nimcall, raises: [].}
   TimerCallback* = proc() {.nimcall, raises: [].}
-  ThreadInitializationCallback* = proc() {.nimcall, gcsafe, raises: [].}
   CloseCallback* = proc(ctx: Ctx, socket: SocketHandle, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
   
   GuildenServer* {.inheritable.} = ref object
     multithreading*: bool
     selector*: Selector[SocketData]
-    porthandlers*: array[MaxCtxHandlers, HandlerAssociation]
-    portcount*: int
-    threadinitializer*: ThreadInitializationCallback
-    handlercallbacks*: array[0.CtxId .. MaxCtxHandlers.CtxId, HandlerCallback]
+    porthandlers*: array[0.CtxId .. MaxCtxHandlers.CtxId, HandlerAssociation]
     closecallback*: CloseCallback
     nextctxid: int
     protocolnames: seq[string]
@@ -59,7 +56,6 @@ const
   InvalidCtx* = 0.CtxId
   ServerCtx* = (-1).CtxId
   TimerCtx* = (-2).CtxId
-  SignalCtx* = (-3).CtxId
 
 proc `$`*(x: SocketHandle): string {.inline.} = $(x.cint)
 proc `$`*(x: CtxId): string {.inline.} = $(x.int)
@@ -80,38 +76,39 @@ onSignal(SIGTERM): shutdown()
 onSignal(SIGINT): shutdown()
 
 
-proc getCtxId(gs: var GuildenServer, protocolname: string): (CtxId, int) {.gcsafe, nimcall.} =
-  if gs.nextctxid == 0:
-    gs.nextctxid = 1
-    gs.selector = newSelector[SocketData]()
-    gs.selector.registerEvent(shutdownevent, SocketData())
-    gs.protocolnames = @["unknown"]
-  assert(gs.nextctxid < MaxCtxHandlers, "Cannot create more handlers")
-  var protocol = gs.protocolnames.find(protocolname)
-  if protocol == -1:
+proc initialize(gs: var GuildenServer) =
+  gs.nextctxid = 1
+  gs.selector = newSelector[SocketData]()
+  gs.selector.registerEvent(shutdownevent, SocketData())
+  gs.protocolnames = @["unknown"]
+
+
+proc getProtocolindex(gs: GuildenServer, protocolname: string): int =
+  result = gs.protocolnames.find(protocolname)
+  if result == -1:
     gs.protocolnames.add(protocolname)
-    protocol = gs.protocolnames.len
-  result = (gs.nextctxid.CtxId, protocol)
+    result = gs.protocolnames.len - 1
+
+
+proc generateCtxId(gs: var GuildenServer): CtxId =
+  assert(gs.nextctxid < MaxCtxHandlers, "Cannot create more handlers")
+  result = gs.nextctxid.CtxId
   gs.nextctxid += 1
 
 
-proc registerThreadInitializer*(gs: GuildenServer, callback: ThreadInitializationCallback) =
-  gs.threadinitializer = callback
+proc registerHandler*(gs: var GuildenServer, callback: HandlerCallback, port: int, protocolname: string) =
+  if gs.nextctxid == 0: gs.initialize()
+  let protocol = gs.getProtocolindex(protocolname)
+  let ctxid = gs.generateCtxId()
+  gs.portHandlers[ctxid] = (port.uint16, protocol, callback)
 
 
-proc registerHandler*(gs: var GuildenServer, callback: HandlerCallback, port: int, protocolname: string): CtxId =
-  var protocol: int
-  (result , protocol) = gs.getCtxId(protocolname)
-  gs.handlercallbacks[result] = callback
-  if port > 0:
-    gs.portHandlers[gs.portcount] = (port, result, protocol)
-    gs.portcount += 1
+proc getProtocolName*(ctx: Ctx): string =
+  ctx.gs.protocolnames[ctx.gs.portHandlers[ctx.socketdata.ctxid].protocol]
 
 
-proc registerTimerhandler*(gs: GuildenServer, callback: TimerCallback, interval: int) =
-  if gs.nextctxid == 0:
-    gs.nextctxid = 1
-    gs.selector = newSelector[SocketData]()
+proc registerTimerhandler*(gs: var GuildenServer, callback: TimerCallback, interval: int) =
+  if gs.nextctxid == 0: gs.initialize()
   discard gs.selector.registerTimer(interval, false, SocketData(ctxid: TimerCtx, customdata: cast[pointer](callback)))
 
 
@@ -119,18 +116,14 @@ proc registerConnectionclosedhandler*(gs: GuildenServer, callback: CloseCallback
   gs.closecallback = callback
 
 
-proc getProtocolName*(ctx: Ctx): string =
-  return ctx.gs.protocolnames[ctx.socketdata.protocol]
-
-
 proc handleRead*(gs: ptr GuildenServer, data: ptr SocketData) =
-  assert(gs.handlercallbacks[data.ctxid] != nil, "No ctx registered for CtxId " & $data.ctxid)
-  {.gcsafe.}: gs.handlercallbacks[data.ctxid](gs, data)
+  assert(gs.porthandlers[data.ctxid].handler != nil, "No ctx registered for CtxId " & $data.ctxid)
+  {.gcsafe.}: gs.porthandlers[data.ctxid].handler(gs, data)
 
 
 proc closeSocket*(ctx: Ctx, cause = CloseCalled, msg = "") {.raises: [].} =
   if ctx.socketdata.socket.int in [0, INVALID_SOCKET.int]: return
-  when defined(fulldebug): echo "socket ", cause, ": ", ctx.socketdata.socket
+  when defined(fulldebug): echo "socket ", cause, ": ", ctx.socketdata.socket, "  ", msg
   let fd = ctx.socketdata.socket
   try:
     if ctx.gs.closecallback != nil: ctx.gs.closecallback(ctx, fd, cause, msg)
@@ -144,7 +137,7 @@ proc closeSocket*(ctx: Ctx, cause = CloseCalled, msg = "") {.raises: [].} =
 
 proc closeOtherSocket*(gs: ptr GuildenServer, data: ptr SocketData, cause: SocketCloseCause, msg: string) {.raises: [].} =
   if data == nil or data.socket.int in [0, INVALID_SOCKET.int]: return
-  when defined(fulldebug): echo "closeOtherSocket ", cause, ": ", data.socket
+  when defined(fulldebug): echo "closeOtherSocket ", cause, ": ", data.socket, "  ", msg
   try:
     let fd = data.socket
     data.socket = INVALID_SOCKET

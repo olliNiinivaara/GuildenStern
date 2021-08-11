@@ -75,6 +75,7 @@ type
   ## Return tuple with following parameters:
   ## | `bool`: whether to accept the upgrade request or to close the socket
   ## | `string`: If upgrade request is accepted and this is not empty, this will be sent to client as the first websocket message
+
   WsMessageCallback = proc(ctx: WsCtx){.gcsafe, nimcall, raises: [].}
 
   WsDelivery* = tuple[sockets: seq[posix.SocketHandle], message: string, length: int, binary: bool]
@@ -85,7 +86,6 @@ type
     ## | `binary`: whether the message contains bytes or chars
 
 var
-  WsCtxId: CtxId
   upgraderequestcallback: WsUpgradeRequestCallback
   messageCallback: WsMessageCallback
   
@@ -121,10 +121,10 @@ template `[]`(value: uint8, index: int): bool =
 
 
 template error(msg: string) =
-  when defined(fulldebug): echo "websocket " & $ctx.socketdata.socket & " fail: " & msg
-  ctx.closeSocket(ProtocolViolated)
+  ctx.closeSocket(ProtocolViolated, msg)
   ctx.opcode = Fail
   return -1
+
 
 proc bytesRecv(fd: posix.SocketHandle, buffer: ptr char, size: int): int =
   return recv(fd, buffer, size, 0)
@@ -283,13 +283,15 @@ proc sendWs*(gs: GuildenServer, socket: posix.SocketHandle, message: ptr string,
 
 
 proc replyHandshake(): (SocketCloseCause , string) =
-  if not ctx.receiveHeader(): return (ProtocolViolated , "")
-  if not ctx.parseRequestLine(): return (ProtocolViolated , "")
+  if not ctx.receiveHeader(): return (ProtocolViolated , "header failure")
+  if not ctx.parseRequestLine(): return (ProtocolViolated , "requestline failure")
   var headers = [""]  
   ctx.parseHeaders(["sec-websocket-key"], headers)
-  if headers[0] == "": return (ProtocolViolated , "")
+  if headers[0] == "": return (ProtocolViolated , "sec-websocket-key header missing")
   let (accept , firstmessage) = ctx.upgraderequestcallback()
-  if not accept: return (CloseCalled , firstmessage)
+  if not accept:
+    when defined(fulldebug): echo "ws upgrade request was not accepted: ", ctx.getRequest()
+    return (CloseCalled , firstmessage)
   let 
     sh = secureHash(headers[0] & "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
     acceptKey = base64.encode(decodeBase16($sh))
@@ -297,30 +299,29 @@ proc replyHandshake(): (SocketCloseCause , string) =
   (DontClose , firstmessage)
 
 
-proc handleWsUpgradehandshake(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
-  if ctx == nil: ctx = new WsCtx
-  initHttpCtx(ctx, gs, data)
+proc handleWsUpgradehandshake() =
   var (state , firstmessage) = replyHandshake()
-  if state != DontClose: ctx.closeSocket(state)
+  if state != DontClose: ctx.closeSocket(state, firstmessage)
   else:
-    data.ctxid = WsCtxId
-    if firstmessage != "": gs[].sendWs(data.socket, addr firstmessage)
+    if firstmessage != "": ctx.gs[].sendWs(ctx.socketdata.socket, addr firstmessage)
+    ctx.socketdata.flags = 1
 
 
-proc handleWsMessage(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
-  if ctx == nil: ctx = new WsCtx
-  initHttpCtx(ctx, gs, data)
-  receiveWs()
-  if ctx.opcode notin [Fail, Close]:
-    {.gcsafe.}: messageCallback(ctx)
-  
+proc handleWsRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
+    if ctx == nil: ctx = new WsCtx
+    initHttpCtx(ctx, gs, data)
+    if ctx.socketdata.flags == 0: handleWsUpgradehandshake()
+    else:
+      receiveWs()
+      if ctx.opcode notin [Fail, Close]:
+        {.gcsafe.}: messageCallback(ctx)
+
 
 proc initWsCtx*(gs: var GuildenServer, onwsupgraderequestcallback: WsUpgradeRequestCallback, onwsmessage: WsMessageCallback, port: int) =
   {.gcsafe.}:
     upgraderequestcallback = onwsupgraderequestcallback
     messageCallback = onwsmessage
-    discard gs.registerHandler(handleWsUpgradehandshake, port, "http")
-    WsCtxId = gs.registerHandler(handleWsMessage, -1, "websocket")
+    gs.registerHandler(handleWsRequest, port, "websocket")
 
 
 proc sendWs*(gs: GuildenServer, socket: posix.SocketHandle, message: string, length: int = -1, binary = false): bool {.discardable.} =

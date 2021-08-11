@@ -1,4 +1,5 @@
 import guildenstern/ctxheader
+# import nimprof
 
 var c: int
 

@@ -75,4 +75,4 @@ proc initHeaderCtx*(gs: var GuildenServer,
   {.gcsafe.}: 
     requestCallback = onrequestcallback
     requestlineparsing = parserequestline
-    discard gs.registerHandler(handleHeaderRequest, port, "http")
+    gs.registerHandler(handleHeaderRequest, port, "http")

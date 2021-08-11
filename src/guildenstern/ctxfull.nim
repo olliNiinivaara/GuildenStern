@@ -102,4 +102,4 @@ proc initFullCtx*(gs: var GuildenServer, onrequestcallback: FullRequestCallback,
   ## Initializes the fullctx handler for given ports with given request callback. See example above.
   {.gcsafe.}:
     requestCallback = onrequestcallback
-    discard gs.registerHandler(handleHttpRequest, port, "http")
+    gs.registerHandler(handleHttpRequest, port, "http")

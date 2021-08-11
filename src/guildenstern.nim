@@ -1,4 +1,4 @@
-const GuildenSternVersion* = "3.0.0"
+const GuildenSternVersion* = "4.0.0-rc.1"
 
 #   Guildenstern
 #
@@ -15,14 +15,13 @@ const GuildenSternVersion* = "3.0.0"
 ## A modular multithreading Linux HTTP server.
 ## Easily create and add handlers.
 ## Associate handlers with ports.
-## Genuinely multithreading: spawns new thread for every request.
+## Genuinely multithreading: every request is handled in different thread.
 ## Runs in single-threaded mode, too.
-## No need to use async/await.
 ## 
 ## Example
 ## =======
 ## 
-## In this example port number is coded to html just for demonstration purposes. In reality, use your
+## In this example port number is coded into html just for demonstration purposes. In reality, use your
 ## reverse proxy to route different types of requests to different ports.
 ## 
 ## .. code-block:: Nim
@@ -64,7 +63,7 @@ when not defined(nimdoc):
   import guildenstern/guildenserver
   export guildenserver
   import guildenstern/dispatcher
-  export serve, getLoads
+  export serve, setWorkerThreadCount, registerThreadInitializer, getLoads
   import guildenstern/ctxhttp
   export ctxhttp
 else:
@@ -116,8 +115,6 @@ else:
       ## When multithreading, serialize mutations to global vars with locks (use threadvars instead unless memory usage is a problem).
        
     TimerCallback* = proc() {.raises: [].}
-   
-    ThreadInitializationCallback* = proc() {.gcsafe, raises: [].}
 
     SocketCloseCause* = enum
       ## Parameter in CloseCallback.
@@ -138,6 +135,46 @@ else:
       ## | if ctx.socketdata.socket != socket: request processing thread is running but closed socket is some other socket. This is most usually the case when a connection is lost to websocket that the requester was sending messages to.
       ## | ctx.socketdata.socket == INVALID_SOCKET: dispatcher noticed that socket was closed and spawned a ctx just for calling this callback. In this case Ctx is of generic type Ctx, but `getProtocolName` lets you check the type of the closed socket.
    
+  proc setWorkerThreadCount*(count: int) =
+    ## Before calling serve, you can set amount of worker threads (in addition to the main dispatcher thread).
+    ## If you do not set this explicitly, default value is countProcessors() + 2
+    discard
+
+
+  proc registerThreadInitializer*(callback: proc() {.nimcall, gcsafe, raises: [].}) =
+    ## Registers a procedure in which you can initialize threadvars. This is called exactly once for each thread when first server starts serving.
+    ##
+    ## **Example:**
+    ##
+    ## .. code-block:: Nim
+    ##
+    ##    import guildenstern, os, random
+    ##
+    ##    var threadcount: int
+    ##    var rounds: int
+    ##    var x {.threadvar.}: int
+    ##
+    ##    proc initializeThreadvars() =
+    ##      x = threadcount.atomicInc
+    ##      echo "new thread initialized: ", x
+    ##
+    ##    proc tiktok() =
+    ##      echo "tik ", x
+    ##      sleep(500 + rand(2000))
+    ##      echo "tok ", x
+    ##      if rounds.atomicInc > 50: shutdown()
+    ##
+    ##    randomize()
+    ##    registerThreadInitializer(initializeThreadvars)
+    ##    var server = new GuildenServer
+    ##    server.registerTimerhandler(tiktok, 100)
+    ##    server.serve()
+    ##    echo "----"
+    ##    echo "waiting for processes to finish..."
+    ##    sleep(2510)
+    ##    echo "graceful shutdown handling here!"
+    discard
+
   proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe.} =
     ## Starts server event dispatcher loop which runs until shutdown() is called or SIGINT received.
     ## If you want the server to run in a single thread, set multithreaded to false.
@@ -154,39 +191,6 @@ else:
     ##    server.serve(false)
     discard
 
-  proc registerThreadInitializer*(gs: GuildenServer, callback: ThreadInitializationCallback) =
-    ## Registers a procedure in which you can initialize threadvars. This is called exactly once for each thread, when it is first created.
-    ## 
-    ## **Example:**
-    ##
-    ## .. code-block:: Nim
-    ##
-    ##    import guildenstern, os, random
-    ##    
-    ##    var threadcount: int
-    ##    var rounds: int
-    ##    var x {.threadvar.}: int
-    ##     
-    ##    proc initializeThreadvars() =
-    ##      x = threadcount.atomicInc
-    ##      echo "new thread initialized: ", x
-    ##      
-    ##    proc tiktok() =
-    ##      echo "tik ", x
-    ##      sleep(500 + rand(2000))
-    ##      echo "tok ", x
-    ##      if rounds.atomicInc > 50: shutdown()
-    ##      
-    ##    randomize()
-    ##    var server = new GuildenServer
-    ##    server.registerThreadInitializer(initializeThreadvars)
-    ##    server.registerTimerhandler(tiktok, 100)
-    ##    server.serve()
-    ##    echo "----"
-    ##    echo "waiting for processes to finish..."
-    ##    sleep(2510)
-    ##    echo "graceful shutdown handling here!"
-    discard
 
   proc registerTimerhandler*(gs: GuildenServer, callback: TimerCallback, interval: int) =
     ## Registers a new timer that fires the TimerCallback every `interval` milliseconds.
@@ -213,7 +217,7 @@ else:
   proc getLoads*(): (int, int, int) =
     ## returns load statistics over all guildenservers as tuple, where:
     ## | 0 = current load; amount of currently active threads, i.e. requests being currently simultaneously served
-    ## | 1 = peek load; maximum current load since current load was zero
+    ## | 1 = peak load; maximum current load since current load was zero
     ## | 2 = max load; maximum load since first server was started    
     discard
   
@@ -265,6 +269,10 @@ else:
   proc getRequest*(ctx: HttpCtx): string =
     ## Returns the whole request as string.
 
+  proc isRequest*(ctx: HttpCtx, request: string): bool =
+    ## true if request body is body.
+    discard
+
   proc parseHeaders*(ctx: HttpCtx, fields: openArray[string], toarray: var openArray[string]) =
     ## Parses header `fields` values into `toarray`.
     ## 
@@ -297,8 +305,8 @@ else:
     ##     
     ##    doAssert(compileOption("threads"), """this example must be compiled with threads;
     ##      "nim c -r --gc:arc --threads:on --d:threadsafe example.nim"""")
+    ##    registerThreadInitializer(initializeThreadvars)
     ##    var server = new GuildenServer
-    ##    server.registerThreadInitializer(initializeThreadvars)
     ##    server.initHeaderCtx(onRequest, 5050)
     ##    server.registerTimerhandler(sendRequest, 1000)
     ##    server.serve()

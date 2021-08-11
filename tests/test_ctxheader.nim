@@ -8,8 +8,7 @@ var client {.threadvar.}: HttpClient
 proc initializeThreadvars() =
   try:
     client = newHttpClient()
-    client.headers = newHttpHeaders(
-      { "afield": "afieldvalue", "bfield": "bfieldvalue" })
+    client.headers = newHttpHeaders({ "afield": "afieldvalue", "bfield": "bfieldvalue" })
   except: echo getCurrentExceptionMsg()
      
 proc sendRequest() =
@@ -24,7 +23,7 @@ proc onRequest(ctx: HttpCtx) =
   shutdown()
    
 var server = new GuildenServer
-server.registerThreadInitializer(initializeThreadvars)
+registerThreadInitializer(initializeThreadvars)
 server.initHeaderCtx(onRequest, 5050)
 server.registerTimerhandler(sendRequest, 1000)
 server.serve()

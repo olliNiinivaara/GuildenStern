@@ -1,4 +1,4 @@
-version       = "3.1.0"
+version       = "4.0.0-rc.1"
 author        = "Olli"
 description   = "Modular multithreading Linux HTTP server"
 license       = "MIT"
@@ -6,7 +6,7 @@ srcDir        = "src"
 
 skipDirs = @[".github", "bench", "e2e-tests"]
 
-requires "nim >= 1.4.4"
+requires "nim >= 1.4.8"
 
 task test, "run all tests":
   cd("tests")
