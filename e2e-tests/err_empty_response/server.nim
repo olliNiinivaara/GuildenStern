@@ -52,4 +52,4 @@ echo "Starting err_empty_response e2e test server on port 8080 at ", getTime()
 var server = new GuildenServer
 server.initFullCtx(handleHttpRequest, 8080)
 server.registerTimerhandler(doShutdown, 30000)
-server.serve(multithreaded = true)
+server.serve()
