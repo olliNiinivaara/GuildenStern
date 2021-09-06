@@ -19,7 +19,8 @@ proc startServer(params: tuple[multithreaded: bool, port1: int, port2: int]) =
   server.initHeaderCtx(handleHttpRequest, params.port1)
   server.initHeaderCtx(handleHttpRequest, params.port2)
   server.registerTimerhandler(doShutdown, 30000)
-  server.serve(params.multithreaded)
+  if params.multithreaded: server.serve()  
+  else: server.serve(1)
   
 echo "Starting ctxheader e2e test servers at ", now().format("HH:mm:ss")
 var threads: array[2, Thread[tuple[multithreaded: bool, port1: int, port2: int]]]
