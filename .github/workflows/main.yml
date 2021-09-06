@@ -9,10 +9,17 @@ jobs:
       - uses: actions/checkout@v2
       - uses: jiro4989/setup-nim-action@v1
       - uses: microsoft/playwright-github-action@v1
-      - run: nimble test
       - run: |
           cd e2e-tests/
           npm install
+          
+          cd test_wrk/
+          nim c --d:danger test_wrk.nim
+          sleep 5
+          ./test_wrk &
+          sleep 1
+          ./wrkbin -t8 -c8 -d10s --latency http://127.0.0.1:5050 | tr '\n' ' ' | grep 'read 0, write 0, timeout 0'
+          kill -INT $!
           
           cd test_ctxheader/
           nim c -r --gc:arc --threads:on --d:threadsafe -p:../../src/ server.nim &
