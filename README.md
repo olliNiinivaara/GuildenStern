@@ -19,7 +19,7 @@ proc handleGet(ctx: HttpCtx) =
 
 proc handlePost(ctx: HttpCtx) =
   try: echo readData(ctx.getBody()).getOrDefault("say")
-  except: ctx.reply(Http400)
+  except: (ctx.reply(Http400) ; return)
   ctx.reply(HttpCode(303), ["location: http://localhost:5050"])
 
 var server = new GuildenServer
@@ -52,7 +52,7 @@ server.serve()
 
 - *Serve* proc now accepts the amount of worker threads to use 
 - *registerThreadInitializer* is now a global proc (not tied to a GuildenServer)
-- On *ctxWs web socket upgrade*, a callback closure can be given (instead of initial message to send)
+- *ctxWs web socket upgrade* now accepts a callback closure (instead of initial message to send)
 - Can listen to multiple ports even with same handler (just register different handler callback proc for each port)
 - new *ctxBody* handler for efficiently handling POST requests.
 - new *isRequest* proc for efficiently inspecting request content

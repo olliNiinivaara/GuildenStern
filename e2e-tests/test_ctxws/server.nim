@@ -1,20 +1,7 @@
 import nativesockets, locks
 from times import now, format
 import guildenstern/[ctxws, ctxheader]
-    
-let html = """<!doctype html><title>WsCtx</title>
-  <script>
-  let websocket = new WebSocket("ws://" + location.host.slice(0, -1) + '1')
-  let messagecount = 0
-  websocket.onmessage = function(evt) {
-    let element = document.createElement("li")
-    element.id = "li" + (++messagecount)
-    element.innerHTML = evt.data
-    document.getElementById("ul").appendChild(element)}
-  </script>
-  <body><button id="wsbutton" onclick="websocket.send('hallo')">say hallo</button>
-  <button id="closebutton" onclick="websocket.close()">close</button><ul id="ul">"""
-  
+      
 var server = new GuildenServer
 var lock: Lock
 var thesocket = INVALID_SOCKET
@@ -24,9 +11,9 @@ proc doShutdown() =
   echo "Stopping ctxws e2e test server at ", now().format("HH:mm:ss")
   shutdown()
 
-proc onUpgradeRequest(ctx: WsCtx): (bool , string) =
+proc onUpgradeRequest(ctx: WsCtx): (bool , proc()) =
   withLock(lock): thesocket = ctx.socketdata.socket
-  (true , "")
+  result[0] = true
 
 proc onMessage(ctx: WsCtx) =
   if ctx.getRequest() == "hallo": halloreceived = true
@@ -47,7 +34,20 @@ proc onLost(ctx: Ctx, socket: SocketHandle, cause: SocketCloseCause, msg: string
       thesocket = INVALID_SOCKET
       doShutdown()
         
-proc onRequest(ctx: HttpCtx) = ctx.reply(Http200, html)
+proc onRequest(ctx: HttpCtx) =
+  let html = """<!doctype html><title>WsCtx</title>
+  <script>
+  let websocket = new WebSocket("ws://" + location.host.slice(0, -1) + '1')
+  let messagecount = 0
+  websocket.onmessage = function(evt) {
+    let element = document.createElement("li")
+    element.id = "li" + (++messagecount)
+    element.innerHTML = evt.data
+    document.getElementById("ul").appendChild(element)}
+  </script>
+  <body><button id="wsbutton" onclick="websocket.send('hallo')">say hallo</button>
+  <button id="closebutton" onclick="websocket.close()">close</button><ul id="ul">"""
+  ctx.reply(Http200, html)
 
 server.initHeaderCtx(onRequest, 5050)
 server.initWsCtx(onUpgradeRequest, onMessage, 5051)

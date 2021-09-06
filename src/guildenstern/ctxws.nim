@@ -8,22 +8,13 @@
 ##    import locks
 ##    import guildenstern/[ctxws, ctxheader]
 ##    
-##    let html = """<!doctype html><title>WsCtx</title>
-##      <script>
-##      let websocket = new WebSocket("ws://" + location.host.slice(0, -1) + '1')
-##      websocket.onmessage = function(evt) {
-##        document.getElementById("ul").appendChild(document.createElement("li")).innerHTML = evt.data }
-##      </script>
-##      <body><button onclick="websocket.send('hallo')">say hallo</button>
-##      <button onclick="websocket.close()">close</button><ul id="ul">"""
-##    
 ##    var server = new GuildenServer
 ##    var lock: Lock # serializing access to mutating globals is usually good idea (socket, in this case)
 ##    var socket = INVALID_SOCKET
 ##    
-##    proc onUpgradeRequest(ctx: WsCtx): (bool , string) =
-##      withLock(lock): socket = ctx.socketdata.socket
-##      (true , "request accepted!")
+##    proc onUpgradeRequest(ctx: WsCtx): (bool , proc()) =
+##      {.gcsafe.}: withLock(lock): socket = ctx.socketdata.socket
+##      (true , proc() = ctx.sendWs("request accepted!"))
 ##    
 ##    proc onMessage(ctx: WsCtx) = echo "client says: ", ctx.getRequest()
 ##      
@@ -39,9 +30,18 @@
 ##          echo cause
 ##          socket = INVALID_SOCKET
 ##           
-##    proc onRequest(ctx: HttpCtx) = ctx.reply(Http200, html)
+##    proc onRequest(ctx: HttpCtx) =
+##      let html = """<!doctype html><title>WsCtx</title>
+##      <script>
+##        let websocket = new WebSocket("ws://" + location.host.slice(0, -1) + '1')
+##        websocket.onmessage = function(evt) {
+##        document.getElementById("ul").appendChild(document.createElement("li")).innerHTML = evt.data }
+##      </script>
+##      <body><button onclick="websocket.send('hallo')">say hallo</button>
+##      <button onclick="websocket.close()">close</button><ul id="ul">""" 
+##      ctx.reply(Http200, html)
 ##    
-##    server.initHeaderCtx(onRequest, 5050)
+##    server.initHeaderCtx(onRequest, 5050, false)
 ##    server.initWsCtx(onUpgradeRequest, onMessage, 5051)
 ##    server.registerTimerhandler(sendMessage, 2000)
 ##    server.registerConnectionclosedhandler(onLost)
@@ -76,7 +76,7 @@ type
   ## This must be set with initWsCtx.
   ## Return tuple with following parameters:
   ## | `bool`: whether to accept the upgrade request or to close the socket
-  ## | `proc`: After accepted upgrade request is processed this closure will be called (if not nil)
+  ## | `proc`: After accepted upgrade request is processed this closure will be called (if assigned)
 
   WsMessageCallback = proc(ctx: WsCtx) {.gcsafe, nimcall, raises: [].}
 
