@@ -14,7 +14,7 @@ jobs:
           npm install
           
           cd test_wrk/
-          nim c .r --d:danger -p:../../src/ test_wrk.nim &
+          nim c -r --d:danger -p:../../src/ test_wrk.nim &
           sleep 5
           ./wrkbin -t8 -c8 -d10s --latency http://127.0.0.1:5050 | tr '\n' ' ' | grep 'read 0, write 0, timeout 0'
           kill -INT $!
