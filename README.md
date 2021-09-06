@@ -54,7 +54,7 @@ server.serve()
 - *registerThreadInitializer* is now a global proc (not tied to a GuildenServer)
 - On *ctxWs web socket upgrade*, a callback closure can be given (instead of initial message to send)
 - Can listen to multiple ports even with same handler (just register different handler callback proc for each port)
-. new *ctxBody* handler for efficiently handling POST requests.
+- new *ctxBody* handler for efficiently handling POST requests.
 - new *isRequest* proc for efficiently inspecting request content
 - new custom threadpool
 - code fixes and cleanups
