@@ -5,8 +5,7 @@ from nativesockets import accept, setBlocking
 from osproc import countProcessors
 
 var
-  workerthreadcount = -1
-  workerthreadscreated: bool
+  workerthreadscreated = 0
   workqueued: bool
   workavailable: Cond
   worklock: Lock
@@ -15,10 +14,6 @@ var
   threadfd: posix.SocketHandle
   threaddata: ptr SocketData
   threadinitializer: proc() {.nimcall, gcsafe, raises: [].}
-
-
-proc setWorkerThreadCount*(count: int) =
-  workerthreadcount = count
 
 
 proc registerThreadInitializer*(callback: proc() {.nimcall, gcsafe, raises: [].}) =
@@ -98,7 +93,7 @@ template handleEvent() =
     continue
 
   {.gcsafe.}:
-    if not gs.multithreading:
+    if (unlikely)gs.workerthreadcount == 1:
       if data.ctxid == TimerCtx:
         {.gcsafe.}:
           try: cast[TimerCallback](data.customdata)()
@@ -179,7 +174,7 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
       if Event.Read notin event.events:
         try:
           when defined(fulldebug): echo "non-read ", fd, ": ", event.events
-          if not gs.multithreading: closeOtherSocket(unsafeAddr gs, data, NetErrored, "non-read " & $fd & ": " & $event.events)
+          if gs.workerthreadcount == 1: closeOtherSocket(unsafeAddr gs, data, NetErrored, "non-read " & $fd & ": " & $event.events)
           else:
             when compileOption("threads"): closeOtherSocket(unsafeAddr gs, data, NetErrored, "non-read " & $fd & ": " & $event.events)
         except: discard
@@ -193,27 +188,30 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
 
 
 {.push hints:off.}
-proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =  
+proc serve*(gs: GuildenServer, threadcount = -1) {.gcsafe, nimcall.} =  
   var linger = TLinger(l_onoff: 1, l_linger: 0)
 
   if gs.selector == nil: (echo "no handlers registered"; quit())
-  gs.multithreading = multithreaded
-  if gs.multithreading and not compileOption("threads"):
-    echo "threads:off; serving single-threaded"
-    gs.multithreading = false
+  if threadcount != 1 and not compileOption("threads"): gs.workerthreadcount = 1
+  elif threadcount < 1: gs.workerthreadcount = countProcessors() + 2
+  else: gs.workerthreadcount = threadcount
+
+  when defined(fulldebug): echo "gs.workerthreadcount: ", gs.workerthreadcount
 
   {.gcsafe.}:
-    if gs.multithreading:
-      doAssert(defined(threadsafe), "Selectors module requires compiling with -d:threadsafe")
-      if not workerthreadscreated:
-        if workerthreadcount == -1: workerthreadcount = countProcessors() + 2
+    if gs.workerthreadcount == 1:
+      if threadinitializer != nil: threadinitializer()
+    else:
+      doAssert(defined(threadsafe), "When threads:on, selectors module requires compiling with -d:threadsafe") 
+      if workerthreadscreated == 0:
         initCond(workavailable)
         initLock(worklock)
-        for i in 1 .. workerthreadcount:
+      while workerthreadscreated < gs.workerthreadcount:        
+        when compileOption("threads"):
           var thread: Thread[void]
           createThread(thread, threadProc)
-        workerthreadscreated = true
-        sleep(10)
+          sleep(5)
+        workerthreadscreated += 1
 
     var portservers: seq[Socket]
     for i in 0 .. MaxCtxHandlers:
@@ -231,7 +229,7 @@ proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe, nimcall.} =
         portserver.listen()
         portserver.getFd().setBlocking(false)
 
-  {.gcsafe.}: signal(SIG_PIPE, SIG_IGN)
+    signal(SIG_PIPE, SIG_IGN)
 
   sleep(10)
   eventLoop(gs)

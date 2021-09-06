@@ -59,20 +59,27 @@ type
     contentlength*: int64
     contentreceived*: int64
     contentdelivered*: int64
-
-  RequestCallback = proc(ctx: StreamCtx){.gcsafe, raises: [].}
+  
+  PortDatum = object
+    port: uint16
+    messagehandler: proc(ctx: StreamCtx) {.gcsafe, nimcall, raises: [].}
 
 
 var
-  requestCallback: RequestCallback
-  ctx {.threadvar.}: StreamCtx 
+  portdata: array[MaxHandlersPerCtx, PortDatum]
+  ctx {.threadvar.}: StreamCtx
+
+{.push checks: off.}
+
+proc at(port: uint16): int {.inline.} =
+  while portdata[result].port != port: result += 1
 
 
 proc receiveHeader(): bool {.gcsafe, raises:[].} =
   while true:
     if shuttingdown: return false
     let ret = recv(ctx.socketdata.socket, addr request[ctx.requestlen], 1 + MaxHeaderLength - ctx.requestlen, 0)
-    checkRet()
+    checkRet(ctx)
     ctx.requestlen += ret
     if ctx.requestlen > MaxHeaderLength:
       ctx.closeSocket(ProtocolViolated, "stream receiveHeader: Max header size exceeded")
@@ -116,18 +123,21 @@ proc receiveChunk*(ctx: StreamCtx): int {.gcsafe, raises:[] .} =
   ctx.requestlen = ret
   return ctx.requestlen
 
+{.pop.}
 
-proc handleHeaderRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
+proc handleStreamRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
   if ctx == nil: ctx = new StreamCtx
   initHttpCtx(ctx, gs, data)
   ctx.contentlength = -1
   ctx.contentreceived = 0
   ctx.contentdelivered = 0
   if receiveHeader() and ctx.parseRequestLine():
-    {.gcsafe.}: requestCallback(ctx)
+    {.gcsafe.}: portdata[at(ctx.socketdata.port)].messagehandler(ctx)
     
 
 proc initStreamCtx*(gs: var GuildenServer, onrequestcallback: proc(ctx: StreamCtx){.gcsafe, nimcall, raises: [].}, port: int) =
-  {.gcsafe.}: 
-    requestCallback = onrequestcallback
-    gs.registerHandler(handleHeaderRequest, port, "http")
+  var index = 0
+  while index < MaxHandlersPerCtx and portdata[index].port != 0: index += 1
+  if index == MaxHandlersPerCtx: raise newException(Exception, "Cannot register over " & $MaxHandlersPerCtx & " ports per StreamCtx")
+  portdata[index] = PortDatum(port: port.uint16, messagehandler: onrequestcallback)
+  gs.registerHandler(handleStreamRequest, port, "http")

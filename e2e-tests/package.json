@@ -5,7 +5,8 @@
     "test_ctxws": "node --unhandled-rejections=strict ./test_ctxws/client.js",
     "err_empty_response": "node ./err_empty_response/client.js"
   },
-  "dependencies": {
+  "dependencies": {},
+  "devDependencies": {
     "playwright": "^1.0.0"
   }
 }

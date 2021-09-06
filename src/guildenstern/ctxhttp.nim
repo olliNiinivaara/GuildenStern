@@ -21,6 +21,7 @@ type
 
 var
   request* {.threadvar.}: string
+  
 
 proc initHttpCtx*(ctx: HttpCtx, gs: ptr GuildenServer, socketdata: ptr SocketData) {.inline.} =
   if request.len < MaxRequestLength + 1: request = newString(MaxRequestLength + 1)
@@ -33,7 +34,7 @@ proc initHttpCtx*(ctx: HttpCtx, gs: ptr GuildenServer, socketdata: ptr SocketDat
   ctx.bodystart = -1
 
 
-template checkRet*() =
+template checkRet*(thectx: HttpCtx) =
   if shuttingdown: return false
   if ret < 1:
     if ret == -1:
@@ -45,22 +46,22 @@ template checkRet*() =
         elif lasterror == 32: ConnectionLost
         elif lasterror == 104: ClosedbyClient
         else: NetErrored
-      ctx.closeSocket(cause, osErrorMsg(OSErrorCode(lastError)))
+      thectx.closeSocket(cause, osErrorMsg(OSErrorCode(lastError)))
     elif ret < -1: ctx.closeSocket(Excepted, getCurrentExceptionMsg())
-    else: ctx.closeSocket(ClosedbyClient)        
+    else: thectx.closeSocket(ClosedbyClient)        
     return false
   
-  if ctx.methlen == 0:
-    if ctx.requestlen + ret < 13:
+  if thectx.methlen == 0:
+    if thectx.requestlen + ret < 13:
       when defined(fulldebug): echo "too short request (", ret,"): ", request
-      (ctx.closeSocket(ProtocolViolated); return false)
-    while ctx.methlen < ret and request[ctx.methlen] != ' ': ctx.methlen.inc
-    if ctx.methlen == ret:
+      (thectx.closeSocket(ProtocolViolated); return false)
+    while thectx.methlen < ret and request[thectx.methlen] != ' ': thectx.methlen.inc
+    if thectx.methlen == ret:
       when defined(fulldebug): echo "http method missing"
-      (ctx.closeSocket(ProtocolViolated); return false)
+      (thectx.closeSocket(ProtocolViolated); return false)
     if request[0 .. 1] notin ["GE", "PO", "HE", "PU", "DE", "CO", "OP", "TR", "PA"]:
       when defined(fulldebug): echo "invalid http method: ", request[0 .. 12]
-      (ctx.closeSocket(ProtocolViolated); return false)
+      (thectx.closeSocket(ProtocolViolated); return false)
 
 
 proc parseRequestLine*(ctx: HttpCtx): bool {.gcsafe, raises: [].} =

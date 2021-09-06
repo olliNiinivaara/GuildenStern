@@ -1,4 +1,4 @@
-const GuildenSternVersion* = "4.0.0-rc.1"
+const GuildenSternVersion* = "4.0.0"
 
 #   Guildenstern
 #
@@ -29,30 +29,31 @@ const GuildenSternVersion* = "4.0.0-rc.1"
 ##    # nim c -r --gc:arc --d:release --threads:on --d:threadsafe example.nim
 ##    
 ##    import cgi, guildenstern/[ctxheader, ctxfull]
-##       
-##    let origin = "http://localhost:5050"
-##    let html = """
-##    <!doctype html><title>GuildenStern Example</title><body>
-##    <form action="http://localhost:5051" method="post">
-##    <input name="say" id="say" value="Hi"><button>Send"""
-##      
-##    proc handleGet(ctx: HttpCtx) = ctx.reply(Http200, html)
-##    
+##
+##    proc handleGet(ctx: HttpCtx) =
+##      let html = """
+##        <!doctype html><title>GuildenStern Example</title><body>
+##        <form action="http://localhost:5051" method="post">
+##        <input name="say" id="say" value="Hi"><button>Send"""
+##      ctx.reply(Http200, html)
+##        
 ##    proc handlePost(ctx: HttpCtx, headers: StringTableRef) =
-##      try: echo readData(ctx.getBody()).getOrDefault("say")
-##      except: discard
-##      ctx.reply(Http303, ["location: " & origin])
-##          
+##      try:
+##        echo readData(ctx.getBody()).getOrDefault("say")
+##        ctx.reply(Http303, ["location: " & headers.getOrDefault("origin")])
+##      except: ctx.reply(Http500)
+##           
 ##    var server = new GuildenServer
-##    server.initHeaderCtx(handleGet, 5050)
+##    server.initHeaderCtx(handleGet, 5050, false)
 ##    server.initFullCtx(handlePost, 5051)
-##    echo "GuildenStern HTTP server serving at ", origin
+##    echo "GuildenStern HTTP server serving at localhost:5050"
 ##    server.serve()
 ## 
 ## See also
 ## ========
 ## 
 ## | `ctxheader <http://olliNiinivaara.github.io/GuildenStern/ctxheader.html>`_
+## | `ctxbody <http://olliNiinivaara.github.io/GuildenStern/ctxbody.html>`_
 ## | `ctxfull <http://olliNiinivaara.github.io/GuildenStern/ctxfull.html>`_
 ## | `ctxstream <http://olliNiinivaara.github.io/GuildenStern/ctxstream.html>`_
 ## | `ctxws <http://olliNiinivaara.github.io/GuildenStern/ctxws.html>`_
@@ -63,7 +64,7 @@ when not defined(nimdoc):
   import guildenstern/guildenserver
   export guildenserver
   import guildenstern/dispatcher
-  export serve, setWorkerThreadCount, registerThreadInitializer, getLoads
+  export serve, registerThreadInitializer, getLoads
   import guildenstern/ctxhttp
   export ctxhttp
 else:
@@ -109,11 +110,7 @@ else:
 
     HttpCtx* = ref object of Ctx
       ## | Common abstract base class for all HTTP handling request contexts.
-
-    RequestCallback* = proc(ctx: Ctx) {.nimcall, raises: [].}
-      ## Type for procs that are called when a socket request can be processed.
-      ## When multithreading, serialize mutations to global vars with locks (use threadvars instead unless memory usage is a problem).
-       
+  
     TimerCallback* = proc() {.raises: [].}
 
     SocketCloseCause* = enum
@@ -134,11 +131,6 @@ else:
       ## | if ctx.socketdata.socket == socket: request processing thread is running and closed socket is the requester.
       ## | if ctx.socketdata.socket != socket: request processing thread is running but closed socket is some other socket. This is most usually the case when a connection is lost to websocket that the requester was sending messages to.
       ## | ctx.socketdata.socket == INVALID_SOCKET: dispatcher noticed that socket was closed and spawned a ctx just for calling this callback. In this case Ctx is of generic type Ctx, but `getProtocolName` lets you check the type of the closed socket.
-   
-  proc setWorkerThreadCount*(count: int) =
-    ## Before calling serve, you can set amount of worker threads (in addition to the main dispatcher thread).
-    ## If you do not set this explicitly, default value is countProcessors() + 2
-    discard
 
 
   proc registerThreadInitializer*(callback: proc() {.nimcall, gcsafe, raises: [].}) =
@@ -175,9 +167,9 @@ else:
     ##    echo "graceful shutdown handling here!"
     discard
 
-  proc serve*(gs: GuildenServer, multithreaded = true) {.gcsafe.} =
+  proc serve*(gs: GuildenServer, threadcount = -1) {.gcsafe.} =
     ## Starts server event dispatcher loop which runs until shutdown() is called or SIGINT received.
-    ## If you want the server to run in a single thread, set multithreaded to false.
+    ## Worker thread count can be set; 1 means single-threaded mode and -1 (default) will use processor core count + 2.
     ## Note: debug info is echoed to console if compiled with switch -d:fulldebug.
     ## 
     ## **Example:**
@@ -185,10 +177,9 @@ else:
     ## .. code-block:: Nim
     ##
     ##    import guildenstern/ctxheader  
-    ##    proc onRequest(ctx: HttpCtx) = ctx.reply(Http200)
     ##    var server = new GuildenServer
-    ##    server.initHeaderCtx(onRequest, 5050)
-    ##    server.serve(false)
+    ##    server.initHeaderCtx(proc(ctx: HttpCtx) = ctx.reply(Http200), 5050)
+    ##    server.serve(1)
     discard
 
 

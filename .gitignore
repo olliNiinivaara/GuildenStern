@@ -1,2 +1,4 @@
 .github/
 .idea/
+e2e-tests/package.json
+e2e-tests/node_modules/

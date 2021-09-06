@@ -6,14 +6,13 @@
 ## .. code-block:: Nim
 ##
 ##    import guildenstern/ctxheader
-##    
-##    let htmlstart = "<!doctype html><title>.</title><body>your user-agent: "
-##    let htmlmore = "<br>your accept-language: "
-##    
+##       
 ##    const headerfields = ["user-agent", "accept-language"]
 ##    var headervalues {.threadvar.}: array[2, string]
 ##        
 ##    proc onRequest(ctx: HttpCtx) =
+##      let htmlstart = "<!doctype html><title>.</title><body>your user-agent: "
+##      let htmlmore = "<br>your accept-language: "
 ##      ctx.parseHeaders(headerfields, headervalues)
 ##      let contentlength = htmlstart.len + headervalues[0].len  + htmlmore.len + headervalues[1].len
 ##      if not ctx.replyStart(Http200, contentlength, htmlstart): return
@@ -34,45 +33,52 @@ when not defined(nimdoc):
 else:
   import guildenserver, ctxhttp
 
+type PortDatum = object
+  port: uint16
+  messagehandler: proc(ctx: HttpCtx) {.gcsafe, nimcall, raises: [].}
+  requestlineparsing: bool
+
 var
-  requestlineparsing = true
-  requestCallback: RequestCallback
-  
+  portdata: array[MaxHandlersPerCtx, PortDatum]
   ctx {.threadvar.}: HttpCtx
 
 
 {.push checks: off.}
 
-proc receiveHeader*(ctx: HttpCtx): bool {.gcsafe, raises:[].} =
+proc at(port: uint16): int {.inline.} =
+  while portdata[result].port != port: result += 1
+
+proc receiveHeader*(actx: HttpCtx): bool {.gcsafe, raises:[].} =
   ## only useful when writing new handlers
   while true:
     if shuttingdown: return false
-    let ret = recv(ctx.socketdata.socket, addr request[ctx.requestlen], 1 + MaxHeaderLength - ctx.requestlen, 0)
-    checkRet()
-    ctx.requestlen += ret
-    if ctx.requestlen > MaxHeaderLength:
-      ctx.closeSocket(ProtocolViolated, "receiveHeader: Max header size exceeded")
+    let ret = recv(actx.socketdata.socket, addr request[actx.requestlen], 1 + MaxHeaderLength - actx.requestlen, 0)
+    checkRet(actx)
+    actx.requestlen += ret
+    if actx.requestlen > MaxHeaderLength:
+      actx.closeSocket(ProtocolViolated, "receiveHeader: Max header size exceeded")
       return false
-    if request[ctx.requestlen-4] == '\c' and request[ctx.requestlen-3] == '\l' and
-     request[ctx.requestlen-2] == '\c' and request[ctx.requestlen-1] == '\l': break
-  return ctx.requestlen > 0
+    if request[actx.requestlen-4] == '\c' and request[actx.requestlen-3] == '\l' and
+     request[actx.requestlen-2] == '\c' and request[actx.requestlen-1] == '\l': break
+  return actx.requestlen > 0
 
 {.pop.}
 
-
 proc handleHeaderRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
   if ctx == nil: ctx = new HttpCtx
-  initHttpCtx(ctx, gs, data)    
-  if ctx.receiveHeader() and (not requestlineparsing or ctx.parseRequestLine()):
-    {.gcsafe.}: requestCallback(ctx)
+  initHttpCtx(ctx, gs, data)
+  let datum = portdata[at(ctx.socketdata.port)]    
+  if ctx.receiveHeader() and (not datum.requestlineparsing or ctx.parseRequestLine()):
+    {.gcsafe.}: datum.messagehandler(ctx)
     
 
 proc initHeaderCtx*(gs: var GuildenServer,
- onrequestcallback: proc(ctx: HttpCtx){.nimcall, raises: [].}, port: int, parserequestline = true) =
-  ## Initializes the headerctx handler for given ports with given request callback.
-  ## By setting `parserequestline` to false this becomes a pass-through handler
-  ## that does no handling for the request.
-  {.gcsafe.}: 
-    requestCallback = onrequestcallback
-    requestlineparsing = parserequestline
-    gs.registerHandler(handleHeaderRequest, port, "http")
+ onrequestcallback: proc(ctx: HttpCtx){.gcsafe, nimcall, raises: [].}, port: int, parserequestline = true) =
+  ## Initializes the headerctx handler for given port with given request callback.
+  ## By setting global `parserequestline` to false all HeaderCtxs become pass-through handlers
+  ## that do no handling for the request.
+  var index = 0
+  while index < MaxHandlersPerCtx and portdata[index].port != 0: index += 1
+  if index == MaxHandlersPerCtx: raise newException(Exception, "Cannot register over " & $MaxHandlersPerCtx & " ports per HeaderCtx")
+  portdata[index] = PortDatum(port: port.uint16, messagehandler: onrequestcallback, requestlineparsing: parserequestline)
+  gs.registerHandler(handleHeaderRequest, port, "http")

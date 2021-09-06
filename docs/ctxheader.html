@@ -102,14 +102,13 @@ function main() {
   <ul class="simple simple-toc-section">
       <ul class="simple nested-toc-section">receiveHeader
       <li><a class="reference" href="#receiveHeader%2CHttpCtx"
-    title="receiveHeader(ctx: HttpCtx): bool">receiveHeader,<wbr>HttpCtx</a></li>
+    title="receiveHeader(actx: HttpCtx): bool">receiveHeader,<wbr>HttpCtx</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">initHeaderCtx
       <li><a class="reference" href="#initHeaderCtx%2CGuildenServer%2Cproc%28HttpCtx%29%2Cint"
-    title="initHeaderCtx(gs: var GuildenServer;
-              onrequestcallback: proc (ctx: HttpCtx) {.nimcall, raises: [].};
-              port: int; parserequestline = true)">initHeaderCtx,<wbr>GuildenServer,<wbr>proc(HttpCtx),<wbr>int</a></li>
+    title="initHeaderCtx(gs: var GuildenServer; onrequestcallback: proc (ctx: HttpCtx) {.
+    gcsafe, nimcall, raises: [].}; port: int; parserequestline = true)">initHeaderCtx,<wbr>GuildenServer,<wbr>proc(HttpCtx),<wbr>int</a></li>
 
   </ul>
 
@@ -126,13 +125,12 @@ function main() {
 <p><strong>Example:</strong></p>
 <pre class="listing"><span class="Keyword">import</span> <span class="Identifier">guildenstern</span><span class="Operator">/</span><span class="Identifier">ctxheader</span>
 
-<span class="Keyword">let</span> <span class="Identifier">htmlstart</span> <span class="Operator">=</span> <span class="StringLit">&quot;&lt;!doctype html&gt;&lt;title&gt;.&lt;/title&gt;&lt;body&gt;your user-agent: &quot;</span>
-<span class="Keyword">let</span> <span class="Identifier">htmlmore</span> <span class="Operator">=</span> <span class="StringLit">&quot;&lt;br&gt;your accept-language: &quot;</span>
-
 <span class="Keyword">const</span> <span class="Identifier">headerfields</span> <span class="Operator">=</span> <span class="Punctuation">[</span><span class="StringLit">&quot;user-agent&quot;</span><span class="Punctuation">,</span> <span class="StringLit">&quot;accept-language&quot;</span><span class="Punctuation">]</span>
 <span class="Keyword">var</span> <span class="Identifier">headervalues</span> <span class="Punctuation">{</span><span class="Operator">.</span><span class="Identifier">threadvar</span><span class="Operator">.</span><span class="Punctuation">}</span><span class="Punctuation">:</span> <span class="Identifier">array</span><span class="Punctuation">[</span><span class="DecNumber">2</span><span class="Punctuation">,</span> <span class="Identifier">string</span><span class="Punctuation">]</span>
 
 <span class="Keyword">proc</span> <span class="Identifier">onRequest</span><span class="Punctuation">(</span><span class="Identifier">ctx</span><span class="Punctuation">:</span> <span class="Identifier">HttpCtx</span><span class="Punctuation">)</span> <span class="Operator">=</span>
+  <span class="Keyword">let</span> <span class="Identifier">htmlstart</span> <span class="Operator">=</span> <span class="StringLit">&quot;&lt;!doctype html&gt;&lt;title&gt;.&lt;/title&gt;&lt;body&gt;your user-agent: &quot;</span>
+  <span class="Keyword">let</span> <span class="Identifier">htmlmore</span> <span class="Operator">=</span> <span class="StringLit">&quot;&lt;br&gt;your accept-language: &quot;</span>
   <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">parseHeaders</span><span class="Punctuation">(</span><span class="Identifier">headerfields</span><span class="Punctuation">,</span> <span class="Identifier">headervalues</span><span class="Punctuation">)</span>
   <span class="Keyword">let</span> <span class="Identifier">contentlength</span> <span class="Operator">=</span> <span class="Identifier">htmlstart</span><span class="Operator">.</span><span class="Identifier">len</span> <span class="Operator">+</span> <span class="Identifier">headervalues</span><span class="Punctuation">[</span><span class="DecNumber">0</span><span class="Punctuation">]</span><span class="Operator">.</span><span class="Identifier">len</span>  <span class="Operator">+</span> <span class="Identifier">htmlmore</span><span class="Operator">.</span><span class="Identifier">len</span> <span class="Operator">+</span> <span class="Identifier">headervalues</span><span class="Punctuation">[</span><span class="DecNumber">1</span><span class="Punctuation">]</span><span class="Operator">.</span><span class="Identifier">len</span>
   <span class="Keyword">if</span> <span class="Keyword">not</span> <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">replyStart</span><span class="Punctuation">(</span><span class="Identifier">Http200</span><span class="Punctuation">,</span> <span class="Identifier">contentlength</span><span class="Punctuation">,</span> <span class="Identifier">htmlstart</span><span class="Punctuation">)</span><span class="Punctuation">:</span> <span class="Keyword">return</span>
@@ -153,7 +151,7 @@ function main() {
 <h1><a class="toc-backref" href="#12">Procs</a></h1>
 <dl class="item">
 <a id="receiveHeader,HttpCtx"></a>
-<dt><pre><span class="Keyword">proc</span> <a href="#receiveHeader%2CHttpCtx"><span class="Identifier">receiveHeader</span></a><span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="ctxhttp.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#receiveHeader%2CHttpCtx"><span class="Identifier">receiveHeader</span></a><span class="Other">(</span><span class="Identifier">actx</span><span class="Other">:</span> <a href="ctxhttp.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
 <dd>
 
 only useful when writing new handlers
@@ -161,11 +159,11 @@ only useful when writing new handlers
 </dd>
 <a id="initHeaderCtx,GuildenServer,proc(HttpCtx),int"></a>
 <dt><pre><span class="Keyword">proc</span> <a href="#initHeaderCtx%2CGuildenServer%2Cproc%28HttpCtx%29%2Cint"><span class="Identifier">initHeaderCtx</span></a><span class="Other">(</span><span class="Identifier">gs</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="guildenserver.html#GuildenServer"><span class="Identifier">GuildenServer</span></a><span class="Other">;</span> <span class="Identifier">onrequestcallback</span><span class="Other">:</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">ctx</span><span class="Other">:</span> <a href="ctxhttp.html#HttpCtx"><span class="Identifier">HttpCtx</span></a><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma">
-    <span class="Identifier">nimcall</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span><span class="Other">;</span> <span class="Identifier">port</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">parserequestline</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">nimcall</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span><span class="Other">;</span> <span class="Identifier">port</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">parserequestline</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma">
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">Exception</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
 <dd>
 
-Initializes the headerctx handler for given ports with given request callback. By setting <tt class="docutils literal"><span class="pre">parserequestline</span></tt> to false this becomes a pass-through handler that does no handling for the request.
+Initializes the headerctx handler for given port with given request callback. By setting global <tt class="docutils literal"><span class="pre">parserequestline</span></tt> to false all HeaderCtxs become pass-through handlers that do no handling for the request.
 
 </dd>
 
@@ -178,7 +176,7 @@ Initializes the headerctx handler for given ports with given request callback. B
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2021-08-11 13:17:41 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2021-09-06 11:29:47 UTC</small>
       </div>
     </div>
   </div>

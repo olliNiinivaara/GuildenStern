@@ -53,9 +53,14 @@
 import nativesockets, net, posix, os, std/sha1, base64, times, std/monotimes
 from httpcore import Http101
 
-import guildenserver, ctxhttp
 from ctxheader import receiveHeader
 from dispatcher import getLoads
+
+when not defined(nimdoc):
+  import guildenstern
+  export guildenstern
+else:
+  import guildenserver, ctxhttp
 
 type
   Opcode* = enum
@@ -66,34 +71,41 @@ type
     Ping = 0x9                ## ping
     Pong = 0xa                ## pong
     Fail = 0xe                ## protocol failure / connection lost in flight
-
-  WsCtx* = ref object of HttpCtx
-    opcode*: OpCode
-
-  WsUpgradeRequestCallback =  proc(ctx: WsCtx): (bool , string) {.gcsafe, nimcall, raises: [].}
+  
+  WsUpgradeRequestCallback* =  proc(ctx: WsCtx): (bool , proc() {.closure, raises: [].}) {.gcsafe, nimcall, raises: [].}
   ## This must be set with initWsCtx.
   ## Return tuple with following parameters:
   ## | `bool`: whether to accept the upgrade request or to close the socket
-  ## | `string`: If upgrade request is accepted and this is not empty, this will be sent to client as the first websocket message
+  ## | `proc`: After accepted upgrade request is processed this closure will be called (if not nil)
 
-  WsMessageCallback = proc(ctx: WsCtx){.gcsafe, nimcall, raises: [].}
+  WsMessageCallback = proc(ctx: WsCtx) {.gcsafe, nimcall, raises: [].}
 
+  PortDatum = object
+    port: uint16
+    upgradehandler: WsUpgradeRequestCallback
+    messagehandler: WsMessageCallback
+
+  WsCtx* = ref object of HttpCtx
+    opcode*: OpCode
+  
   WsDelivery* = tuple[sockets: seq[posix.SocketHandle], message: string, length: int, binary: bool]
     ## `multiSendWs` takes an open array of these as parameter.
     ## | `sockets`: the websockets that should receive this message
     ## | `message`: the message to send (note that this not a pointer - a deep copy is used)
-    ## | `length`: amount of chars to send from message. Usually use message.len.
+    ## | `length`: amount of chars to send from message. If < 1, defaults to message.len
     ## | `binary`: whether the message contains bytes or chars
 
 var
-  upgraderequestcallback: WsUpgradeRequestCallback
-  messageCallback: WsMessageCallback
-  
+  portdata: array[MaxHandlersPerCtx, PortDatum]
   wsresponseheader {.threadvar.}: string
   ctx {.threadvar.}: WsCtx 
   maskkey {.threadvar.}: array[4, char]
   
 {.push checks: off.}
+
+proc at(port: uint16): int {.inline.} =
+  while portdata[result].port != port: result += 1
+
 
 template `[]`(value: uint8, index: int): bool =
   ## Get bits from uint8, uint8[2] gets 2nd bit.
@@ -216,6 +228,7 @@ proc decodeBase16(str: string): string =
 
 
 proc send(gs: GuildenServer, socket: posix.SocketHandle, text: ptr string, length: int = -1): bool =
+  when defined(fulldebug): echo "writeToWebSocket ", socket.int, ": ", text[]
   let len = if length == -1: text[].len else: length
   var sent = 0
   while sent < len:
@@ -230,12 +243,18 @@ proc send(gs: GuildenServer, socket: posix.SocketHandle, text: ptr string, lengt
           elif lasterror == 104: ClosedbyClient
           else: NetErrored
         when defined(fulldebug): echo "websocket " & $socket & " send error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError))
-        if socket == ctx.socketdata.socket: ctx.closeSocket(cause, osErrorMsg(OSErrorCode(lastError)))
-        else: closeOtherSocket(gs, socket, cause, osErrorMsg(OSErrorCode(lastError)))
+        try:
+          if socket == ctx.socketdata.socket: ctx.closeSocket(cause, osErrorMsg(OSErrorCode(lastError)))
+          else: closeOtherSocket(gs, socket, cause, osErrorMsg(OSErrorCode(lastError)))
+        except:
+          when defined(fulldebug): echo "websocket close failed: " & getCurrentExceptionMsg()
       elif ret < -1:
         when defined(fulldebug): echo "websocket " & $socket & " send error: " & getCurrentExceptionMsg()
-        if socket == ctx.socketdata.socket: ctx.closeSocket(Excepted, getCurrentExceptionMsg())
-        else: closeOtherSocket(gs, socket, Excepted, getCurrentExceptionMsg())
+        try:
+          if socket == ctx.socketdata.socket: ctx.closeSocket(Excepted, getCurrentExceptionMsg())
+          else: closeOtherSocket(gs, socket, Excepted, getCurrentExceptionMsg())
+        except:
+          when defined(fulldebug): echo "websocket close failed: " & getCurrentExceptionMsg()
       return false
     sent.inc(ret)
     if sent == len: return true
@@ -243,10 +262,11 @@ proc send(gs: GuildenServer, socket: posix.SocketHandle, text: ptr string, lengt
 
 func swapBytesBuiltin(x: uint64): uint64 {.importc: "__builtin_bswap64", nodecl.}
 
-proc createWsHeader(len: int, binary = false) =
+proc createWsHeader(len: int, opcode: OpCode) =
   wsresponseheader = ""
 
-  var b0 = if binary: (0x2.uint8 and 0x0f) else: (0x1.uint8 and 0x0f)
+  # var b0 = if binary: (Opcode.Binary.uint8 and 0x0f) else: (Opcode.Text.uint8 and 0x0f)
+  var b0 = opcode.uint8
   b0 = b0 or 128u8
   wsresponseheader.add(b0.char)
 
@@ -278,33 +298,44 @@ proc createWsHeader(len: int, binary = false) =
 proc sendWs*(gs: GuildenServer, socket: posix.SocketHandle, message: ptr string, length: int = -1, binary = false): bool {.inline, discardable.} =
   if length == 0 or message == nil or socket == INVALID_SOCKET: return
   let len = if length == -1: message[].len else: length
-  createWsHeader(len, binary)
+  if binary: createWsHeader(len, Opcode.Binary) else: createWsHeader(len, OpCode.Text)
   if gs.send(socket, addr wsresponseheader): return gs.send(socket, message, len)
 
 
-proc replyHandshake(): (SocketCloseCause , string) =
-  if not ctx.receiveHeader(): return (ProtocolViolated , "header failure")
-  if not ctx.parseRequestLine(): return (ProtocolViolated , "requestline failure")
+proc sendPong*(gs: GuildenServer, socket: posix.SocketHandle) =
+  let message = "PING"
+  createWsHeader(4, Opcode.Pong)
+  if gs.send(socket, addr wsresponseheader): discard gs.send(socket, unsafeaddr message, 4)
+
+
+proc replyHandshake(): (SocketCloseCause , string ,  proc() {.closure, raises:[].}) =
+  if not ctx.receiveHeader(): return (ProtocolViolated , "header failure" , nil)
+  if not ctx.parseRequestLine(): return (ProtocolViolated , "requestline failure" , nil)
   var headers = [""]  
   ctx.parseHeaders(["sec-websocket-key"], headers)
-  if headers[0] == "": return (ProtocolViolated , "sec-websocket-key header missing")
-  let (accept , firstmessage) = ctx.upgraderequestcallback()
+  if headers[0] == "": return (ProtocolViolated , "sec-websocket-key header missing" , nil)
+  let (accept , afterupgraderequestcallback) = portdata[at(ctx.socketdata.port)].upgradehandler(ctx)
   if not accept:
     when defined(fulldebug): echo "ws upgrade request was not accepted: ", ctx.getRequest()
-    return (CloseCalled , firstmessage)
+    return (CloseCalled , "" , nil)
   let 
     sh = secureHash(headers[0] & "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
     acceptKey = base64.encode(decodeBase16($sh))
   ctx.reply(Http101, ["Sec-WebSocket-Accept: " & acceptKey, "Connection: Upgrade", "Upgrade: webSocket"])
-  (DontClose , firstmessage)
+  (DontClose , "" , afterupgraderequestcallback)
 
 
 proc handleWsUpgradehandshake() =
-  var (state , firstmessage) = replyHandshake()
-  if state != DontClose: ctx.closeSocket(state, firstmessage)
-  else:
-    if firstmessage != "": ctx.gs[].sendWs(ctx.socketdata.socket, addr firstmessage)
-    ctx.socketdata.flags = 1
+  {.gcsafe.}:
+    var (state , errormessage , afterupgraderequestcallback) = 
+      try: replyHandshake()
+      except: (Excepted , "" , nil)
+  if state != DontClose:
+    ctx.closeSocket(state, errormessage)
+    return
+  ctx.socketdata.flags = 1
+  if afterupgraderequestcallback != nil:
+    {.gcsafe.}: afterupgraderequestcallback()
 
 
 proc handleWsRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
@@ -314,14 +345,15 @@ proc handleWsRequest(gs: ptr GuildenServer, data: ptr SocketData) {.gcsafe, nimc
     else:
       receiveWs()
       if ctx.opcode notin [Fail, Close]:
-        {.gcsafe.}: messageCallback(ctx)
+        {.gcsafe.}: portdata[at(data.port)].messagehandler(ctx)
 
 
 proc initWsCtx*(gs: var GuildenServer, onwsupgraderequestcallback: WsUpgradeRequestCallback, onwsmessage: WsMessageCallback, port: int) =
-  {.gcsafe.}:
-    upgraderequestcallback = onwsupgraderequestcallback
-    messageCallback = onwsmessage
-    gs.registerHandler(handleWsRequest, port, "websocket")
+  var index = 0
+  while index < MaxHandlersPerCtx and portdata[index].port != 0: index += 1
+  if index == MaxHandlersPerCtx: raise newException(Exception, "Cannot register over " & $MaxHandlersPerCtx & " ports per WsCtx")
+  portdata[index] = PortDatum(port: port.uint16, upgradehandler: onwsupgraderequestcallback, messagehandler: onwsmessage)
+  gs.registerHandler(handleWsRequest, port, "websocket")
 
 
 proc sendWs*(gs: GuildenServer, socket: posix.SocketHandle, message: string, length: int = -1, binary = false): bool {.discardable.} =
@@ -335,6 +367,7 @@ const DONTWAIT = 0x40.cint
 type SendState = enum NotStarted, Continue, Ok, Error
 
 proc sendNonblocking(gs: GuildenServer, socket: posix.SocketHandle, text: ptr string, sent: int = 0, length: int = -1): (SendState , int) =
+  when defined(fulldebug): echo "writeToWebSocket ", socket.int, ": ", text[]
   if socket.int in [0, INVALID_SOCKET.int]: return (Error , 0)
   let len = if length == -1: text[].len else: length
   if sent == len: return (Ok , 0)
@@ -381,9 +414,9 @@ proc multiSendWs*(gs: GuildenServer, messages: openArray[WsDelivery], timeoutsec
   while true:
     m.inc
     if m == messages.len: break
-    if messages[m].sockets.len == 0 or messages[m].length == 0: continue
-    let len = if messages[m].length == -1: messages[m].message.len else: messages[m].length
-    createWsHeader(len, messages[m].binary)
+    if messages[m].sockets.len == 0 or messages[m].message.len == 0: continue
+    let len = if messages[m].length < 1: messages[m].message.len else: messages[m].length
+    if messages[m].binary: createWsHeader(len, OpCode.Binary) else: createWsHeader(len, Opcode.Text)
     var handled = 0
     var states = newSeq[State](messages[m].sockets.len)
     for i in 0 ..< states.len: states[i] = (0, NotStarted)
@@ -414,7 +447,7 @@ proc multiSendWs*(gs: GuildenServer, messages: openArray[WsDelivery], timeoutsec
           if handled == messages[m].sockets.len: break
         continue
         
-      (states[s].sendstate , ret) = gs.sendNonblocking(messages[m].sockets[s], unsafeAddr messages[m].message, states[s].sent, messages[m].length)
+      (states[s].sendstate , ret) = gs.sendNonblocking(messages[m].sockets[s], unsafeAddr messages[m].message, states[s].sent, len)
       case states[s].sendstate
         of Error: result.inc
         of Continue:
@@ -438,6 +471,12 @@ proc replyWs*(gs: GuildenServer, ctx: Ctx, text: ptr string, length = -1, binary
 template replyWs*(ctx: Ctx, message: string, length = -1, binary = false): bool =
   when compiles(unsafeAddr message):
     replyWs(ctx, unsafeAddr message, length, binary) 
+  else:  {.fatal: "posix.send requires taking pointer to message, but message has no address".}
+
+
+proc sendWs*(ctx: Ctx, message: string, length = -1, binary = false): bool {.inline, discardable.} =
+  when compiles(unsafeAddr message):
+    return ctx.gs[].sendWs(ctx.socketdata.socket, unsafeAddr message, length, binary)
   else:  {.fatal: "posix.send requires taking pointer to message, but message has no address".}
 
 {.pop.}

@@ -6,12 +6,11 @@ export SocketHandle, INVALID_SOCKET, posix.`==`
 
 const
   MaxCtxHandlers* {.intdefine.} = 100
+  MaxHandlersPerCtx* {.intdefine.} = 8
   RcvTimeOut* {.intdefine.} = 5 # SO_RCVTIMEO, https://linux.die.net/man/7/socket
 
 type
   CtxId* = distinct int
-
-  RequestCallback* = proc(ctx: Ctx) {.nimcall, raises: [].}
 
   HandlerCallback* = proc(gs: ptr GuildenServer, data: ptr SocketData){.nimcall, gcsafe, raises: [].}
 
@@ -44,7 +43,7 @@ type
   CloseCallback* = proc(ctx: Ctx, socket: SocketHandle, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
   
   GuildenServer* {.inheritable.} = ref object
-    multithreading*: bool
+    workerthreadcount*: int
     selector*: Selector[SocketData]
     porthandlers*: array[0.CtxId .. MaxCtxHandlers.CtxId, HandlerAssociation]
     closecallback*: CloseCallback
@@ -96,11 +95,11 @@ proc generateCtxId(gs: var GuildenServer): CtxId =
   gs.nextctxid += 1
 
 
-proc registerHandler*(gs: var GuildenServer, callback: HandlerCallback, port: int, protocolname: string) =
+proc registerHandler*(gs: var GuildenServer, handler: HandlerCallback, port: int, protocolname: string) =
   if gs.nextctxid == 0: gs.initialize()
   let protocol = gs.getProtocolindex(protocolname)
   let ctxid = gs.generateCtxId()
-  gs.portHandlers[ctxid] = (port.uint16, protocol, callback)
+  gs.portHandlers[ctxid] = (port.uint16, protocol, handler)
 
 
 proc getProtocolName*(ctx: Ctx): string =
@@ -117,8 +116,9 @@ proc registerConnectionclosedhandler*(gs: GuildenServer, callback: CloseCallback
 
 
 proc handleRead*(gs: ptr GuildenServer, data: ptr SocketData) =
-  assert(gs.porthandlers[data.ctxid].handler != nil, "No ctx registered for CtxId " & $data.ctxid)
-  {.gcsafe.}: gs.porthandlers[data.ctxid].handler(gs, data)
+  if (unlikely)gs.porthandlers[data.ctxid].handler == nil:
+    when defined(fulldebug): echo "No ctx registered for CtxId " & $data.ctxid
+  else: {.gcsafe.}: gs.porthandlers[data.ctxid].handler(gs, data)
 
 
 {.push hints:off.}

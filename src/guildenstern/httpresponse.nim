@@ -18,7 +18,7 @@ let
 proc writeVersion*(ctx: HttpCtx): bool {.inline, gcsafe, raises: [].} =
   var ret: int
   {.gcsafe.}: ret = send(ctx.socketdata.socket, unsafeAddr version[0], 9, intermediateflags)
-  checkRet()
+  checkRet(ctx)
   if ret != 9:
     ctx.closeSocket(ProtocolViolated)
     return false
@@ -37,7 +37,7 @@ proc writeCode*(ctx: HttpCtx, code: HttpCode): bool {.inline, gcsafe, raises: []
       ret = send(ctx.socketdata.socket, unsafeAddr codestring[0], codestring.len.cint, 0)
   except:
     ret = -2
-  checkRet()
+  checkRet(ctx)
   when defined(fulldebug): echo "writeCode ", ctx.socketdata.socket, ": ", $code
   true
 
@@ -57,7 +57,7 @@ proc writeToSocket*(ctx: HttpCtx, text: ptr string, length: int, flags = interme
         ctx.closeSocket(TimedOut, "did'nt write to socket")
         return false
       continue
-    checkRet()
+    checkRet(ctx)
     bytessent.inc(ret)
   when defined(fulldebug):
     if text[0] != '\c': echo "writeToSocket ", ctx.socketdata.socket, ": ", text[0 ..< length]

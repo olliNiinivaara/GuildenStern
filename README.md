@@ -8,17 +8,24 @@ Modular multithreading Linux HTTP server
 ```nim
 # nim c -r --gc:arc --d:release --threads:on --d:threadsafe example.nim
 
-import guildenstern/ctxfull
+import cgi, strtabs, httpcore, guildenstern/[ctxheader, ctxbody]
+     
+proc handleGet(ctx: HttpCtx) =
+  let html = """
+    <!doctype html><title>GuildenStern Example</title><body>
+    <form action="http://localhost:5051" method="post">
+    <input name="say" id="say" value="Hi"><button>Send"""
+  ctx.reply(html)
 
-let replystring = "hello"
-
-proc handleGet(ctx: HttpCtx, headers: StringTableRef) =
-  echo "uri: ", ctx.getUri()
-  echo "headers: ", headers
-  ctx.reply(Http200, replystring)
+proc handlePost(ctx: HttpCtx) =
+  try: echo readData(ctx.getBody()).getOrDefault("say")
+  except: ctx.reply(Http400)
+  ctx.reply(HttpCode(303), ["location: http://localhost:5050"])
 
 var server = new GuildenServer
-server.initFullCtx(handleGet, 8080)
+server.initHeaderCtx(handleGet, 5050, false)
+server.initBodyCtx(handlePost, 5051)
+echo "GuildenStern HTTP server serving at 5050"
 server.serve()
 ```
 
@@ -41,10 +48,13 @@ server.serve()
 - Supports --gc:arc, doesn't need asyncdispatch
 - Runs in single-threaded mode, too
 
-## Release notes, 4.0.0-rc.1 (2021-08-11)
- 
+## Release notes, 4.0.0 (2021-09-06)
+
+- *Serve* proc now accepts the amount of worker threads to use 
 - *registerThreadInitializer* is now a global proc (not tied to a GuildenServer)
-- new *setWorkerThreadCount* proc for (optionally) setting the amount of worker threads
+- On *ctxWs web socket upgrade*, a callback closure can be given (instead of initial message to send)
+- Can listen to multiple ports even with same handler (just register different handler callback proc for each port)
+. new *ctxBody* handler for efficiently handling POST requests.
 - new *isRequest* proc for efficiently inspecting request content
-- removed dependency on stdlib threadpool
+- new custom threadpool
 - code fixes and cleanups

@@ -51,55 +51,67 @@ else:
 
 
 type
-  FullRequestCallback* = proc(ctx: HttpCtx, headers: StringTableRef){.nimcall, raises: [].}
-
-
+  FullRequestCallback* = proc(ctx: HttpCtx, headers: StringTableRef){.gcsafe, nimcall, raises: [].}
+  
+  PortDatum = object
+    port: uint16
+    messagehandler: FullRequestCallback
+  
 var
-  requestCallback: FullRequestCallback
+  portdata: array[MaxHandlersPerCtx, PortDatum]
   ctx {.threadvar.}: HttpCtx
   headers {.threadvar.}: StringTableRef
 
 
-proc receiveHttp(): bool {.gcsafe, raises:[] .} =
+proc at(port: uint16): int {.inline.} =
+  while portdata[result].port != port: result += 1 
+
+{.push hints:off.}
+
+proc receiveHttp*(actx: HttpCtx): bool {.gcsafe, raises:[] .} =
+  ## only useful when writing new handlers
   var expectedlength = MaxRequestLength + 1
   while true:
     if shuttingdown: return false
-    let ret = recv(posix.SocketHandle(ctx.socketdata.socket), addr request[ctx.requestlen], expectedlength - ctx.requestlen, 0)
-    checkRet()
-    let previouslen = ctx.requestlen
-    ctx.requestlen += ret
+    let ret = recv(posix.SocketHandle(actx.socketdata.socket), addr request[actx.requestlen], expectedlength - actx.requestlen, 0)
+    checkRet(actx)
+    let previouslen = actx.requestlen
+    actx.requestlen += ret
 
-    if ctx.requestlen >= MaxRequestLength:
-      ctx.closeSocket(ProtocolViolated, "recvHttp: Max request size exceeded")
+    if actx.requestlen >= MaxRequestLength:
+      actx.closeSocket(ProtocolViolated, "recvHttp: Max request size exceeded")
       return false
 
-    if ctx.requestlen == expectedlength: break
+    if actx.requestlen == expectedlength: break
 
-    if not ctx.isHeaderreceived(previouslen, ctx.requestlen):
-      if ctx.requestlen >= MaxHeaderLength:
-        ctx.closeSocket(ProtocolViolated, "recvHttp: Max header size exceeded" )
+    if not actx.isHeaderreceived(previouslen, actx.requestlen):
+      if actx.requestlen >= MaxHeaderLength:
+        actx.closeSocket(ProtocolViolated, "recvHttp: Max header size exceeded" )
         return false
       continue
 
-    let contentlength = ctx.getContentLength()
+    let contentlength = actx.getContentLength()
     if contentlength == 0: return true
-    expectedlength = ctx.bodystart + contentlength
-    if ctx.requestlen == expectedlength: break
+    expectedlength = actx.bodystart + contentlength
+    if actx.requestlen == expectedlength: break
   true
 
+{.pop.}
 
 proc handleHttpRequest(gs: ptr GuildenServer, data: ptr SocketData) {.nimcall, raises: [].} =
   if ctx == nil: ctx = new HttpCtx
   if headers == nil: headers = newStringTable()
   initHttpCtx(ctx, gs, data)
-  if receiveHttp() and ctx.parseRequestLine():
+  if ctx.receiveHttp() and ctx.parseRequestLine():
     headers.clear() # slow...
     ctx.parseHeaders(headers)
-    {.gcsafe.}: requestCallback(ctx, headers)
+    {.gcsafe.}: portdata[at(ctx.socketdata.port)].messagehandler(ctx, headers)
 
 
 proc initFullCtx*(gs: var GuildenServer, onrequestcallback: FullRequestCallback, port: int) =
-  ## Initializes the fullctx handler for given ports with given request callback. See example above.
-  {.gcsafe.}:
-    requestCallback = onrequestcallback
-    gs.registerHandler(handleHttpRequest, port, "http")
+  ## Initializes the fullctx handler for given port with given request callback. See example above.
+  var index = 0
+  while index < MaxHandlersPerCtx and portdata[index].port != 0: index += 1
+  if index == MaxHandlersPerCtx: raise newException(Exception, "Cannot register over " & $MaxHandlersPerCtx & " ports per FullCtx")
+  portdata[index] = PortDatum(port: port.uint16, messagehandler: onrequestcallback)
+  gs.registerHandler(handleHttpRequest, port, "http")

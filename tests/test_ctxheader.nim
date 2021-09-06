@@ -26,4 +26,4 @@ var server = new GuildenServer
 registerThreadInitializer(initializeThreadvars)
 server.initHeaderCtx(onRequest, 5050)
 server.registerTimerhandler(sendRequest, 1000)
-server.serve()
+server.serve(2) # must be compiled with threads:on
