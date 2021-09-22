@@ -1,6 +1,8 @@
+{.push hints: off.}
 import posix, net, nativesockets, os, httpcore
 import guildenserver
 from strutils import join
+{.pop.}
 
 {.push checks: off.}
 
@@ -38,7 +40,7 @@ proc writeCode*(ctx: HttpCtx, code: HttpCode): bool {.inline, gcsafe, raises: []
   except:
     ret = -2
   checkRet(ctx)
-  when defined(fulldebug): echo "writeCode ", ctx.socketdata.socket, ": ", $code
+  ctx.gs[].log(DEBUG, "writeCode " & $ctx.socketdata.socket & ": " & $code)
   true
 
 
@@ -54,13 +56,13 @@ proc writeToSocket*(ctx: HttpCtx, text: ptr string, length: int, flags = interme
       sleep(backoff)
       backoff *= 2
       if backoff > 3000:
-        ctx.closeSocket(TimedOut, "did'nt write to socket")
+        ctx.closeSocket(TimedOut, "didn't write to socket")
         return false
       continue
     checkRet(ctx)
     bytessent.inc(ret)
-  when defined(fulldebug):
-    if text[0] != '\c': echo "writeToSocket ", ctx.socketdata.socket, ": ", text[0 ..< length]
+  if text[0] != '\c':
+    ctx.gs[].log(DEBUG, "writeToSocket " & $ctx.socketdata.socket & ": " & text[0 ..< length])
   true
 
 
@@ -83,7 +85,7 @@ proc replyCode(ctx: HttpCtx, code: HttpCode = Http200) {.inline, gcsafe, raises:
       
 
 proc reply*(ctx: HttpCtx, code: HttpCode, body: ptr string, lengths: string, length: int, headers: ptr string, moretocome: bool): bool {.gcsafe, raises: [].} =
-  if body == nil and headers == nil: (ctx.replyCode(code); return false)
+  if body == nil and headers == nil: (ctx.replyCode(code); return true)
   let finalflag = if moretocome: intermediateflags else: lastflag
   {.gcsafe.}: 
     if not writeVersion(ctx): return false 
@@ -126,9 +128,8 @@ proc replyStart*(ctx: HttpCtx, code: HttpCode, contentlength: int, firstpart: pt
 
 proc reply*(ctx: HttpCtx, code: HttpCode, body: ptr string = nil, headers: ptr string = nil) {.inline, gcsafe, raises: [].} =
   let length = if body == nil: 0 else: body[].len
-  when defined(fulldebug):
-    echo "reply: ", $ctx.reply(code, body, $length, length, headers, false)
-  else: discard ctx.reply(code, body, $length, length, headers, false)
+  if likely(ctx.reply(code, body, $length, length, headers, false)): ctx.gs[].log(TRACE, "reply ok")
+  else: ctx.gs[].log(INFO, $ctx.socketdata.socket & ": reply failed")
 
 
 proc reply*(ctx: HttpCtx, code: HttpCode, body: ptr string, headers: openArray[string]) {.inline, gcsafe, raises: [].} =

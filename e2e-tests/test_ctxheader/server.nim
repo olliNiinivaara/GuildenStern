@@ -1,4 +1,4 @@
-import guildenstern/ctxheader
+import guildenstern/[ctxheader, ctxtimer]
 from times import now, format
 
 proc doShutdown() =
@@ -18,7 +18,7 @@ proc startServer(params: tuple[multithreaded: bool, port1: int, port2: int]) =
   var server = new GuildenServer
   server.initHeaderCtx(handleHttpRequest, params.port1)
   server.initHeaderCtx(handleHttpRequest, params.port2)
-  server.registerTimerhandler(doShutdown, 30000)
+  server.initTimerCtx(30000, doShutdown)
   if params.multithreaded: server.serve()  
   else: server.serve(1)
   

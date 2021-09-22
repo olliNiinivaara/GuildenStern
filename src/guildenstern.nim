@@ -1,8 +1,8 @@
-const GuildenSternVersion* = "4.0.0"
+const GuildenSternVersion* = "5.0.0"
 
 #   Guildenstern
 #
-#  Modular multithreading Linux HTTP server
+#  Modular multithreading Linux HTTP + WebSocket server
 #
 #  (c) Copyright 2020-2021 Olli Niinivaara
 #
@@ -12,11 +12,7 @@ const GuildenSternVersion* = "4.0.0"
 #  
 #  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
-## A modular multithreading Linux HTTP server.
-## Easily create and add handlers.
-## Associate handlers with ports.
-## Genuinely multithreading: every request is handled in different thread.
-## Runs in single-threaded mode, too.
+## A modular multithreading Linux HTTP + WebSocket server.
 ## 
 ## Example
 ## =======
@@ -52,6 +48,7 @@ const GuildenSternVersion* = "4.0.0"
 ## See also
 ## ========
 ## 
+## | `ctxtimer <http://olliNiinivaara.github.io/GuildenStern/ctxtimer.html>`_
 ## | `ctxheader <http://olliNiinivaara.github.io/GuildenStern/ctxheader.html>`_
 ## | `ctxbody <http://olliNiinivaara.github.io/GuildenStern/ctxbody.html>`_
 ## | `ctxfull <http://olliNiinivaara.github.io/GuildenStern/ctxfull.html>`_
@@ -88,6 +85,8 @@ else:
   
  
   type
+    LogLevel* = enum TRACE, DEBUG, INFO, NOTICE, WARN, ERROR, FATAL, NONE
+
     CtxId = distinct int
 
     GuildenServer* {.inheritable.} = ref object
@@ -110,8 +109,6 @@ else:
 
     HttpCtx* = ref object of Ctx
       ## | Common abstract base class for all HTTP handling request contexts.
-  
-    TimerCallback* = proc() {.raises: [].}
 
     SocketCloseCause* = enum
       ## Parameter in CloseCallback.
@@ -140,7 +137,7 @@ else:
     ##
     ## .. code-block:: Nim
     ##
-    ##    import guildenstern, os, random
+    ##    import guildenstern/ctxtimer, os, random
     ##
     ##    var threadcount: int
     ##    var rounds: int
@@ -159,7 +156,7 @@ else:
     ##    randomize()
     ##    registerThreadInitializer(initializeThreadvars)
     ##    var server = new GuildenServer
-    ##    server.registerTimerhandler(tiktok, 100)
+    ##    server.initTimerCtx(100, tiktok)
     ##    server.serve()
     ##    echo "----"
     ##    echo "waiting for processes to finish..."
@@ -167,10 +164,10 @@ else:
     ##    echo "graceful shutdown handling here!"
     discard
 
-  proc serve*(gs: GuildenServer, threadcount = -1) {.gcsafe.} =
+  proc serve*(gs: GuildenServer, threadcount = -1, loglevel = NOTICE) {.gcsafe.} =
     ## Starts server event dispatcher loop which runs until shutdown() is called or SIGINT received.
-    ## Worker thread count can be set; 1 means single-threaded mode and -1 (default) will use processor core count + 2.
-    ## Note: debug info is echoed to console if compiled with switch -d:fulldebug.
+    ## | Worker thread count can be set; 1 means single-threaded mode and -1 (default) will use processor core count + 2.
+    ## | Possible log levels are: TRACE, DEBUG, INFO, NOTICE, WARN, ERROR, FATAL, NONE.
     ## 
     ## **Example:**
     ##
@@ -179,13 +176,13 @@ else:
     ##    import guildenstern/ctxheader  
     ##    var server = new GuildenServer
     ##    server.initHeaderCtx(proc(ctx: HttpCtx) = ctx.reply(Http200), 5050)
-    ##    server.serve(1)
+    ##    server.serve(1, TRACE)
     discard
 
-
-  proc registerTimerhandler*(gs: GuildenServer, callback: TimerCallback, interval: int) =
-    ## Registers a new timer that fires the TimerCallback every `interval` milliseconds.
+  proc setLogger*(gs: var GuildenServer, logger: proc(loglevel: LogLevel, message: string, exception: ref Exception) {.gcsafe, nimcall, raises: [].}) =
+    ## Change the default logging procedure.
     discard
+
 
   proc registerConnectionclosedhandler*(gs: GuildenServer, callback: CloseCallback) =
       ## Registers procedure that is called whenever socket connection is closed.

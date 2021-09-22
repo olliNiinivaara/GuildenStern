@@ -180,24 +180,15 @@ function main() {
   <p class="module-desc"><p>Websocket handler.</p>
 <p><strong>Example:</strong></p>
 <pre class="listing"><span class="Keyword">import</span> <span class="Identifier">locks</span>
-<span class="Keyword">import</span> <span class="Identifier">guildenstern</span><span class="Operator">/</span><span class="Punctuation">[</span><span class="Identifier">ctxws</span><span class="Punctuation">,</span> <span class="Identifier">ctxheader</span><span class="Punctuation">]</span>
-
-<span class="Keyword">let</span> <span class="Identifier">html</span> <span class="Operator">=</span> <span class="LongStringLit">&quot;&quot;&quot;&lt;!doctype html&gt;&lt;title&gt;WsCtx&lt;/title&gt;
-  &lt;script&gt;
-  let websocket = new WebSocket(&quot;ws://&quot; + location.host.slice(0, -1) + '1')
-  websocket.onmessage = function(evt) {
-    document.getElementById(&quot;ul&quot;).appendChild(document.createElement(&quot;li&quot;)).innerHTML = evt.data }
-  &lt;/script&gt;
-  &lt;body&gt;&lt;button onclick=&quot;websocket.send('hallo')&quot;&gt;say hallo&lt;/button&gt;
-  &lt;button onclick=&quot;websocket.close()&quot;&gt;close&lt;/button&gt;&lt;ul id=&quot;ul&quot;&gt;&quot;&quot;&quot;</span>
+<span class="Keyword">import</span> <span class="Identifier">guildenstern</span><span class="Operator">/</span><span class="Punctuation">[</span><span class="Identifier">ctxws</span><span class="Punctuation">,</span> <span class="Identifier">ctxheader</span><span class="Punctuation">,</span> <span class="Identifier">ctxtimer</span><span class="Punctuation">]</span>
 
 <span class="Keyword">var</span> <span class="Identifier">server</span> <span class="Operator">=</span> <span class="Identifier">new</span> <span class="Identifier">GuildenServer</span>
 <span class="Keyword">var</span> <span class="Identifier">lock</span><span class="Punctuation">:</span> <span class="Identifier">Lock</span> <span class="Comment"># serializing access to mutating globals is usually good idea (socket, in this case)</span>
 <span class="Keyword">var</span> <span class="Identifier">socket</span> <span class="Operator">=</span> <span class="Identifier">INVALID_SOCKET</span>
 
-<span class="Keyword">proc</span> <span class="Identifier">onUpgradeRequest</span><span class="Punctuation">(</span><span class="Identifier">ctx</span><span class="Punctuation">:</span> <span class="Identifier">WsCtx</span><span class="Punctuation">)</span><span class="Punctuation">:</span> <span class="Punctuation">(</span><span class="Identifier">bool</span> <span class="Punctuation">,</span> <span class="Identifier">string</span><span class="Punctuation">)</span> <span class="Operator">=</span>
-  <span class="Identifier">withLock</span><span class="Punctuation">(</span><span class="Identifier">lock</span><span class="Punctuation">)</span><span class="Punctuation">:</span> <span class="Identifier">socket</span> <span class="Operator">=</span> <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">socketdata</span><span class="Operator">.</span><span class="Identifier">socket</span>
-  <span class="Punctuation">(</span><span class="Identifier">true</span> <span class="Punctuation">,</span> <span class="StringLit">&quot;request accepted!&quot;</span><span class="Punctuation">)</span>
+<span class="Keyword">proc</span> <span class="Identifier">onUpgradeRequest</span><span class="Punctuation">(</span><span class="Identifier">ctx</span><span class="Punctuation">:</span> <span class="Identifier">WsCtx</span><span class="Punctuation">)</span><span class="Punctuation">:</span> <span class="Punctuation">(</span><span class="Identifier">bool</span> <span class="Punctuation">,</span> <span class="Keyword">proc</span><span class="Punctuation">(</span><span class="Punctuation">)</span><span class="Punctuation">)</span> <span class="Operator">=</span>
+  <span class="Punctuation">{</span><span class="Operator">.</span><span class="Identifier">gcsafe</span><span class="Operator">.</span><span class="Punctuation">}</span><span class="Punctuation">:</span> <span class="Identifier">withLock</span><span class="Punctuation">(</span><span class="Identifier">lock</span><span class="Punctuation">)</span><span class="Punctuation">:</span> <span class="Identifier">socket</span> <span class="Operator">=</span> <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">socketdata</span><span class="Operator">.</span><span class="Identifier">socket</span>
+  <span class="Punctuation">(</span><span class="Identifier">true</span> <span class="Punctuation">,</span> <span class="Keyword">proc</span><span class="Punctuation">(</span><span class="Punctuation">)</span> <span class="Operator">=</span> <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">sendWs</span><span class="Punctuation">(</span><span class="StringLit">&quot;request accepted!&quot;</span><span class="Punctuation">)</span><span class="Punctuation">)</span>
 
 <span class="Keyword">proc</span> <span class="Identifier">onMessage</span><span class="Punctuation">(</span><span class="Identifier">ctx</span><span class="Punctuation">:</span> <span class="Identifier">WsCtx</span><span class="Punctuation">)</span> <span class="Operator">=</span> <span class="Identifier">echo</span> <span class="StringLit">&quot;client says: &quot;</span><span class="Punctuation">,</span> <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">getRequest</span><span class="Punctuation">(</span><span class="Punctuation">)</span>
 
@@ -213,11 +204,20 @@ function main() {
       <span class="Identifier">echo</span> <span class="Identifier">cause</span>
       <span class="Identifier">socket</span> <span class="Operator">=</span> <span class="Identifier">INVALID_SOCKET</span>
 
-<span class="Keyword">proc</span> <span class="Identifier">onRequest</span><span class="Punctuation">(</span><span class="Identifier">ctx</span><span class="Punctuation">:</span> <span class="Identifier">HttpCtx</span><span class="Punctuation">)</span> <span class="Operator">=</span> <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">reply</span><span class="Punctuation">(</span><span class="Identifier">Http200</span><span class="Punctuation">,</span> <span class="Identifier">html</span><span class="Punctuation">)</span>
+<span class="Keyword">proc</span> <span class="Identifier">onRequest</span><span class="Punctuation">(</span><span class="Identifier">ctx</span><span class="Punctuation">:</span> <span class="Identifier">HttpCtx</span><span class="Punctuation">)</span> <span class="Operator">=</span>
+  <span class="Keyword">let</span> <span class="Identifier">html</span> <span class="Operator">=</span> <span class="LongStringLit">&quot;&quot;&quot;&lt;!doctype html&gt;&lt;title&gt;WsCtx&lt;/title&gt;
+  &lt;script&gt;
+    let websocket = new WebSocket(&quot;ws://&quot; + location.host.slice(0, -1) + '1')
+    websocket.onmessage = function(evt) {
+    document.getElementById(&quot;ul&quot;).appendChild(document.createElement(&quot;li&quot;)).innerHTML = evt.data }
+  &lt;/script&gt;
+  &lt;body&gt;&lt;button onclick=&quot;websocket.send('hallo')&quot;&gt;say hallo&lt;/button&gt;
+  &lt;button onclick=&quot;websocket.close()&quot;&gt;close&lt;/button&gt;&lt;ul id=&quot;ul&quot;&gt;&quot;&quot;&quot;</span>
+  <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">reply</span><span class="Punctuation">(</span><span class="Identifier">Http200</span><span class="Punctuation">,</span> <span class="Identifier">html</span><span class="Punctuation">)</span>
 
-<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">initHeaderCtx</span><span class="Punctuation">(</span><span class="Identifier">onRequest</span><span class="Punctuation">,</span> <span class="DecNumber">5050</span><span class="Punctuation">)</span>
+<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">initHeaderCtx</span><span class="Punctuation">(</span><span class="Identifier">onRequest</span><span class="Punctuation">,</span> <span class="DecNumber">5050</span><span class="Punctuation">,</span> <span class="Identifier">false</span><span class="Punctuation">)</span>
 <span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">initWsCtx</span><span class="Punctuation">(</span><span class="Identifier">onUpgradeRequest</span><span class="Punctuation">,</span> <span class="Identifier">onMessage</span><span class="Punctuation">,</span> <span class="DecNumber">5051</span><span class="Punctuation">)</span>
-<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">registerTimerhandler</span><span class="Punctuation">(</span><span class="Identifier">sendMessage</span><span class="Punctuation">,</span> <span class="DecNumber">2000</span><span class="Punctuation">)</span>
+<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">initTimerCtx</span><span class="Punctuation">(</span><span class="DecNumber">200</span><span class="Punctuation">,</span> <span class="Identifier">sendMessage</span><span class="Punctuation">)</span>
 <span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">registerConnectionclosedhandler</span><span class="Punctuation">(</span><span class="Identifier">onLost</span><span class="Punctuation">)</span>
 <span class="Identifier">echo</span> <span class="StringLit">&quot;Point your browser to localhost:5050&quot;</span>
 <span class="Identifier">initLock</span><span class="Punctuation">(</span><span class="Identifier">lock</span><span class="Punctuation">)</span>
@@ -359,7 +359,7 @@ Sends multiple messages to multiple websockets at once. Uses non-blocking I/O so
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2021-09-06 11:30:17 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2021-09-22 07:47:33 UTC</small>
       </div>
     </div>
   </div>

@@ -53,14 +53,14 @@ template checkRet*(thectx: HttpCtx) =
   
   if thectx.methlen == 0:
     if thectx.requestlen + ret < 13:
-      when defined(fulldebug): echo "too short request (", ret,"): ", request
+      thectx.gs[].log(WARN, "too short request (" & $ret & "): " & request)
       (thectx.closeSocket(ProtocolViolated); return false)
     while thectx.methlen < ret and request[thectx.methlen] != ' ': thectx.methlen.inc
     if thectx.methlen == ret:
-      when defined(fulldebug): echo "http method missing"
+      thectx.gs[].log(WARN, "http method missing")
       (thectx.closeSocket(ProtocolViolated); return false)
     if request[0 .. 1] notin ["GE", "PO", "HE", "PU", "DE", "CO", "OP", "TR", "PA"]:
-      when defined(fulldebug): echo "invalid http method: ", request[0 .. 12]
+      thectx.gs[].log(WARN, "invalid http method: " & request[0 .. 12])
       (thectx.closeSocket(ProtocolViolated); return false)
 
 
@@ -71,13 +71,13 @@ proc parseRequestLine*(ctx: HttpCtx): bool {.gcsafe, raises: [].} =
   ctx.uristart = start
   ctx.urilen = i - start
   if ctx.requestlen < ctx.uristart + ctx.urilen + 9:
-    when defined(fulldebug): echo ("parseRequestLine: no version")
+    ctx.gs[].log(WARN, "parseRequestLine: no version")
     (ctx.closeSocket(ProtocolViolated); return false)
   
   if request[ctx.uristart + ctx.urilen + 1] != 'H' or request[ctx.uristart + ctx.urilen + 8] != '1':
-    when defined(fulldebug): echo "request not HTTP/1.1: ", request[ctx.uristart + ctx.urilen + 1 .. ctx.uristart + ctx.urilen + 8]
+    ctx.gs[].log(WARN, "request not HTTP/1.1: " & request[ctx.uristart + ctx.urilen + 1 .. ctx.uristart + ctx.urilen + 8])
     (ctx.closeSocket(ProtocolViolated); return false)
-  when defined(fulldebug): echo ctx.socketdata.port, ": ", request[0 .. ctx.uristart + ctx.urilen + 8]
+  ctx.gs[].log(DEBUG, $ctx.socketdata.port & ": " & request[0 .. ctx.uristart + ctx.urilen + 8])
   true
 
 
@@ -107,7 +107,7 @@ proc getContentLength*(ctx: HttpCtx): int {.raises: [].} =
   if i == ctx.requestlen: return 0
   try: return parseInt(request[start + length ..< i])
   except:
-    when defined(fulldebug): echo "could not parse content-length from: ", request[start + length ..< i], "; ", getCurrentExceptionMsg()
+    ctx.gs[].log(WARN, "could not parse content-length from: " & request[start + length ..< i])
     return 0
   
  

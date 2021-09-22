@@ -96,7 +96,10 @@ function main() {
 <li>
   <a class="reference reference-toplevel" href="#7" id="57">Types</a>
   <ul class="simple simple-toc-section">
-      <li><a class="reference" href="#GuildenServer"
+      <li><a class="reference" href="#LogLevel"
+    title="LogLevel = enum
+  TRACE, DEBUG, INFO, NOTICE, WARN, ERROR, FATAL, NONE">LogLevel</a></li>
+  <li><a class="reference" href="#GuildenServer"
     title="GuildenServer {.inheritable.} = ref object">GuildenServer</a></li>
   <li><a class="reference" href="#SocketData"
     title="SocketData = object
@@ -110,8 +113,6 @@ function main() {
   socketdata*: ptr SocketData">Ctx</a></li>
   <li><a class="reference" href="#HttpCtx"
     title="HttpCtx = ref object of Ctx">HttpCtx</a></li>
-  <li><a class="reference" href="#TimerCallback"
-    title="TimerCallback = proc () {.raises: [].}">TimerCallback</a></li>
   <li><a class="reference" href="#SocketCloseCause"
     title="SocketCloseCause = enum
   CloseCalled,              ## available for applications to use when calling closeSocket
@@ -133,7 +134,7 @@ function main() {
   <a class="reference reference-toplevel" href="#10" id="60">Consts</a>
   <ul class="simple simple-toc-section">
       <li><a class="reference" href="#GuildenSternVersion"
-    title="GuildenSternVersion = &quot;4.0.0&quot;">GuildenSternVersion</a></li>
+    title="GuildenSternVersion = &quot;5.0.0&quot;">GuildenSternVersion</a></li>
   <li><a class="reference" href="#MaxHeaderLength"
     title="MaxHeaderLength = 10000">MaxHeaderLength</a></li>
   <li><a class="reference" href="#MaxRequestLength"
@@ -152,11 +153,6 @@ function main() {
   <ul class="simple nested-toc-section">isRequest
       <li><a class="reference" href="#isRequest%2CHttpCtx%2Cstring"
     title="isRequest(ctx: HttpCtx; request: string): bool">isRequest,<wbr>HttpCtx,<wbr>string</a></li>
-
-  </ul>
-  <ul class="simple nested-toc-section">registerTimerhandler
-      <li><a class="reference" href="#registerTimerhandler%2CGuildenServer%2CTimerCallback%2Cint"
-    title="registerTimerhandler(gs: GuildenServer; callback: TimerCallback; interval: int)">registerTimerhandler,<wbr>GuildenServer,<wbr>TimerCallback,<wbr>int</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">getBody
@@ -221,7 +217,7 @@ function main() {
   </ul>
   <ul class="simple nested-toc-section">serve
       <li><a class="reference" href="#serve%2CGuildenServer"
-    title="serve(gs: GuildenServer; threadcount = -1)">serve,<wbr>GuildenServer</a></li>
+    title="serve(gs: GuildenServer; threadcount = -1; loglevel = NOTICE)">serve,<wbr>GuildenServer</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">getLoads
@@ -293,7 +289,7 @@ function main() {
   <div class="nine columns" id="content">
   <div id="tocRoot"></div>
   
-  <p class="module-desc">A modular multithreading Linux HTTP server. Easily create and add handlers. Associate handlers with ports. Genuinely multithreading: every request is handled in different thread. Runs in single-threaded mode, too.
+  <p class="module-desc">A modular multithreading Linux HTTP + WebSocket server.
 <h1><a class="toc-backref" id="example" href="#example">Example</a></h1><p>In this example port number is coded into html just for demonstration purposes. In reality, use your reverse proxy to route different types of requests to different ports.</p>
 <pre class="listing"><span class="Comment"># nim c -r --gc:arc --d:release --threads:on --d:threadsafe example.nim</span>
 
@@ -316,11 +312,19 @@ function main() {
 <span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">initHeaderCtx</span><span class="Punctuation">(</span><span class="Identifier">handleGet</span><span class="Punctuation">,</span> <span class="DecNumber">5050</span><span class="Punctuation">,</span> <span class="Identifier">false</span><span class="Punctuation">)</span>
 <span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">initFullCtx</span><span class="Punctuation">(</span><span class="Identifier">handlePost</span><span class="Punctuation">,</span> <span class="DecNumber">5051</span><span class="Punctuation">)</span>
 <span class="Identifier">echo</span> <span class="StringLit">&quot;GuildenStern HTTP server serving at localhost:5050&quot;</span>
-<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">serve</span><span class="Punctuation">(</span><span class="Punctuation">)</span></pre>
-<h1><a class="toc-backref" id="see-also" href="#see-also">See also</a></h1><p><a class="reference external" href="http://olliNiinivaara.github.io/GuildenStern/ctxheader.html">ctxheader</a><br /><a class="reference external" href="http://olliNiinivaara.github.io/GuildenStern/ctxbody.html">ctxbody</a><br /><a class="reference external" href="http://olliNiinivaara.github.io/GuildenStern/ctxfull.html">ctxfull</a><br /><a class="reference external" href="http://olliNiinivaara.github.io/GuildenStern/ctxstream.html">ctxstream</a><br /><a class="reference external" href="http://olliNiinivaara.github.io/GuildenStern/ctxws.html">ctxws</a><br /></p></p>
+<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">serve</span><span class="Punctuation">(</span><span class="Identifier">loglevel</span> <span class="Operator">=</span> <span class="Identifier">WARN</span><span class="Punctuation">)</span></pre>
+<h1><a class="toc-backref" id="see-also" href="#see-also">See also</a></h1><p><a class="reference external" href="http://olliNiinivaara.github.io/GuildenStern/ctxtimer.html">ctxtimer</a><br /><a class="reference external" href="http://olliNiinivaara.github.io/GuildenStern/ctxheader.html">ctxheader</a><br /><a class="reference external" href="http://olliNiinivaara.github.io/GuildenStern/ctxbody.html">ctxbody</a><br /><a class="reference external" href="http://olliNiinivaara.github.io/GuildenStern/ctxfull.html">ctxfull</a><br /><a class="reference external" href="http://olliNiinivaara.github.io/GuildenStern/ctxstream.html">ctxstream</a><br /><a class="reference external" href="http://olliNiinivaara.github.io/GuildenStern/ctxws.html">ctxws</a><br /></p></p>
   <div class="section" id="7">
 <h1><a class="toc-backref" href="#7">Types</a></h1>
 <dl class="item">
+<a id="LogLevel"></a>
+<dt><pre><a href="guildenstern.html#LogLevel"><span class="Identifier">LogLevel</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
+  <span class="Identifier">TRACE</span><span class="Other">,</span> <span class="Identifier">DEBUG</span><span class="Other">,</span> <span class="Identifier">INFO</span><span class="Other">,</span> <span class="Identifier">NOTICE</span><span class="Other">,</span> <span class="Identifier">WARN</span><span class="Other">,</span> <span class="Identifier">ERROR</span><span class="Other">,</span> <span class="Identifier">FATAL</span><span class="Other">,</span> <span class="Identifier">NONE</span></pre></dt>
+<dd>
+
+
+
+</dd>
 <a id="GuildenServer"></a>
 <dt><pre><a href="guildenstern.html#GuildenServer"><span class="Identifier">GuildenServer</span></a> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">inheritable</span></span><span class="Other">.}</span></span> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
   </pre></dt>
@@ -359,13 +363,6 @@ function main() {
 <p>Common abstract base class for all HTTP handling request contexts.<br /></p>
 
 </dd>
-<a id="TimerCallback"></a>
-<dt><pre><a href="guildenstern.html#TimerCallback"><span class="Identifier">TimerCallback</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
-<dd>
-
-
-
-</dd>
 <a id="SocketCloseCause"></a>
 <dt><pre><a href="guildenstern.html#SocketCloseCause"><span class="Identifier">SocketCloseCause</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
   <span class="Identifier">CloseCalled</span><span class="Other">,</span>              <span class="Comment">## available for applications to use when calling closeSocket</span>
@@ -396,7 +393,7 @@ Called whenever a socket is closed. The closed socket is always given as <tt cla
 <h1><a class="toc-backref" href="#10">Consts</a></h1>
 <dl class="item">
 <a id="GuildenSternVersion"></a>
-<dt><pre><a href="guildenstern.html#GuildenSternVersion"><span class="Identifier">GuildenSternVersion</span></a> <span class="Other">=</span> <span class="StringLit">&quot;4.0.0&quot;</span></pre></dt>
+<dt><pre><a href="guildenstern.html#GuildenSternVersion"><span class="Identifier">GuildenSternVersion</span></a> <span class="Other">=</span> <span class="StringLit">&quot;5.0.0&quot;</span></pre></dt>
 <dd>
 
 
@@ -432,7 +429,7 @@ Called whenever a socket is closed. The closed socket is always given as <tt cla
 
 <p>Registers a procedure in which you can initialize threadvars. This is called exactly once for each thread when first server starts serving.</p>
 <p><strong>Example:</strong></p>
-<pre class="listing"><span class="Keyword">import</span> <span class="Identifier">guildenstern</span><span class="Punctuation">,</span> <span class="Identifier">os</span><span class="Punctuation">,</span> <span class="Identifier">random</span>
+<pre class="listing"><span class="Keyword">import</span> <span class="Identifier">guildenstern</span><span class="Operator">/</span><span class="Identifier">ctxtimer</span><span class="Punctuation">,</span> <span class="Identifier">os</span><span class="Punctuation">,</span> <span class="Identifier">random</span>
 
 <span class="Keyword">var</span> <span class="Identifier">threadcount</span><span class="Punctuation">:</span> <span class="Identifier">int</span>
 <span class="Keyword">var</span> <span class="Identifier">rounds</span><span class="Punctuation">:</span> <span class="Identifier">int</span>
@@ -451,7 +448,7 @@ Called whenever a socket is closed. The closed socket is always given as <tt cla
 <span class="Identifier">randomize</span><span class="Punctuation">(</span><span class="Punctuation">)</span>
 <span class="Identifier">registerThreadInitializer</span><span class="Punctuation">(</span><span class="Identifier">initializeThreadvars</span><span class="Punctuation">)</span>
 <span class="Keyword">var</span> <span class="Identifier">server</span> <span class="Operator">=</span> <span class="Identifier">new</span> <span class="Identifier">GuildenServer</span>
-<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">registerTimerhandler</span><span class="Punctuation">(</span><span class="Identifier">tiktok</span><span class="Punctuation">,</span> <span class="DecNumber">100</span><span class="Punctuation">)</span>
+<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">initTimerCtx</span><span class="Punctuation">(</span><span class="DecNumber">100</span><span class="Punctuation">,</span> <span class="Identifier">tiktok</span><span class="Punctuation">)</span>
 <span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">serve</span><span class="Punctuation">(</span><span class="Punctuation">)</span>
 <span class="Identifier">echo</span> <span class="StringLit">&quot;----&quot;</span>
 <span class="Identifier">echo</span> <span class="StringLit">&quot;waiting for processes to finish...&quot;</span>
@@ -460,23 +457,14 @@ Called whenever a socket is closed. The closed socket is always given as <tt cla
 
 </dd>
 <a id="serve,GuildenServer"></a>
-<dt><pre><span class="Keyword">proc</span> <a href="#serve%2CGuildenServer"><span class="Identifier">serve</span></a><span class="Other">(</span><span class="Identifier">gs</span><span class="Other">:</span> <a href="guildenstern.html#GuildenServer"><span class="Identifier">GuildenServer</span></a><span class="Other">;</span> <span class="Identifier">threadcount</span> <span class="Other">=</span> <span class="Operator">-</span><span class="DecNumber">1</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#serve%2CGuildenServer"><span class="Identifier">serve</span></a><span class="Other">(</span><span class="Identifier">gs</span><span class="Other">:</span> <a href="guildenstern.html#GuildenServer"><span class="Identifier">GuildenServer</span></a><span class="Other">;</span> <span class="Identifier">threadcount</span> <span class="Other">=</span> <span class="Operator">-</span><span class="DecNumber">1</span><span class="Other">;</span> <span class="Identifier">loglevel</span> <span class="Other">=</span> <span class="Identifier">NOTICE</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
 <dd>
 
-<p>Starts server event dispatcher loop which runs until shutdown() is called or SIGINT received. Worker thread count can be set; 1 means single-threaded mode and -1 (default) will use processor core count + 2. Note: debug info is echoed to console if compiled with switch -d:fulldebug.</p>
-<p><strong>Example:</strong></p>
-<pre class="listing"><span class="Keyword">import</span> <span class="Identifier">guildenstern</span><span class="Operator">/</span><span class="Identifier">ctxheader</span>
+Starts server event dispatcher loop which runs until shutdown() is called or SIGINT received.<p>Worker thread count can be set; 1 means single-threaded mode and -1 (default) will use processor core count + 2.<br />Possible log levels are: TRACE, DEBUG, INFO, NOTICE, WARN, ERROR, FATAL, NONE.<br /></p> <strong>Example:</strong><pre class="listing"><span class="Keyword">import</span> <span class="Identifier">guildenstern</span><span class="Operator">/</span><span class="Identifier">ctxheader</span>
 <span class="Keyword">var</span> <span class="Identifier">server</span> <span class="Operator">=</span> <span class="Identifier">new</span> <span class="Identifier">GuildenServer</span>
 <span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">initHeaderCtx</span><span class="Punctuation">(</span><span class="Keyword">proc</span><span class="Punctuation">(</span><span class="Identifier">ctx</span><span class="Punctuation">:</span> <span class="Identifier">HttpCtx</span><span class="Punctuation">)</span> <span class="Operator">=</span> <span class="Identifier">ctx</span><span class="Operator">.</span><span class="Identifier">reply</span><span class="Punctuation">(</span><span class="Identifier">Http200</span><span class="Punctuation">)</span><span class="Punctuation">,</span> <span class="DecNumber">5050</span><span class="Punctuation">)</span>
-<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">serve</span><span class="Punctuation">(</span><span class="DecNumber">1</span><span class="Punctuation">)</span></pre>
-
-</dd>
-<a id="registerTimerhandler,GuildenServer,TimerCallback,int"></a>
-<dt><pre><span class="Keyword">proc</span> <a href="#registerTimerhandler%2CGuildenServer%2CTimerCallback%2Cint"><span class="Identifier">registerTimerhandler</span></a><span class="Other">(</span><span class="Identifier">gs</span><span class="Other">:</span> <a href="guildenstern.html#GuildenServer"><span class="Identifier">GuildenServer</span></a><span class="Other">;</span> <span class="Identifier">callback</span><span class="Other">:</span> <a href="guildenstern.html#TimerCallback"><span class="Identifier">TimerCallback</span></a><span class="Other">;</span>
-                          <span class="Identifier">interval</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
-<dd>
-
-Registers a new timer that fires the TimerCallback every <tt class="docutils literal"><span class="pre">interval</span></tt> milliseconds.
+<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">serve</span><span class="Punctuation">(</span><span class="DecNumber">1</span><span class="Punctuation">,</span> <span class="Identifier">TRACE</span><span class="Punctuation">)</span></pre>
 
 </dd>
 <a id="registerConnectionclosedhandler,GuildenServer,CloseCallback"></a>
@@ -735,7 +723,7 @@ Ends a reply started with replyStart.
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2021-09-06 11:22:38 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2021-09-22 07:23:14 UTC</small>
       </div>
     </div>
   </div>

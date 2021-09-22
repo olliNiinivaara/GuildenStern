@@ -1,4 +1,4 @@
-import guildenstern/ctxfull
+import guildenstern/[ctxfull, ctxtimer]
 import uri
 from os import fileExists
 from strutils import contains, removePrefix
@@ -51,5 +51,5 @@ proc doShutdown() =
 echo "Starting err_empty_response e2e test server on port 8080 at ", getTime()
 var server = new GuildenServer
 server.initFullCtx(handleHttpRequest, 8080)
-server.registerTimerhandler(doShutdown, 30000)
+server.initTimerCtx(30000, doShutdown)
 server.serve()

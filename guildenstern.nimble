@@ -1,6 +1,6 @@
-version       = "4.0.0"
+version       = "5.0.0"
 author        = "Olli"
-description   = "Modular multithreading Linux HTTP server"
+description   = "Modular multithreading Linux HTTP + WebSocket server"
 license       = "MIT"
 srcDir        = "src"
 

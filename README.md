@@ -1,7 +1,7 @@
 ![Tests](https://github.com/olliNiinivaara/GuildenStern/workflows/Tests/badge.svg)
 
 # GuildenStern
-Modular multithreading Linux HTTP server
+Modular multithreading Linux HTTP + WebSocket server
 
 ## Example
 
@@ -26,7 +26,7 @@ var server = new GuildenServer
 server.initHeaderCtx(handleGet, 5050, false)
 server.initBodyCtx(handlePost, 5051)
 echo "GuildenStern HTTP server serving at 5050"
-server.serve()
+server.serve(loglevel = DEBUG)
 ```
 
 ## Documentation
@@ -41,20 +41,13 @@ server.serve()
 ## Features
 
 - Modular architecture means simpler codebase, easy customization and more opportunities for performance optimization
-- Every request is served in dedicated thread, requests won't slow each other down 
-- Preemptive multithreading guarantees low latencies by fair access to CPU cores
+- Every request is served in dedicated thread - scales vertically and requests cannot stall each other 
 - Can listen to multiple ports with different handlers
-- Supports streaming requests, streaming replies, and websocket
-- Supports --gc:arc, doesn't need asyncdispatch
-- Runs in single-threaded mode, too
 
-## Release notes, 4.0.0 (2021-09-06)
+## Release notes, 5.0.0 (2021-09-21)
 
-- *Serve* proc now accepts the amount of worker threads to use 
-- *registerThreadInitializer* is now a global proc (not tied to a GuildenServer)
-- *ctxWs web socket upgrade* now accepts a callback closure (instead of initial message to send)
-- Can listen to multiple ports even with same handler (just register different handler callback proc for each port)
-- new *ctxBody* handler for efficiently handling POST requests.
-- new *isRequest* proc for efficiently inspecting request content
-- new custom threadpool
-- code fixes and cleanups
+- Breaking change: If you use timer handlers, you must now import guildenstern/timerctx
+- Refactored timer handlers to use same logic as other handlers
+- New proc *removeTimerCtx* for stopping timers
+- new logging implementation supporting multiple log levels, -d:fulldebug obsoleted
+- performance optimization: threadpool now incorporates a (lock-free) task queue

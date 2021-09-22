@@ -1,6 +1,6 @@
 import nativesockets, locks
 from times import now, format
-import guildenstern/[ctxws, ctxheader]
+import guildenstern/[ctxws, ctxheader, ctxtimer]
       
 var server = new GuildenServer
 var lock: Lock
@@ -51,8 +51,8 @@ proc onRequest(ctx: HttpCtx) =
 
 server.initHeaderCtx(onRequest, 5050)
 server.initWsCtx(onUpgradeRequest, onMessage, 5051)
-server.registerTimerhandler(sendMessage, 500)
-server.registerTimerhandler(doShutdown, 30000)
+server.initTimerCtx(500, sendMessage)
+server.initTimerCtx(30000, doShutdown)
 server.registerConnectionclosedhandler(onLost)
 echo "Starting ctxws e2e test server on port 5050 at ", now().format("HH:mm:ss")
 initLock(lock)
