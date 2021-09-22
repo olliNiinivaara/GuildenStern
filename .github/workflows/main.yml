@@ -14,7 +14,7 @@ jobs:
           npm install
           
           cd test_wrk/
-          nim -b:cpp r --gc:arc -d:danger --threads:on -d:threadsafe p:../../src/ test_wrk
+          nim -b:cpp r --gc:arc -d:danger --threads:on -d:threadsafe -p:../../src/ test_wrk
           
           cd test_ctxheader/
           nim c -r --gc:arc --threads:on --d:threadsafe -p:../../src/ server.nim &
