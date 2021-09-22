@@ -228,7 +228,7 @@ proc decodeBase16(str: string): string =
 
 
 proc send(gs: GuildenServer, socket: posix.SocketHandle, text: ptr string, length: int = -1): bool =
-  ctx.gs[].log(DEBUG, "writeToWebSocket " & $socket.int & ": " & text[])
+  gs.log(DEBUG, "writeToWebSocket " & $socket.int & ": " & text[])
   let len = if length == -1: text[].len else: length
   var sent = 0
   while sent < len:
@@ -242,19 +242,19 @@ proc send(gs: GuildenServer, socket: posix.SocketHandle, text: ptr string, lengt
           elif lasterror == 32: ConnectionLost
           elif lasterror == 104: ClosedbyClient
           else: NetErrored
-        ctx.gs[].log(INFO, "websocket " & $socket & " send error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
+        gs.log(INFO, "websocket " & $socket & " send error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
         try:
           if socket == ctx.socketdata.socket: ctx.closeSocket(cause, osErrorMsg(OSErrorCode(lastError)))
           else: closeOtherSocket(gs, socket, cause, osErrorMsg(OSErrorCode(lastError)))
         except:
-          ctx.gs[].log(NOTICE, "websocket close failed")
+          gs.log(NOTICE, "websocket close failed")
       elif ret < -1:
-        ctx.gs[].log(INFO, "websocket " & $socket & " send error")
+        gs.log(INFO, "websocket " & $socket & " send error")
         try:
           if socket == ctx.socketdata.socket: ctx.closeSocket(Excepted, getCurrentExceptionMsg())
           else: closeOtherSocket(gs, socket, Excepted, getCurrentExceptionMsg())
         except:
-          ctx.gs[].log(NOTICE, "websocket close failed")
+          gs.log(NOTICE, "websocket close failed")
       return false
     sent.inc(ret)
     if sent == len: return true
