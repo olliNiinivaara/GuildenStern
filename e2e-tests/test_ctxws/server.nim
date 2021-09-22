@@ -25,7 +25,7 @@ proc sendMessage() =
   withLock(lock):
     if thesocket != INVALID_SOCKET:
       let reply = "hello"
-      server.sendWs(thesocket, reply)
+      {.gcsafe.}: discard server.sendWs(thesocket, reply)
 
 proc onLost(ctx: Ctx, socket: SocketHandle, cause: SocketCloseCause, msg: string) =
   withLock(lock):

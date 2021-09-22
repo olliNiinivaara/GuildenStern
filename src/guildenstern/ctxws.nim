@@ -141,7 +141,7 @@ template error(msg: string) =
 proc bytesRecv(fd: posix.SocketHandle, buffer: ptr char, size: int): int =
   return recv(fd, buffer, size, 0)
 
-
+{.push warning[HoleEnumConv]: off.}
 proc recvHeader(): int =
   if ctx.socketdata.socket.bytesRecv(request[0].addr, 2) != 2: error("no data")
   let b0 = request[0].uint8
@@ -166,7 +166,7 @@ proc recvHeader(): int =
   if expectedLen > MaxRequestLength: error("Maximum request size bound to be exceeded: " & $(expectedLen))
   
   return expectedLen
-
+{.pop.}
 
 proc recvFrame() =
   var expectedlen: int  
