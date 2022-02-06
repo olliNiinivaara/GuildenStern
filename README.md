@@ -48,3 +48,4 @@ server.serve(loglevel = DEBUG)
 
 - new *multiSend* proc for WebSockets: can be called from multiple threads in parallel
 - better default logging
+- other fixes
