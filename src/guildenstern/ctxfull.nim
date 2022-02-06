@@ -94,6 +94,7 @@ proc receiveHttp*(actx: HttpCtx): bool {.gcsafe, raises:[] .} =
     if contentlength == 0: return true
     expectedlength = actx.bodystart + contentlength
     if actx.requestlen == expectedlength: break
+  actx.gs[].log(DEBUG, $actx.socketdata.port & "/" & $actx.socketdata.socket & ": " & request[actx.bodystart .. actx.bodystart + actx.requestlen - 1])
   true
 
 {.pop.}

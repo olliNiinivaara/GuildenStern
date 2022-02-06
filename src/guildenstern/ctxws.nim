@@ -9,7 +9,7 @@
 ##    import guildenstern/[ctxws, ctxheader, ctxtimer]
 ##    
 ##    var server = new GuildenServer
-##    var lock: Lock # serializing access to mutating globals is usually good idea (socket, in this case)
+##    var lock: Lock
 ##    var socket = INVALID_SOCKET
 ##    
 ##    proc onUpgradeRequest(ctx: WsCtx): (bool , proc()) =
@@ -50,7 +50,7 @@
 ##    server.serve()
 ##    deinitLock(lock)
 
-import nativesockets, net, posix, os, std/sha1, base64, times, std/monotimes
+import nativesockets, net, posix, os, std/sha1, base64, times, std/monotimes, sets, locks
 from httpcore import Http101
 
 from ctxheader import receiveHeader
@@ -88,18 +88,30 @@ type
   WsCtx* = ref object of HttpCtx
     opcode*: OpCode
   
-  WsDelivery* = tuple[sockets: seq[posix.SocketHandle], message: string, length: int, binary: bool]
-    ## `multiSendWs` takes an open array of these as parameter.
+  SendState = enum NotStarted, Continue, Ok, Err
+
+  State = tuple[sent: int, sendstate: SendState]
+  
+  WsDelivery* = tuple[sockets: seq[posix.SocketHandle], message: string, binary: bool, states: seq[State]]
+    ## `multiSend` takes pointer to this as parameter.
     ## | `sockets`: the websockets that should receive this message
-    ## | `message`: the message to send (note that this not a pointer - a deep copy is used)
-    ## | `length`: amount of chars to send from message. If < 1, defaults to message.len
+    ## | `message`: the message to send
     ## | `binary`: whether the message contains bytes or chars
+  
+
+const MaxParallelSendingSockets = 500
 
 var
   portdata: array[MaxHandlersPerCtx, PortDatum]
   wsresponseheader {.threadvar.}: string
   ctx {.threadvar.}: WsCtx 
   maskkey {.threadvar.}: array[4, char]
+
+var
+  sendingsockets = initHashSet[posix.Sockethandle](3 * MaxParallelSendingSockets)
+  sendlock: Lock
+
+sendlock.initLock()
   
 {.push checks: off.}
 
@@ -244,14 +256,14 @@ proc send(gs: GuildenServer, socket: posix.SocketHandle, text: ptr string, lengt
           else: NetErrored
         gs.log(INFO, "websocket " & $socket & " send error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
         try:
-          if socket == ctx.socketdata.socket: ctx.closeSocket(cause, osErrorMsg(OSErrorCode(lastError)))
+          if ctx != nil and ctx.socketdata != nil and socket == ctx.socketdata.socket: ctx.closeSocket(cause, osErrorMsg(OSErrorCode(lastError)))
           else: closeOtherSocket(gs, socket, cause, osErrorMsg(OSErrorCode(lastError)))
         except:
           gs.log(NOTICE, "websocket close failed")
       elif ret < -1:
         gs.log(INFO, "websocket " & $socket & " send error")
         try:
-          if socket == ctx.socketdata.socket: ctx.closeSocket(Excepted, getCurrentExceptionMsg())
+          if ctx != nil and ctx.socketdata != nil and socket == ctx.socketdata.socket: ctx.closeSocket(Excepted, getCurrentExceptionMsg())
           else: closeOtherSocket(gs, socket, Excepted, getCurrentExceptionMsg())
         except:
           gs.log(NOTICE, "websocket close failed")
@@ -263,7 +275,7 @@ proc send(gs: GuildenServer, socket: posix.SocketHandle, text: ptr string, lengt
 func swapBytesBuiltin(x: uint64): uint64 {.importc: "__builtin_bswap64", nodecl.}
 
 proc createWsHeader(len: int, opcode: OpCode) =
-  wsresponseheader = ""
+  wsresponseheader.setLen(0)
 
   # var b0 = if binary: (Opcode.Binary.uint8 and 0x0f) else: (Opcode.Text.uint8 and 0x0f)
   var b0 = opcode.uint8
@@ -302,10 +314,26 @@ proc sendWs*(gs: GuildenServer, socket: posix.SocketHandle, message: ptr string,
   if gs.send(socket, addr wsresponseheader): return gs.send(socket, message, len)
 
 
-proc sendPong*(gs: GuildenServer, socket: posix.SocketHandle) =
+#[proc sendPong*(gs: GuildenServer, socket: posix.SocketHandle) =
   let message = "PING"
   createWsHeader(4, Opcode.Pong)
-  if gs.send(socket, addr wsresponseheader): discard gs.send(socket, unsafeaddr message, 4)
+  if gs.send(socket, addr wsresponseheader): discard gs.send(socket, unsafeaddr message, 4)]#
+
+
+proc sendPong*(gs: GuildenServer, socket: posix.SocketHandle) =
+  var retries = 0
+  let message = "PING"
+  createWsHeader(4, Opcode.Pong)
+  while true:
+    withLock(sendlock):
+      if not sendingsockets.contains(socket):
+        if gs.send(socket, addr wsresponseheader): discard gs.send(socket, unsafeaddr message, 4)
+        break
+    sleep(1000)
+    retries += 1
+    if retries == 10:
+      gs.log(ERROR, "websocket " & $socket & " blocking, cannot retry to PING")
+      break
 
 
 proc replyHandshake(): (SocketCloseCause , string ,  proc() {.closure, raises:[].}) =
@@ -364,12 +392,10 @@ proc sendWs*(gs: GuildenServer, socket: posix.SocketHandle, message: string, len
 
 const DONTWAIT = 0x40.cint
 
-type SendState = enum NotStarted, Continue, Ok, Error
-
-proc sendNonblocking(gs: GuildenServer, socket: posix.SocketHandle, text: ptr string, sent: int = 0, length: int = -1): (SendState , int) =
+proc sendNonblocking(gs: GuildenServer, socket: posix.SocketHandle, text: ptr string, sent: int = 0): (SendState , int) =
   gs.log(DEBUG, "nonblockingwriteToWebSocket " & $socket.int & ": " & text[])
-  if socket.int in [0, INVALID_SOCKET.int]: return (Error , 0)
-  let len = if length == -1: text[].len else: length
+  if socket.int in [0, INVALID_SOCKET.int]: return (Err , 0)
+  let len = text[].len
   if sent == len: return (Ok , 0)
   let ret = send(socket, addr text[sent], len - sent, DONTWAIT)
   if ret in [EAGAIN.int, EWOULDBLOCK.int]: return (Continue , 0)
@@ -386,23 +412,91 @@ proc sendNonblocking(gs: GuildenServer, socket: posix.SocketHandle, text: ptr st
       elif ret < -1:
         gs.log(NOTICE, "websocket " & $socket & " nonblockingSend error")
         closeOtherSocket(gs, socket, Excepted, getCurrentExceptionMsg())
-      return (Error , 0)
+      return (Err , 0)
   if sent + ret == len: return (Ok , ret)
   return (Continue , ret)
-
-
-type State = tuple[sent: int, sendstate: SendState]
 
 
 proc closeSocketsInFlight(gs: GuildenServer, sockets: seq[posix.SocketHandle], states: seq[State]): int =
   for i in 0 ..< states.len:
     if states[i].sendstate == Continue:
       gs.closeOtherSocket(sockets[i], TimedOut)
+      withLock(sendlock): sendingsockets.excl(sockets[i])
       result.inc
 
 
-proc multiSendWs*(gs: GuildenServer, messages: openArray[WsDelivery], timeoutsecs = 20, sleepmillisecs = 100): int {.discardable.} =
-  # TODO: try with io_uring, https://github.com/axboe/liburing
+proc multiSend*(gs: GuildenServer, message: ptr WsDelivery, timeoutsecs = 20, sleepmillisecs = 100): int {.discardable.} =
+  ## Sends message to multiple websockets at once. Uses non-blocking I/O so that slow receivers do not slow down fast receivers.
+  ## | Can be called from multiple threads in parallel.
+  ## | `timeoutsecs`: a timeout after which sending is given up and all sockets with messages in-flight are closed
+  ## | `sleepmillisecs`: if all in-flight receivers are blocking, will sleep for (sleepmillisecs * current thread load) milliseconds
+  ## Returns amount of websockets that had to be closed
+  if message.sockets.len == 0 or message.message.len == 0: return
+  let timeout = initDuration(seconds = timeoutsecs)
+  let start = getMonoTime()
+  gs.log(TRACE, "multiSend starts sending")
+  if message.binary: createWsHeader(message.message.len, OpCode.Binary) else: createWsHeader(message.message.len, Opcode.Text)
+  var handled = 0
+  message.states.setLen(message.sockets.len)
+  for i in 0 ..< message.states.len: message.states[i] = (0, NotStarted)
+  var s = -1
+  var blockedsockets = 0
+  while true:
+    if shuttingdown: return -1
+    if getMonoTime() - start > timeout:
+      result += gs.closeSocketsInFlight(message.sockets, message.states)
+      gs.log(NOTICE, "multiSend timed out")
+      return result
+    s.inc
+    if s == message.sockets.len:
+      s = -1
+      continue
+    if message.states[s].sendstate in [Ok, Err]: continue
+    var ret: int
+
+    if message.states[s].sendstate == NotStarted:
+      withLock(sendlock):
+        if sendingsockets.len == MaxParallelSendingSockets:
+          gs.log(INFO, "MaxParallelSendingSockets reached, sleeping for " & $(sleepmillisecs) & " ms")
+          os.sleep(sleepmillisecs)
+          continue
+        if sendingsockets.contains(message.sockets[s]): continue
+        sendingsockets.incl(message.sockets[s])
+      var headerstate: SendState
+      (headerstate , ret) = gs.sendNonblocking(message.sockets[s], addr wsresponseheader)
+      if headerstate == Ok: message.states[s].sendstate = Continue
+      else:
+        message.states[s].sendstate = Err
+        if headerstate == Continue: gs.closeOtherSocket(message.sockets[s], TimedOut)
+        withLock(sendlock): sendingsockets.excl(message.sockets[s])
+        result.inc
+        handled.inc
+        gs.log(TRACE, "multiSend msg sent " & $handled & "/" & $message.sockets.len)
+        if handled == message.sockets.len: break
+      continue
+      
+    (message.states[s].sendstate , ret) = gs.sendNonblocking(message.sockets[s], unsafeAddr message.message, message.states[s].sent)
+    case message.states[s].sendstate
+      of Err: result.inc
+      of Continue:
+        message.states[s].sent += ret      
+        blockedsockets.inc
+        if blockedsockets >= message.sockets.len - handled:
+          let currentload: int = getLoads()[0]              
+          gs.log(DEBUG, "all remaining multiSend sockets are blocking, sleeping for " & $(currentload * sleepmillisecs) & " ms")
+          os.sleep(currentload * sleepmillisecs)
+          blockedsockets = 0
+      else: discard
+    if message.states[s].sendstate != Continue:
+      withLock(sendlock): sendingsockets.excl(message.sockets[s])
+      handled.inc
+      gs.log(TRACE, "multiSend msg sent " & $handled & "/" & $message.sockets.len)
+      if handled == message.sockets.len: break
+  gs.log(TRACE, "multiSend finished")
+
+
+proc multiSendWs*(gs: GuildenServer, messages: openArray[ptr WsDelivery], timeoutsecs = 20, sleepmillisecs = 100): int
+ {.discardable, deprecated:"Not thread-safe. Use multiSend instead.".} =
   ## Sends multiple messages to multiple websockets at once. Uses non-blocking I/O so that slow receivers do not slow down fast receivers.
   ## | `timeoutsecs`: a timeout after which sending is given up and all sockets with messages in-flight are closed
   ## | `sleepmillisecs`: if all in-flight receivers are blocking, will sleep for (sleepmillisecs * current thread load) milliseconds
@@ -411,12 +505,13 @@ proc multiSendWs*(gs: GuildenServer, messages: openArray[WsDelivery], timeoutsec
   let timeout = initDuration(seconds = timeoutsecs)
   let start = getMonoTime()
   var m = -1
+  gs.log(TRACE, "multiSendWs starts sending " & $messages.len & " messages")
   while true:
     m.inc
     if m == messages.len: break
     if messages[m].sockets.len == 0 or messages[m].message.len == 0: continue
-    let len = if messages[m].length < 1: messages[m].message.len else: messages[m].length
-    if messages[m].binary: createWsHeader(len, OpCode.Binary) else: createWsHeader(len, Opcode.Text)
+    # let len = if messages[m].length < 1: messages[m].message.len else: messages[m].length
+    if messages[m].binary: createWsHeader(messages[m].message.len, OpCode.Binary) else: createWsHeader(messages[m].message.len, Opcode.Text)
     var handled = 0
     var states = newSeq[State](messages[m].sockets.len)
     for i in 0 ..< states.len: states[i] = (0, NotStarted)
@@ -426,13 +521,13 @@ proc multiSendWs*(gs: GuildenServer, messages: openArray[WsDelivery], timeoutsec
       if shuttingdown: return -1
       if getMonoTime() - start > timeout:
         result += gs.closeSocketsInFlight(messages[m].sockets, states)
-        ctx.gs[].log(NOTICE, "multiSendWs timed out")
+        gs.log(NOTICE, "multiSendWs timed out")
         return result
       s.inc
       if s == messages[m].sockets.len:
         s = -1
         continue
-      if states[s].sendstate in [Ok, Error]: continue
+      if states[s].sendstate in [Ok, Err]: continue
       var ret: int
 
       if states[s].sendstate == NotStarted:
@@ -440,16 +535,17 @@ proc multiSendWs*(gs: GuildenServer, messages: openArray[WsDelivery], timeoutsec
         (headerstate , ret) = gs.sendNonblocking(messages[m].sockets[s], addr wsresponseheader)
         if headerstate == Ok: states[s].sendstate = Continue
         else:
-          states[s].sendstate = Error
+          states[s].sendstate = Err
           if headerstate == Continue: gs.closeOtherSocket(messages[m].sockets[s], TimedOut)
           result.inc
           handled.inc
+          gs.log(TRACE, "multiSendWs msg " & $(m+1) & ": sent " & $handled & "/" & $messages[m].sockets.len)
           if handled == messages[m].sockets.len: break
         continue
         
-      (states[s].sendstate , ret) = gs.sendNonblocking(messages[m].sockets[s], unsafeAddr messages[m].message, states[s].sent, len)
+      (states[s].sendstate , ret) = gs.sendNonblocking(messages[m].sockets[s], unsafeAddr messages[m].message, states[s].sent)
       case states[s].sendstate
-        of Error: result.inc
+        of Err: result.inc
         of Continue:
           states[s].sent += ret      
           blockedsockets.inc
@@ -461,7 +557,15 @@ proc multiSendWs*(gs: GuildenServer, messages: openArray[WsDelivery], timeoutsec
         else: discard
       if states[s].sendstate != Continue: 
         handled.inc
+        gs.log(TRACE, "multiSendWs msg " & $(m+1) & ": sent " & $handled & "/" & $messages[m].sockets.len)
         if handled == messages[m].sockets.len: break
+  gs.log(TRACE, "multiSendWs finished")
+
+
+proc multiSendWs*(gs: GuildenServer, messages: openArray[WsDelivery], timeoutsecs = 20, sleepmillisecs = 100): int {.discardable, deprecated.} =
+  var ptrs = newSeq[ptr WsDelivery](messages.len)
+  for msg in messages: ptrs.add(unsafeAddr msg)
+  return multiSendWs(gs, ptrs, timeoutsecs, sleepmillisecs)
 
 
 proc replyWs*(gs: GuildenServer, ctx: Ctx, text: ptr string, length = -1, binary = false): bool {.inline, discardable.} =

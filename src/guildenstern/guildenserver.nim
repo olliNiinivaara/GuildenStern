@@ -1,6 +1,7 @@
-from selectors import Selector, newselector, contains, unregister, getData, newSelectEvent, registerEvent, trigger
-from posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onSignal, `==`
-from nativesockets import close
+from std/selectors import Selector, newselector, contains, unregister, getData, newSelectEvent, registerEvent, trigger
+from std/posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onSignal, `==`
+from std/nativesockets import close
+from std/strutils import replace
 export SocketHandle, INVALID_SOCKET, posix.`==`
 
 
@@ -64,8 +65,10 @@ proc `$`*(x: CtxId): string {.inline.} = $(x.int)
 proc `==`*(x, y: CtxId): bool {.borrow.}
 
 
-var shuttingdown* = false
-var shutdownevent = newSelectEvent()
+var
+  shuttingdown* = false
+  shutdownevent = newSelectEvent()
+  previousExceptionMsg: string
 
 proc shutdown*() =
   {.gcsafe.}: shuttingdown = true
@@ -94,8 +97,15 @@ proc initialize(gs: var GuildenServer) =
   gs.protocolnames = @["unknown"]
   if gs.loggerproc == nil: gs.loggerproc = proc(loglevel: LogLevel, message: string) = (
     block:
-      if likely(getCurrentException() == nil): echo LogColors[loglevel.int], loglevel, "\e[0m ", message
-      else: echo LogColors[loglevel.int], loglevel, "\e[0m ", message, ": ", getCurrentExceptionMsg()
+      if unlikely(getCurrentException() != nil):
+        {.gcsafe.}:
+          if getCurrentExceptionMsg() != previousExceptionMsg: previousExceptionMsg = getCurrentExceptionMsg()
+          else: previousExceptionMsg = ""
+          echo LogColors[loglevel.int], loglevel, "\e[0m ", message, ": ", previousExceptionMsg
+      elif message.len < 200: echo LogColors[loglevel.int], loglevel, "\e[0m ", message
+      else:
+        let excerpt = message[0 .. 49] & " ... (" & $(message.len - 100) & " chars omitted) ... " & message[(message.len - 50) .. (message.len - 1)]
+        echo LogColors[loglevel.int], loglevel, "\e[0m ", excerpt.replace("\n", "\\n ")
   )
 
 

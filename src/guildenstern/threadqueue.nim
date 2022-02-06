@@ -50,7 +50,7 @@ template createTask() =
   if unlikely(head == QueueSize - 1):
     var i = 0
     while tail < QueueSize - 1:
-      if currentload == 0: signal(workavailable)
+      if currentload < gs.workerthreadcount: signal(workavailable)
       i.inc
       if i == 1: discard sched_yield()
       elif i == 1000000: i = 0
@@ -66,4 +66,3 @@ template createTask() =
   if tail > head: tail = head
   head.inc()
   if currentload < gs.workerthreadcount: signal(workavailable)
-  # if currentload == 0: signal(workavailable)

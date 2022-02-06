@@ -44,10 +44,7 @@ server.serve(loglevel = DEBUG)
 - Every request is served in dedicated thread - scales vertically and requests cannot stall each other 
 - Can listen to multiple ports with different handlers
 
-## Release notes, 5.0.0 (2021-09-21)
+## Release notes, 5.1.0 (2022-02-06)
 
-- Breaking change: If you use timer handlers, you must now import guildenstern/timerctx
-- Refactored timer handlers to use same logic as other handlers
-- New proc *removeTimerCtx* for stopping timers
-- new logging implementation supporting multiple log levels, -d:fulldebug obsoleted
-- performance optimization: threadpool now incorporates a (lock-free) task queue
+- new *multiSend* proc for WebSockets: can be called from multiple threads in parallel
+- better default logging

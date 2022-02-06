@@ -1,10 +1,10 @@
-const GuildenSternVersion* = "5.0.0"
+const GuildenSternVersion* = "5.1.0"
 
 #   Guildenstern
 #
 #  Modular multithreading Linux HTTP + WebSocket server
 #
-#  (c) Copyright 2020-2021 Olli Niinivaara
+#  (c) Copyright 2020-2022 Olli Niinivaara
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 #
@@ -116,7 +116,7 @@ else:
       SecurityThreatened ## available for applications to use when calling closeSocket      
       ClosedbyClient ## Client closed the connection
       ConnectionLost ## TCP/IP connection was dropped
-      TimedOut ## Client did not send/receive all expected data
+      TimedOut ## Client did not send/receive all expected data 
       ProtocolViolated ## Client was sending garbage
       AlreadyClosed ## Another thread has closed the socket
       NetErrored ## Some operating system level error happened

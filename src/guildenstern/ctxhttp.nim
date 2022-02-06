@@ -77,7 +77,7 @@ proc parseRequestLine*(ctx: HttpCtx): bool {.gcsafe, raises: [].} =
   if request[ctx.uristart + ctx.urilen + 1] != 'H' or request[ctx.uristart + ctx.urilen + 8] != '1':
     ctx.gs[].log(WARN, "request not HTTP/1.1: " & request[ctx.uristart + ctx.urilen + 1 .. ctx.uristart + ctx.urilen + 8])
     (ctx.closeSocket(ProtocolViolated); return false)
-  ctx.gs[].log(DEBUG, $ctx.socketdata.port & ": " & request[0 .. ctx.uristart + ctx.urilen + 8])
+  ctx.gs[].log(DEBUG, $ctx.socketdata.port & "/" & $ctx.socketdata.socket &  ": " & request[0 .. ctx.uristart + ctx.urilen + 8])
   true
 
 
@@ -107,7 +107,7 @@ proc getContentLength*(ctx: HttpCtx): int {.raises: [].} =
   if i == ctx.requestlen: return 0
   try: return parseInt(request[start + length ..< i])
   except:
-    ctx.gs[].log(WARN, "could not parse content-length from: " & request[start + length ..< i])
+    ctx.gs[].log(WARN, "could not parse content-length from: " & request)
     return 0
   
  
@@ -159,7 +159,17 @@ proc getBodylen*(ctx: HttpCtx): int =
 proc getBody*(ctx: HttpCtx): string =
   if ctx.bodystart < 1: return ""
   request[ctx.bodystart ..< ctx.requestlen]
-  
+
+
+when compiles((var x = 1; var vx: var int = x)):
+  # --experimental:views is enabled
+  proc getBodyViewProc(req: var string, ctx: HttpCtx): openArray[char] =
+    if ctx.bodystart < 1: return req.toOpenArray(0, -1)
+    else: return req.toOpenArray(ctx.bodystart, ctx.requestlen - 1)
+
+  template getBodyView*(ctx: HttpCtx): openArray[char] =
+    getBodyViewProc(request, ctx)
+
 
 proc isBody*(ctx: HttpCtx, body: string): bool =
   let len = ctx.requestlen - ctx.bodystart
