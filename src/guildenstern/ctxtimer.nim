@@ -42,6 +42,6 @@ proc removeTimerCtx*(gs: GuildenServer, timercallback: proc() {.nimcall.}) {.rai
     gs.log(ERROR, "could not remove nonexistent timer callback")
     return
   try: gs.selector.unregister(timerdata[index].fd)
-  except: discard
+  except Defect, CatchableError: discard
   timerdata[index].fd = 0
 {.pop.}

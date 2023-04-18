@@ -37,7 +37,7 @@ proc writeCode*(ctx: HttpCtx, code: HttpCode): bool {.inline, gcsafe, raises: []
     else:
       let codestring = $code # slow...
       ret = send(ctx.socketdata.socket, unsafeAddr codestring[0], codestring.len.cint, 0)
-  except:
+  except CatchableError:
     ret = -2
   checkRet(ctx)
   ctx.gs[].log(DEBUG, "writeCode " & $ctx.socketdata.socket & ": " & $code)
@@ -51,7 +51,7 @@ proc writeToSocket*(ctx: HttpCtx, text: ptr string, length: int, flags = interme
   while bytessent < length:
     let ret =
       try: send(ctx.socketdata.socket, unsafeAddr text[bytessent], (length - bytessent).cint, flags + DONTWAIT)
-      except: -2
+      except CatchableError: -2
     if ret == -1 and osLastError().cint in [EAGAIN, EWOULDBLOCK]:
       sleep(backoff)
       backoff *= 2

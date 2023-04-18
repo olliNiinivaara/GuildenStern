@@ -106,7 +106,7 @@ proc getContentLength*(ctx: HttpCtx): int {.raises: [].} =
   while i < ctx.requestlen and request[i] != '\c': i += 1
   if i == ctx.requestlen: return 0
   try: return parseInt(request[start + length ..< i])
-  except:
+  except CatchableError:
     ctx.gs[].log(WARN, "could not parse content-length from: " & request)
     return 0
   

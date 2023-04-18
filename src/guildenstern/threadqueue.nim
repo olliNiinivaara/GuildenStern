@@ -42,7 +42,7 @@ proc threadProc() {.thread.} =
     handleRead(queue[mytail].gs, queue[mytail].data)
     if likely(queue[mytail].data.port > 0) and likely(queue[mytail].gs.selector.contains(queue[mytail].data.socket.int)):
       try: queue[mytail].gs.selector.updateHandle(queue[mytail].data.socket.int, {Event.Read})
-      except:
+      except CatchableError:
         queue[mytail].gs[].log(ERROR, "updateHandle error: " & getCurrentExceptionMsg())
   
 

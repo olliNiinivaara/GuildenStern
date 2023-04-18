@@ -21,7 +21,7 @@ proc handleAccept(gs: ptr GuildenServer, fd: posix.SocketHandle, data: ptr Socke
 
   if gs.selector.contains(fd.int):
     try: gs.selector.unregister(fd.int)
-    except:
+    except CatchableError, Defect:
       gs[].log(WARN, "could not unregister contained socket: " & $fd)
       return
 
@@ -42,7 +42,7 @@ template handleEvent() =
   if unlikely(data.ctxid == ServerCtx):
     try:
       handleAccept(unsafeAddr gs, fd, data)
-    except:
+    except CatchableError, Defect:
       if osLastError().int != 2 and osLastError().int != 9: gs.log(ERROR, "connect error")
       else:
         gs.log(INFO, "connect error")
@@ -55,7 +55,7 @@ template handleEvent() =
     else:
       if likely(data.port > 0):
         try: gs.selector.updateHandle(fd.int, {})
-        except:
+        except CatchableError, Defect:
           gs.log(ERROR, "removeHandle error: " & getCurrentExceptionMsg())
           continue
       createTask()
@@ -67,7 +67,7 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
     try:
       var ret: int
       try: ret = gs.selector.selectInto(-1, eventbuffer)
-      except:
+      except CatchableError, Defect:
         gs.log(ERROR, "selector.select")
         continue
 
@@ -89,7 +89,7 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
         data = addr(gs.selector.getData(fd.int))
         {.pop.}
         if unlikely(data == nil): continue
-      except:
+      except CatchableError, Defect:
         gs.log(FATAL, "selector.getData error")
         break
 
@@ -115,11 +115,11 @@ proc eventLoop(gs: GuildenServer) {.gcsafe, raises: [].} =
           if gs.workerthreadcount == 1: closeOtherSocket(unsafeAddr gs, data, NetErrored, "non-read " & $fd & ": " & $event.events)
           else:
             when compileOption("threads"): closeOtherSocket(unsafeAddr gs, data, NetErrored, "non-read " & $fd & ": " & $event.events)
-        except: discard
+        except CatchableError, Defect: discard
         finally: continue
 
       handleEvent()
-    except:
+    except CatchableError, Defect:
       gs.log(FATAL, "dispatcher exception")
       continue
 
@@ -160,7 +160,7 @@ proc serve*(gs: GuildenServer, threadcount = -1, loglevel: LogLevel = ERROR) {.g
         try:
           discard setsockopt(posix.SocketHandle(portserver.getFd()), cint(SOL_SOCKET), cint(SO_LINGER), addr linger, SockLen(sizeof(TLinger)))
           portserver.bindAddr(net.Port(port), "")
-        except:
+        except CatchableError, Defect:
           gs.log(FATAL, "Could not open port " & $port)
           raise
         gs.selector.registerHandle(portserver.getFd().int, {Event.Read}, SocketData(port: port, ctxid: ServerCtx))

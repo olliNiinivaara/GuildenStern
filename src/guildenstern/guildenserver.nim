@@ -73,7 +73,7 @@ var
 proc shutdown*() =
   {.gcsafe.}: shuttingdown = true
   try: trigger(shutdownevent)
-  except:
+  except Defect:
     echo getCurrentExceptionMsg()
     quit(-666)
 
@@ -153,7 +153,7 @@ proc closeSocket*(ctx: Ctx, cause = CloseCalled, msg = "") {.raises: [].} =
       ctx.gs.selector.unregister(fd.int)
     if cause notin [ClosedbyClient, ConnectionLost]: nativesockets.SocketHandle(fd).close()
     ctx.socketdata.socket = INVALID_SOCKET
-  except:
+  except CatchableError:
     ctx.gs[].log(ERROR, "close error")
 
 
@@ -170,7 +170,7 @@ proc closeOtherSocket*(gs: ptr GuildenServer, data: ptr SocketData, cause: Socke
       gs.closecallback(ctx, fd, cause, msg) 
     if gs.selector.contains(fd.int): gs.selector.unregister(fd.int)
     if cause notin [ClosedbyClient, ConnectionLost]: nativesockets.SocketHandle(fd).close()
-  except:
+  except CatchableError:
     gs[].log(ERROR, "internal close error")
 {.pop.}
 
@@ -182,6 +182,6 @@ proc closeOtherSocket*(gs: GuildenServer, socket: posix.SocketHandle, cause: Soc
     {.push warning[ProveInit]: off.}
     data = addr(gs.selector.getData(socket.int))
     {.pop.}
-  except: return
+  except CatchableError: return
   if data == nil:  return 
   closeOtherSocket(unsafeAddr gs, data, cause, msg)
