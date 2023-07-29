@@ -1,36 +1,41 @@
 # nim r --threads:on --gc:orc -d:danger -d:threadsafe test_wrk
 
-#[example result:
-
+#[example result to expect:
 Running 10s test @ http://127.0.0.1:5050
-  8 threads and 5000 connections
+  4 threads and 100 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency    45.89ms    4.78ms 149.74ms   93.38%
-    Req/Sec    13.59k     0.86k   16.45k    76.01%
+    Latency   228.50us  126.53us   7.43ms   87.58%
+    Req/Sec   107.27k     8.56k  198.00k    81.84%
   Latency Distribution
-     50%   44.45ms
-     75%   47.71ms
-     90%   48.92ms
-     99%   57.32ms
-  1071199 requests in 10.04s, 27.69MB read
-Requests/sec: 106692.14
-Transfer/sec:      2.76MB  
+     50%  206.00us
+     75%  226.00us
+     90%  355.00us
+     99%  722.00us
+  4289333 requests in 10.10s, 155.44MB read
+Requests/sec: 424701.07
+Transfer/sec:     15.39MB
 ]#
 
-import osproc, streams, strutils, guildenstern/[ctxtimer, ctxheader]
+import osproc, streams, strutils, guildenstern/[dispatcher, server]
 
-var server = new GuildenServer
 
-proc doWrk() {.raises: [].} =
+proc doWrk(): int =
   try:
-    {.gcsafe.}: server.removeTimerCtx(doWrk)
-    let wrk = startProcess("wrkbin", "", ["-t8", "-c5000",  "-d10s", "--latency",  "http://127.0.0.1:5050"])
-    let result = wrk.outputStream().readAll()
-    echo result
-    if "Socket errors" in result: quit(-1)
+    let wrk = startProcess("wrkbin", "", ["-t4", "-c100",  "-d10s", "--latency",  "http://127.0.0.1:5050"])
+    let results = wrk.outputStream().readAll()
+    echo results
     shutdown()
-  except Exception: quit(-123)
+    if "Socket errors" in results: return -1
+  except Exception: return -123
+  return 0
 
-server.initTimerCtx(1, doWrk)
-server.initHeaderCtx(proc(ctx: HttpCtx) = ctx.reply(Http204) , 5050, false)
-server.serve(8)
+proc handle() = reply(Http200)
+
+proc run() =
+  let server = newHttpServer(handle, false, false, false)
+  server.start(5050, 4)
+  let errorcode = doWrk()
+  joinThread(server.thread)
+  quit(errorcode)
+
+run()

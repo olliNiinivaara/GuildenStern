@@ -14,24 +14,19 @@ jobs:
           npm install
           
           cd test_wrk/
-          nim -b:cpp r --gc:arc -d:danger --threads:on -d:threadsafe -p:../../src/ test_wrk
+          nim r --gc:orc -d:danger --threads:on -d:threadsafe -p:../../src/ test_wrk
           cd ..
           
-          cd test_ctxheader/
-          nim c -r --gc:arc --threads:on --d:threadsafe -p:../../src/ server.nim &
+          cd test_httpserver/
+          nim r --gc:orc --threads:on --d:threadsafe -p:../../src/ testserver.nim &
           sleep 5
           cd ..
           npm run test_ctxheader
           
           cd test_ctxws/
-          nim c -r --gc:arc --threads:on --d:threadsafe -p:../../src/ server.nim &
+          nim r --gc:orc --threads:on --d:threadsafe -p:../../src/ server.nim &
           sleep 5
           cd ..
           npm run test_ctxws     
           
-          cd err_empty_response/
-          nim c -r --threads:on --d:threadsafe -p:../../src/ server.nim &
-          sleep 5
-          cd ..          
-          npm run err_empty_response
           kill -INT $!

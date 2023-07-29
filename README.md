@@ -6,46 +6,43 @@ Modular multithreading Linux HTTP + WebSocket server
 ## Example
 
 ```nim
-# nim c -r --gc:arc --d:release --threads:on --d:threadsafe example.nim
+# nim r --gc:orc --d:release --threads:on --d:threadsafe thisexample
 
-import cgi, strtabs, httpcore, guildenstern/[ctxheader, ctxbody]
+import cgi, guildenstern/[dispatcher, httpserver]
      
-proc handleGet(ctx: HttpCtx) =
+proc handleGet() =
   let html = """
     <!doctype html><title>GuildenStern Example</title><body>
-    <form action="http://localhost:5051" method="post">
+    <form action="http://localhost:5051" method="post" accept-charset="utf-8">
     <input name="say" id="say" value="Hi"><button>Send"""
-  ctx.reply(html)
+  reply(html)
 
-proc handlePost(ctx: HttpCtx) =
-  try: echo readData(ctx.getBody()).getOrDefault("say")
-  except: (ctx.reply(Http400) ; return)
-  ctx.reply(HttpCode(303), ["location: http://localhost:5050"])
+proc handlePost() =
+  try: echo readData(getBody()).getOrDefault("say")
+  except: (reply(Http400) ; return)
+  reply(Http303, ["location: http://localhost:5050"])
 
-var server = new GuildenServer
-server.initHeaderCtx(handleGet, 5050, false)
-server.initBodyCtx(handlePost, 5051)
-echo "GuildenStern HTTP server serving at 5050"
-server.serve(loglevel = DEBUG)
+let getserver = newHttpServer(handleGet)
+getserver.start(5050)
+let postserver = newHttpServer(handlePost)
+postserver.start(5051)
+joinThreads(getserver.thread, postserver.thread)
 ```
 
 ## Documentation
-[User Guide](http://olliNiinivaara.github.io/GuildenStern/)
 
-[How to implement a custom handler](https://github.com/olliNiinivaara/GuildenStern/blob/master/docs/customhandler.nim)
+TODO
 
 ## Installation
 
-`nimble install guildenstern`
+`git clone -b dev --single-branch https://github.com/olliNiinivaara/GuildenStern.git`
 
 ## Features
 
-- Modular architecture means simpler codebase, easy customization and more opportunities for performance optimization
-- Every request is served in dedicated thread - scales vertically and requests cannot stall each other 
-- Can listen to multiple ports with different handlers
+- Modular architecture: simple codebase and easy customization
+- Every request is processed in dedicated thread: preemptive multitasking scales vertically
+- Listen to different ports with different kinds of servers: creates opportunities for performance optimization
 
-## Release notes, 5.1.0 (2022-02-06)
+## Release notes, 6.0.0 (2023-07-29)
 
-- new *multiSend* proc for WebSockets: can be called from multiple threads in parallel
-- better default logging
-- other fixes
+- major rewrite
