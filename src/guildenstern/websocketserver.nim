@@ -14,7 +14,7 @@ type
     Close = 0x8               ## connection close
     Ping = 0x9                ## ping
     Pong = 0xa                ## pong
-    Fail = 0xe                ## protocol failure / connection lost in flight
+    WsFail = 0xe                ## protocol failure / connection lost in flight
   
   SendState = enum NotStarted, Continue, Delivered, Err
 
@@ -85,7 +85,7 @@ template `[]`(value: uint8, index: int): bool =
 
 template error(msg: string) =
   wsserver.closeSocket(guildenhandler.socketdata, ProtocolViolated, msg)
-  ws.opcode = Fail
+  ws.opcode = WsFail
   return -1
 
 
@@ -122,17 +122,17 @@ proc recvHeader(): int =
 proc recvFrame() =
   var expectedlen: int  
   expectedlen = recvHeader()
-  if ws.opcode in [Fail, Close]:
+  if ws.opcode in [WsFail, Close]:
     if ws.opcode == Close: wsserver.closeSocket(ws.socketdata, ClosedbyClient, "")
     return
   while true:
-    if shuttingdown: (ws.opcode = Fail; return)
+    if shuttingdown: (ws.opcode = WsFail; return)
     let ret =
       if ws.requestlen == 0: recv(ws.socketdata.socket, addr ws.request[0], expectedLen.cint, 0x40)
       else: recv(ws.socketdata.socket, addr ws.request[ws.requestlen], (expectedLen - ws.requestlen).cint, 0)
-    if shuttingdown: (ws.opcode = Fail; return)
+    if shuttingdown: (ws.opcode = WsFail; return)
 
-    if ret == 0: (wsserver.closeSocket(ws.socketdata, ClosedbyClient, ""); ws.opcode = Fail; return)
+    if ret == 0: (wsserver.closeSocket(ws.socketdata, ClosedbyClient, ""); ws.opcode = WsFail; return)
     if ret == -1:
       let lastError = osLastError().int
       let cause =
@@ -141,7 +141,7 @@ proc recvFrame() =
         elif lasterror == 104: ClosedbyClient
         else: NetErrored
       wsserver.log(WARN, "websocket " & $ws.socketdata.socket & " receive error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
-      ws.opcode = Fail
+      ws.opcode = WsFail
       wsserver.closeSocket(ws.socketdata, cause, "ws receive error")
       return
 
@@ -153,13 +153,13 @@ proc receiveWs() =
   ws.requestlen = 0
   try:
     recvFrame()
-    if ws.opcode in [Fail, Close]: return
+    if ws.opcode in [WsFail, Close]: return
     while ws.opcode == Cont: recvFrame()
     for i in 0 ..< ws.requestlen: ws.request[i] = (ws.request[i].uint8 xor maskkey[i mod 4].uint8).char
   except:
     wsserver.log(WARN, "websocket " & $ws.socketdata.socket & " receive exception")
     wsserver.closeSocket(ws.socketdata, Excepted, "ws receive exception")
-    ws.opcode = Fail
+    ws.opcode = WsFail
 
 
 proc nibbleFromChar(c: char): int =
@@ -262,7 +262,7 @@ proc handleWsRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
     if (unlikely)ws.socketdata.flags == 0: handleWsUpgradehandshake()
     else:
       receiveWs()
-      if likely(ws.opcode notin [Fail, Close]):
+      if likely(ws.opcode notin [WsFail, Close]):
         {.gcsafe.}: wsserver.messageCallback()
 
 

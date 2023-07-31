@@ -1,13 +1,3 @@
-#[{.push hints: off.}
-import posix, net, nativesockets, os, httpcore
-import guildenserver
-from strutils import join
-#{.pop.}]#
-
-# from posix import MSG_NOSIGNAL
-
-{.push checks: off.}
-
 const
   DONTWAIT = 0x40.cint
   intermediateflags = MSG_NOSIGNAL + 0x8000 # MSG_MORE
@@ -47,14 +37,24 @@ proc writeCode*(code: HttpCode): SocketState {.inline, gcsafe, raises: [].} =
   server.log(DEBUG, "writeCode " & $http.socketdata.socket & " " & $code & ": " & $result)
 
 
-
 proc writeToSocketNonblocking*(text: ptr string, start: int, length: int, flags = intermediateflags): (SocketState , int) {.inline, gcsafe, raises: [].} =
-  if length == 0: return (Complete , 0)
+  assert(text != nil and length > 0)
   result[1] =
     try: send(http.socketdata.socket, unsafeAddr text[start], length.cint, flags + DONTWAIT)
     except CatchableError: Excepted.int
-  result[0] = checkSocketState(result[1])
-  if result[0] == Progress and result[1] == length: result[0] = Complete
+  if likely(result[1] > 0):
+    if result[1] == length: result[0] = Complete
+    else: result[0] = Progress
+  else: result[0] =  checkSocketState(result[1])
+
+
+proc replyFinish*(): SocketState {.discardable, inline, gcsafe, raises: [].} =
+  let ret =
+    try: send(http.socketdata.socket, nil, 0, lastflag)
+    except CatchableError: Excepted.int
+  if likely(ret != -1): return Complete
+  discard checkSocketState(-1)
+  return Fail
 
 
 proc writeToSocketBlocking*(text: ptr string, length: int, flags = intermediateflags): SocketState {.inline, gcsafe, raises: [].} =
@@ -66,6 +66,9 @@ proc writeToSocketBlocking*(text: ptr string, length: int, flags = intermediatef
     let ret =
       try: send(http.socketdata.socket, unsafeAddr text[bytessent], (length - bytessent).cint, flags + DONTWAIT)
       except CatchableError: Excepted.int
+    if likely(ret > 0):
+      bytessent.inc(ret)
+      continue
     result = checkSocketState(ret)
     if result == TryAgain:
       sleep(backoff)
@@ -75,10 +78,11 @@ proc writeToSocketBlocking*(text: ptr string, length: int, flags = intermediatef
         server.closeSocket(http.socketdata, TimedOut, "didn't write to socket")
         return Fail
       continue
-    bytessent.inc(ret)
+    else: return result    
   if text[0] != '\c':
     server.log(DEBUG, "writeToSocket " & $http.socketdata.socket & ": " & text[0 ..< length])
   return Complete
+
 
 let
   shortdivider = "\c\L"
@@ -123,7 +127,7 @@ proc reply*(code: HttpCode, body: ptr string, lengthstring: string, length: int,
     return writeToSocketBlocking(body, length, finalflag)
 
 
-proc replyStart*(code: HttpCode, contentlength: int, firstpart: ptr string, headers: ptr string = nil): SocketState {.inline, gcsafe, raises: [].} =
+proc replyStart*(code: HttpCode, contentlength: int, headers: ptr string = nil): SocketState {.inline, gcsafe, raises: [].} =
   {.gcsafe.}: 
     if unlikely(writeVersion() != Complete): return Fail 
     if unlikely(writeCode(code) != Complete): return Fail
@@ -133,11 +137,10 @@ proc replyStart*(code: HttpCode, contentlength: int, firstpart: ptr string, head
       if writeToSocketBlocking(headers, headers[].len) != Complete: return Fail
       if writeToSocketBlocking(unsafeAddr shortdivider, shortdivider.len) != Complete: return Fail
     
-    if writeToSocketBlocking(unsafeAddr contentlen, contentlen.len) != Complete: return Fail
+    if unlikely(writeToSocketBlocking(unsafeAddr contentlen, contentlen.len) != Complete): return Fail
     let lengthstring = $contentlength
-    if writeToSocketBlocking(unsafeAddr lengthstring, lengthstring.len) != Complete: return Fail
-    if writeToSocketBlocking(unsafeAddr longdivider, longdivider.len) != Complete: return Fail
-    return writeToSocketBlocking(firstpart, firstpart[].len)
+    if unlikely(writeToSocketBlocking(unsafeAddr lengthstring, lengthstring.len) != Complete): return Fail
+    return writeToSocketBlocking(unsafeAddr longdivider, longdivider.len)
 
 
 proc reply*(code: HttpCode, body: ptr string = nil, headers: ptr string = nil) {.inline, gcsafe, raises: [].} =
@@ -145,26 +148,17 @@ proc reply*(code: HttpCode, body: ptr string = nil, headers: ptr string = nil) {
   if likely(reply(code, body, $length, length, headers, false) == Complete): server.log(TRACE, "reply ok")
   else: server.log(INFO, $http.socketdata.socket & ": reply failed")
 
-
 proc reply*(code: HttpCode, body: ptr string, headers: openArray[string]) {.inline, gcsafe, raises: [].} =
   let joinedheaders = headers.join("\c\L")
   reply(code, body, unsafeAddr joinedheaders)
 
-
-proc replyStart*(code: HttpCode, contentlength: int, body: ptr string, headers: openArray[string]): SocketState {.inline, gcsafe, raises: [].} =
+proc replyStart*(code: HttpCode, contentlength: int, headers: openArray[string]): SocketState {.inline, gcsafe, raises: [].} =
   let joinedheaders = headers.join("\c\L")
-  replyStart(code, contentlength, body, unsafeAddr joinedheaders)
+  replyStart(code, contentlength, unsafeAddr joinedheaders)
 
-
-proc replyMore*(bodypart: ptr string, partlength: int = -1): SocketState {.inline, gcsafe, raises: [].} =
+proc replyMore*(bodypart: ptr string, start: int, partlength: int = -1): (SocketState , int) {.inline, gcsafe, raises: [].} =
   let length = if partlength != -1: partlength else: bodypart[].len
-  return writeToSocketBlocking(bodypart, length)
-
-
-proc replyLast*(lastpart: ptr string, partlength: int = -1): SocketState {.discardable, inline, gcsafe, raises: [].} =
-  let length = if partlength != -1: partlength else: lastpart[].len
-  return writeToSocketBlocking(lastpart, length, lastflag)
-
+  return writeToSocketNonBlocking(bodypart, start, length)
 
 template reply*(code: HttpCode, headers: openArray[string]) =
   reply(code, nil, headers)
@@ -184,28 +178,12 @@ template reply*(code: HttpCode, body: string, headers: openArray[string]) =
     reply(code, unsafeAddr body, headers)
   else: {.fatal: "posix.send requires taking pointer to body, but body has no address".}
 
-template replyStart*(code: HttpCode, contentlength: int, firstpart: string, headers: openArray[string]): bool =
-  when compiles(unsafeAddr firstpart):
-    replyStart(code, contentlength, unsafeAddr firstpart, headers)
-  else: {.fatal: "posix.send requires taking pointer to firstpart, but firstpart has no address".}
-
-template replyStart*(contentlength: int, firstpart: string): bool =
-  when compiles(unsafeAddr firstpart):
-    replyStart(Http200, contentlength, unsafeAddr firstpart, nil)
-  else: {.fatal: "posix.send requires taking pointer to firstpart, but firstpart has no address".}
+template reply*(code: HttpCode, body: string) =
+  when compiles(unsafeAddr body):
+    reply(code, unsafeAddr body, nil)
+  else: {.fatal: "posix.send requires taking pointer to body, but body has no address".}
 
 template replyMore*(bodypart: string): bool =
   when compiles(unsafeAddr bodypart):
-    replyMore(unsafeAddr bodypart)
+    replyMore(unsafeAddr bodypart, 0)
   else: {.fatal: "posix.send requires taking pointer to bodypart, but bodypart has no address".}
-
-template replyLast*(lastpart: string) =
-  when compiles(unsafeAddr lastpart):
-    replyLast(unsafeAddr lastpart)
-  else: {.fatal: "posix.send requires taking pointer to lastpart, but lastpart has no address".} 
-
-template replyLast*() =
-  replyLast(nil)
-
-
-{.pop.}

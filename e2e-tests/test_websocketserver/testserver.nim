@@ -35,8 +35,8 @@ proc onLost(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string) =
       # shutdown()
         
 proc onRequest() =
-  let html = """<!doctype html><title>WsCtx</title>
-  <script>
+  let htmlfirst = """<!doctype html><title>WsCtx</title>"""
+  let htmlsecond = """<script>
   let websocket = new WebSocket("ws://" + location.host.slice(0, -1) + '1')
   let messagecount = 0
   websocket.onmessage = function(evt) {
@@ -44,10 +44,24 @@ proc onRequest() =
     element.id = "li" + (++messagecount)
     element.innerHTML = evt.data
     document.getElementById("ul").appendChild(element)}
-  </script>
-  <body><button id="wsbutton" onclick="websocket.send('hallo')">say hallo</button>
+  </script>"""
+  let htmlthird = """<body><button id="wsbutton" onclick="websocket.send('hallo')">say hallo</button>
   <button id="closebutton" onclick="websocket.close()">close</button><ul id="ul">"""
-  reply(Http200, html)
+  if replyStart(Http200, htmlfirst.len + htmlsecond.len + htmlthird.len) == Fail: return
+  var start = 0
+  var currentchunk = htmlfirst
+  while true:
+    let (state, sent) = replyMore(addr currentchunk, start, currentchunk.len - start)
+    case state
+      of Fail: return
+      of TryAgain: continue
+      of Progress: start += sent
+      of Complete:
+        if currentchunk == htmlfirst: currentchunk = htmlsecond
+        elif currentchunk == htmlsecond: currentchunk = htmlthird
+        else: break
+        start = 0
+  replyFinish()
 
 
 echo "Starting test servers at ", now().format("HH:mm:ss")

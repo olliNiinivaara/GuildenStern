@@ -54,9 +54,12 @@ proc prepareHttpHandler*(socketdata: ptr SocketData) {.inline.} =
   http.bodystart = -1
 
 
+{.push checks: off.}
+
 proc checkSocketState*(ret: int, nonblocking = false): SocketState =
   if unlikely(shuttingdown): return Fail
   if likely(ret > 0): return Progress
+  if unlikely(ret == 0): return TryAgain
   let lastError = osLastError().int
   let cause =
     if unlikely(ret == Excepted.int): Excepted
@@ -88,6 +91,9 @@ proc handleRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
   if server.parseHeaders: parseHeaders(http.headers)
 
   {.gcsafe.}: server.requestCallback()
+
+
+{.pop.}
 
 
 proc initHttpServer*(s: HttpServer, parserequestline = true, parseheaders = true, hascontent = true) =

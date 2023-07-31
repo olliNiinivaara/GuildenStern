@@ -18,6 +18,8 @@ Transfer/sec:     15.39MB
 
 import osproc, streams, strutils, guildenstern/[dispatcher, httpserver]
 
+when compileOption("profiler"): import nimprof
+
 
 proc doWrk(): int =
   try:
