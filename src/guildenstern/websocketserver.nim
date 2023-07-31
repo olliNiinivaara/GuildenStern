@@ -84,7 +84,7 @@ template `[]`(value: uint8, index: int): bool =
 
 
 template error(msg: string) =
-  wsserver.doCloseSocket(guildenhandler.socketdata, ProtocolViolated, msg)
+  wsserver.closeSocket(guildenhandler.socketdata, ProtocolViolated, msg)
   ws.opcode = Fail
   return -1
 
@@ -114,7 +114,7 @@ proc recvHeader(): int =
   let maskKeylen = ws.socketdata.socket.bytesRecv(maskkey[0].addr, 4)
   if maskKeylen != 4: error("length")
 
-  if expectedLen > MaxRequestLength: error("Maximum request size bound to be exceeded: " & $(expectedLen))
+  if expectedLen > server.maxrequestlength: error("Maximum request size bound to be exceeded: " & $(expectedLen))
   
   return expectedLen
 {.pop.}
@@ -123,7 +123,7 @@ proc recvFrame() =
   var expectedlen: int  
   expectedlen = recvHeader()
   if ws.opcode in [Fail, Close]:
-    if ws.opcode == Close: wsserver.doCloseSocket(ws.socketdata, ClosedbyClient, "")
+    if ws.opcode == Close: wsserver.closeSocket(ws.socketdata, ClosedbyClient, "")
     return
   while true:
     if shuttingdown: (ws.opcode = Fail; return)
@@ -132,7 +132,7 @@ proc recvFrame() =
       else: recv(ws.socketdata.socket, addr ws.request[ws.requestlen], (expectedLen - ws.requestlen).cint, 0)
     if shuttingdown: (ws.opcode = Fail; return)
 
-    if ret == 0: (wsserver.doCloseSocket(ws.socketdata, ClosedbyClient, ""); ws.opcode = Fail; return)
+    if ret == 0: (wsserver.closeSocket(ws.socketdata, ClosedbyClient, ""); ws.opcode = Fail; return)
     if ret == -1:
       let lastError = osLastError().int
       let cause =
@@ -142,7 +142,7 @@ proc recvFrame() =
         else: NetErrored
       wsserver.log(WARN, "websocket " & $ws.socketdata.socket & " receive error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
       ws.opcode = Fail
-      wsserver.doCloseSocket(ws.socketdata, cause, "ws receive error")
+      wsserver.closeSocket(ws.socketdata, cause, "ws receive error")
       return
 
     ws.requestlen += ret
@@ -158,7 +158,7 @@ proc receiveWs() =
     for i in 0 ..< ws.requestlen: ws.request[i] = (ws.request[i].uint8 xor maskkey[i mod 4].uint8).char
   except:
     wsserver.log(WARN, "websocket " & $ws.socketdata.socket & " receive exception")
-    wsserver.doCloseSocket(ws.socketdata, Excepted, "ws receive exception")
+    wsserver.closeSocket(ws.socketdata, Excepted, "ws receive exception")
     ws.opcode = Fail
 
 
@@ -236,7 +236,7 @@ proc handleWsUpgradehandshake() =
     try: replyHandshake()
     except: (Excepted , getCurrentExceptionMsg())
   if state != DontClose:
-    wsserver.doCloseSocket(ws.socketdata, state, errormessage)
+    wsserver.closeSocket(ws.socketdata, state, errormessage)
     return
   ws.socketdata.flags = 1
   if wsserver.afterupgradeCallback != nil:
@@ -266,13 +266,14 @@ proc handleWsRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
         {.gcsafe.}: wsserver.messageCallback()
 
 
-proc newWebsocketServer*(upgradecallback: WsUpgradeCallback, afterupgradecallback: WsAfterUpgradeCallback, onwsmessagecallback: WsMessageCallback, closedcallback: ClosedCallback): WebsocketServer =
+proc newWebsocketServer*(upgradecallback: WsUpgradeCallback, afterupgradecallback: WsAfterUpgradeCallback, onwsmessagecallback: WsMessageCallback, onclosesocketcallback: OnCloseSocketCallback): WebsocketServer =
   result = new WebsocketServer
+  initHttpServer(result, true, true, false)
   result.registerHandler(handleWsRequest)
   result.upgradeCallback = upgradecallback
   result.afterupgradeCallback = afterupgradecallback
   result.messageCallback = onwsmessagecallback
-  result.closedCallback = closedcallback
+  result.onCloseSocketCallback = onclosesocketcallback
   initLock(result.sendlock)
   result.sendingsockets = initHashSet[posix.Sockethandle](3 * MaxParallelSendingSockets)
 
@@ -295,10 +296,10 @@ proc sendNonblocking(server: WebsocketServer, socket: posix.SocketHandle, text: 
         elif lasterror == 104: ClosedbyClient
         else: NetErrored
       server.log(NOTICE, "websocket " & $socket & " send error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
-      server.doCloseOtherSocket(server, socket, cause, osErrorMsg(OSErrorCode(lastError)))
+      server.closeOtherSocket(socket, cause, osErrorMsg(OSErrorCode(lastError)))
     elif ret < -1:
       server.log(NOTICE, "websocket " & $socket & " send error")
-      server.doCloseOtherSocket(server, socket, Excepted, getCurrentExceptionMsg())
+      server.closeOtherSocket(socket, Excepted, getCurrentExceptionMsg())
     return (Err , 0)
   if sent + ret == len: return (Delivered , ret)
   return (Continue , ret)
@@ -307,7 +308,7 @@ proc sendNonblocking(server: WebsocketServer, socket: posix.SocketHandle, text: 
 proc closeSocketsInFlight(server: WebsocketServer, sockets: seq[posix.SocketHandle], states: seq[State]): int =
   for i in 0 ..< states.len:
     if states[i].sendstate == Continue:
-      server.doCloseOtherSocket(server, sockets[i], TimedOut, "")
+      server.closeOtherSocket(sockets[i], TimedOut, "")
       withLock(server.sendlock): server.sendingsockets.excl(sockets[i])
       result.inc
 
@@ -360,7 +361,7 @@ proc send*(server: GuildenServer, delivery: ptr WsDelivery, timeoutsecs = 20, sl
         delivery.states[s].sendstate = Err
         withLock(WebsocketServer(server).sendlock):
           WebsocketServer(server).sendingsockets.excl(delivery.sockets[s])
-        if headerstate == Continue: server.doCloseOtherSocket(server, delivery.sockets[s], TimedOut)
+        if headerstate == Continue: server.closeOtherSocket(delivery.sockets[s], TimedOut)
         result.inc
         handled.inc
         server.log(TRACE, "wsockets processed: " & $handled & "/" & $delivery.sockets.len)

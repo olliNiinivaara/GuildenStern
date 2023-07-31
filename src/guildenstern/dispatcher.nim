@@ -109,7 +109,7 @@ proc closeSocket*(socketdata: ptr SocketData, cause = CloseCalled, msg = "") {.g
   socketdata.server.log(DEBUG, "socket " & $cause & ": " & $socketdata.socket & "  " & msg)
   if unlikely(socketdata.isserversocket): socketdata.server.log(DEBUG, "note: closing socket " & $socketdata.socket & " is server socket")
   try:
-    if socketdata.server.closedcallback != nil: socketdata.server.closedcallback(socketdata, cause, msg)
+    if socketdata.server.onclosesocketcallback != nil: socketdata.server.onCloseSocketCallback(socketdata, cause, msg)
     if cause != ClosedbyClient:
       socketdata.socket.close()
       let theselector = findSelectorForSocket(socketdata.server, socketdata.socket)
@@ -124,11 +124,11 @@ proc closeOtherSocketInOtherThread*(server: GuildenServer, socket: posix.SocketH
   if socket.int in [0, INVALID_SOCKET.int]: return
   server.log(DEBUG, "closeOtherSocketInOtherThread " & $cause & ": " & $socket & "  " & msg)
 
-  if server.closedcallback != nil:
+  if server.onclosesocketcallback != nil:
     var gs = SocketData()
     gs.server = server
     gs.socket = socket
-    server.closedcallback(addr gs, cause, msg) 
+    server.onCloseSocketCallback(addr gs, cause, msg) 
   
   if cause != ClosedbyClient:
     socket.close()
@@ -319,8 +319,8 @@ proc start*(server: GuildenServer, port: int, threadcount: uint = 0, loglevel = 
     if threadcount < 2: threadcount = 2
   server.initialize(loglevel)
   server.port = port.uint16
-  server.doCloseSocket = closeSocket
-  server.doCloseOtherSocket = closeOtherSocketInOtherThread
+  server.closeSocket = closeSocket
+  server.closeOtherSocketCallback = closeOtherSocketInOtherThread
   server.workerthreadcount = threadcount.int
   createThread(server.thread, dispatch, unsafeAddr server)
   while not server.started:

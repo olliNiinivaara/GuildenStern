@@ -39,6 +39,7 @@ type
 
 
   SocketCloseCause* = enum
+    Excepted = -1000
     CloseCalled
     AlreadyClosed
     ClosedbyClient
@@ -46,16 +47,15 @@ type
     TimedOut
     ProtocolViolated
     NetErrored
-    Excepted
     SecurityThreatened
     DontClose
 
 
   InitializerCallback* = proc(server: GuildenServer){.nimcall, gcsafe, raises: [].}
   HandlerCallback* = proc(socketdata: ptr SocketData){.nimcall, gcsafe, raises: [].}
-  CloseCallback* = proc(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
-  CloseOtherCallback* = proc(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause, msg: string = ""){.gcsafe, nimcall, raises: [].}
-  ClosedCallback* = proc(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
+  CloseSocketCallback* = proc(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
+  CloseOtherSocketCallback* = proc(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause, msg: string = ""){.gcsafe, nimcall, raises: [].}
+  OnCloseSocketCallback* = proc(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
 
 
   GuildenServer* {.inheritable.} = ref object
@@ -68,9 +68,9 @@ type
     started*: bool
     initializerCallback*: InitializerCallback
     handlerCallback*: HandlerCallback
-    doCloseSocket*: CloseCallback
-    doCloseOtherSocket*: CloseOtherCallback
-    closedCallback*: ClosedCallback
+    closeSocket*: CloseSocketCallback
+    closeOtherSocketCallback*: CloseOtherSocketCallback
+    onCloseSocketCallback*: OnCloseSocketCallback
 
 
   GuildenHandler* {.inheritable.} = ref object
@@ -119,14 +119,18 @@ proc initialize*(server: GuildenServer, loglevel: LogLevel) =
   )
 
 
-proc registerHandler*(server: GuildenServer, handler: HandlerCallback) =
+proc registerHandler*(server: GuildenServer, handlercallback: HandlerCallback) =
   if server.handlerCallback != nil: server.log(INFO, "handler changed")
-  server.handlerCallback = handler
+  server.handlerCallback = handlercallback
 
 
-proc registerConnectionclosedhandler*(server: GuildenServer, callback: ClosedCallback) =
-  server.closedcallback = callback
+proc registerConnectionclosedhandler*(server: GuildenServer, onclosesocketcallback: OnCloseSocketCallback) =
+  server.onclosesocketcallback = onclosesocketcallback
 
 
-proc handleRead*(socketdata: ptr SocketData) =
-  {.gcsafe.}: socketdata.server.handlerCallback(socketdata)
+proc closeOtherSocket*(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause = CloseCalled, msg: string = "") =
+  server.closeOtherSocketCallback(server, socket, cause, msg)
+
+
+template handleRead*(socketdata: ptr SocketData) =
+  {.gcsafe.}: socketdata.server.handlerCallback(socketdata)  

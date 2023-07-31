@@ -54,7 +54,7 @@ echo "Starting test servers at ", now().format("HH:mm:ss")
 let htmlserver = newHttpServer(onRequest)
 let jsonserver = newWebsocketServer(onUpgradeRequest, nil, onMessage, onLost)
 htmlserver.start(5050)
-jsonserver.start(5051, 0, TRACE)
+jsonserver.start(5051)
 joinThreads(htmlserver.thread, jsonserver.thread)
 echo "Stopped test servers at ", now().format("HH:mm:ss")
 

@@ -16,7 +16,7 @@ Requests/sec: 424701.07
 Transfer/sec:     15.39MB
 ]#
 
-import osproc, streams, strutils, guildenstern/[dispatcher, server]
+import osproc, streams, strutils, guildenstern/[dispatcher, httpserver]
 
 
 proc doWrk(): int =
