@@ -278,14 +278,12 @@ proc newWebsocketServer*(upgradecallback: WsUpgradeCallback, afterupgradecallbac
   result.sendingsockets = initHashSet[posix.Sockethandle](3 * MaxParallelSendingSockets)
 
 
-const DONTWAIT = 0x40.cint
-
 proc sendNonblocking(server: WebsocketServer, socket: posix.SocketHandle, text: ptr string, sent: int = 0): (SendState , int) =
   server.log(DEBUG, "writeToWebSocket " & $socket.int & ": " & text[])
   if socket.int in [0, INVALID_SOCKET.int]: return (Err , 0)
   let len = text[].len
   if sent == len: return (Delivered , 0)
-  let ret = send(socket, addr text[sent], len - sent, DONTWAIT)
+  let ret = send(socket, addr text[sent], len - sent, MSG_DONTWAIT)
   if ret < 1:
     if ret == -1:
       let lastError = osLastError().int

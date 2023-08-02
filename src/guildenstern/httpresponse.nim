@@ -1,12 +1,19 @@
 const
-  DONTWAIT = 0x40.cint
-  intermediateflags = MSG_NOSIGNAL + 0x8000 # MSG_MORE
-  lastflag = MSG_NOSIGNAL
+  intermediateflags = MSG_NOSIGNAL + MSG_DONTWAIT + MSG_MORE
+  lastflags = MSG_NOSIGNAL + MSG_DONTWAIT
+  
 
 let
   version = "HTTP/1.1 "
-  http200string = "200 OK"
-  http204string = "204 No Content"
+  http200string = "200 OK\c\L"
+  http200nocontent = "HTTP/1.1 200 OK\c\LContent-Length: 0\c\L\c\L"
+  http200nocontentlen = 38
+  http204string = "HTTP/1.1 204 No Content\c\L\c\L"
+  http204stringlen = 27
+  shortdivider = "\c\L"
+  longdivider = "\c\L\c\L"
+  contentlen = "Content-Length: "
+  zerocontent = "Content-Length: 0\c\L"
 
 
 proc writeVersion*(): SocketState {.inline, gcsafe, raises: [].} =
@@ -21,26 +28,24 @@ proc writeVersion*(): SocketState {.inline, gcsafe, raises: [].} =
 
 
 proc writeCode*(code: HttpCode): SocketState {.inline, gcsafe, raises: [].} =
+# TODO non-blocking  
   var ret: int
   try:
-    if likely(code == Http200):
-      {.gcsafe.}: ret = send(http.socketdata.socket, unsafeAddr http200string[0], 6, intermediateflags)
-    elif code == Http204:
-      {.gcsafe.}: ret = send(http.socketdata.socket, unsafeAddr http204string[0], 14, 0)
+    if code == Http200:
+      {.gcsafe.}: ret = send(http.socketdata.socket, unsafeAddr http200string[0], 8, 0)
     else:
-      let codestring = $code # slow...
+      let codestring = $code & "\c\L" # slow...
       ret = send(http.socketdata.socket, unsafeAddr codestring[0], codestring.len.cint, 0)
   except CatchableError:
     ret = Excepted.int
   result = checkSocketState(ret)
   if likely(result == Progress): result = Complete
-  server.log(DEBUG, "writeCode " & $http.socketdata.socket & " " & $code & ": " & $result)
 
 
-proc writeToSocketNonblocking*(text: ptr string, start: int, length: int, flags = intermediateflags): (SocketState , int) {.inline, gcsafe, raises: [].} =
+proc tryWriteToSocket*(text: ptr string, start: int, length: int, flags = intermediateflags): (SocketState , int) {.inline, gcsafe, raises: [].} =
   assert(text != nil and length > 0)
   result[1] =
-    try: send(http.socketdata.socket, unsafeAddr text[start], length.cint, flags + DONTWAIT)
+    try: send(http.socketdata.socket, unsafeAddr text[start], length.cint, flags)
     except CatchableError: Excepted.int
   if likely(result[1] > 0):
     if result[1] == length: result[0] = Complete
@@ -50,100 +55,90 @@ proc writeToSocketNonblocking*(text: ptr string, start: int, length: int, flags 
 
 proc replyFinish*(): SocketState {.discardable, inline, gcsafe, raises: [].} =
   let ret =
-    try: send(http.socketdata.socket, nil, 0, lastflag)
+    try: send(http.socketdata.socket, nil, 0, lastflags)
     except CatchableError: Excepted.int
   if likely(ret != -1): return Complete
   discard checkSocketState(-1)
   return Fail
 
 
-proc writeToSocketBlocking*(text: ptr string, length: int, flags = intermediateflags): SocketState {.inline, gcsafe, raises: [].} =
+proc writeToSocket*(text: ptr string, length: int, flags = intermediateflags): SocketState {.inline, gcsafe, raises: [].} =
   if length == 0: return Complete
   var bytessent = 0
   var backoff = 1
   var totalbackoff = 0
-  while bytessent < length:
-    let ret =
-      try: send(http.socketdata.socket, unsafeAddr text[bytessent], (length - bytessent).cint, flags + DONTWAIT)
-      except CatchableError: Excepted.int
+  while true:
+    let ret = send(http.socketdata.socket, unsafeAddr text[bytessent], (length - bytessent).cint, flags)
     if likely(ret > 0):
       bytessent.inc(ret)
+      if bytessent == length:
+        server.log(DEBUG, "writeToSocket " & $http.socketdata.socket & ": " & text[0 ..< length])
+        return Complete
       continue
     result = checkSocketState(ret)
     if result == TryAgain:
-      sleep(backoff)
+      server.suspend(backoff)
       totalbackoff += backoff
       backoff *= 2
-      if totalbackoff > server.blockingsendtimeoutms:
+      if totalbackoff > server.sockettimeoutms:
         server.closeSocket(http.socketdata, TimedOut, "didn't write to socket")
         return Fail
       continue
-    else: return result    
-  if text[0] != '\c':
-    server.log(DEBUG, "writeToSocket " & $http.socketdata.socket & ": " & text[0 ..< length])
-  return Complete
+    else: return result
 
 
-let
-  shortdivider = "\c\L"
-  longdivider = "\c\L\c\L"
-  contentlen = "Content-Length: "
-  zerocontent = "Content-Length: 0\c\L"
-
-
-proc replyCode*(code: HttpCode = Http200): SocketState {.discardable, inline, gcsafe, raises: [].} =
-  if unlikely(writeVersion() != Complete) : return
-  if unlikely(writeCode(code) != Complete): return
+proc reply*(code: HttpCode): SocketState {.discardable, inline, gcsafe, raises: [].} =
   {.gcsafe.}:
-      if code == Http204: return writeToSocketBlocking(unsafeAddr longdivider, longdivider.len, lastflag)
-      else:
-        if unlikely(writeToSocketBlocking(unsafeAddr shortdivider, shortdivider.len) != Complete): return Fail
-        if unlikely(writeToSocketBlocking(unsafeAddr zerocontent, zerocontent.len) != Complete): return Fail
-        return writeToSocketBlocking(unsafeAddr shortdivider, shortdivider.len, lastflag)
-      
+    if code == Http200:
+      return writeToSocket(unsafeAddr http200nocontent, http200nocontentlen, lastflags)
+    elif code == Http204:
+      return writeToSocket(unsafeAddr http204string, http204stringlen, lastflags)
+    else:
+      if unlikely(writeVersion() != Complete) : return Fail
+      if unlikely(writeCode(code) != Complete): return Fail
+      if unlikely(writeToSocket(unsafeAddr zerocontent, zerocontent.len) != Complete): return Fail
+      return writeToSocket(unsafeAddr shortdivider, shortdivider.len, lastflags)
+        
 
 proc reply*(code: HttpCode, body: ptr string, lengthstring: string, length: int, headers: ptr string, moretocome: bool): SocketState {.gcsafe, raises: [].} =
-  if body == nil and headers == nil: return replyCode(code)
-  let finalflag = if moretocome: intermediateflags else: lastflag
+  let finalflag = if moretocome: intermediateflags else: lastflags
   {.gcsafe.}: 
     if unlikely(writeVersion() != Complete): return Fail 
     if unlikely(writeCode(code) != Complete): return Fail
-    if unlikely(writeToSocketBlocking(unsafeAddr shortdivider, shortdivider.len) != Complete): return Fail
 
     if headers != nil and headers[].len > 0:
-      if writeToSocketBlocking(headers, headers[].len) != Complete: return Fail
-      if writeToSocketBlocking(unsafeAddr shortdivider, shortdivider.len) != Complete: return Fail
+      if writeToSocket(headers, headers[].len) != Complete: return Fail
+      if writeToSocket(unsafeAddr shortdivider, shortdivider.len) != Complete: return Fail
 
     if code == Http101 or code == Http304:      
-      return writeToSocketBlocking(unsafeAddr shortdivider, shortdivider.len, finalflag)
+      return writeToSocket(unsafeAddr shortdivider, shortdivider.len, lastflags)
       
     if length < 1:      
-      if writeToSocketBlocking(unsafeAddr zerocontent, zerocontent.len) != Complete: return Fail
-      return writeToSocketBlocking(unsafeAddr longdivider, longdivider.len, finalflag)
+      if writeToSocket(unsafeAddr zerocontent, zerocontent.len) != Complete: return Fail
+      return writeToSocket(unsafeAddr longdivider, longdivider.len, lastflags)
       
-    if writeToSocketBlocking(unsafeAddr contentlen, contentlen.len) != Complete: return Fail
-    if writeToSocketBlocking(unsafeAddr lengthstring, lengthstring.len) != Complete: return Fail
-    if writeToSocketBlocking(unsafeAddr longdivider, longdivider.len) != Complete: return Fail
-    return writeToSocketBlocking(body, length, finalflag)
+    if writeToSocket(unsafeAddr contentlen, contentlen.len) != Complete: return Fail
+    if writeToSocket(unsafeAddr lengthstring, lengthstring.len) != Complete: return Fail
+    if writeToSocket(unsafeAddr longdivider, longdivider.len) != Complete: return Fail
+    return writeToSocket(body, length, finalflag)
 
 
 proc replyStart*(code: HttpCode, contentlength: int, headers: ptr string = nil): SocketState {.inline, gcsafe, raises: [].} =
   {.gcsafe.}: 
     if unlikely(writeVersion() != Complete): return Fail 
     if unlikely(writeCode(code) != Complete): return Fail
-    if unlikely(writeToSocketBlocking(unsafeAddr shortdivider, shortdivider.len) != Complete): return Fail
 
     if headers != nil and headers[].len > 0:
-      if writeToSocketBlocking(headers, headers[].len) != Complete: return Fail
-      if writeToSocketBlocking(unsafeAddr shortdivider, shortdivider.len) != Complete: return Fail
+      if writeToSocket(headers, headers[].len) != Complete: return Fail
+      if writeToSocket(unsafeAddr shortdivider, shortdivider.len) != Complete: return Fail
     
-    if unlikely(writeToSocketBlocking(unsafeAddr contentlen, contentlen.len) != Complete): return Fail
+    if unlikely(writeToSocket(unsafeAddr contentlen, contentlen.len) != Complete): return Fail
     let lengthstring = $contentlength
-    if unlikely(writeToSocketBlocking(unsafeAddr lengthstring, lengthstring.len) != Complete): return Fail
-    return writeToSocketBlocking(unsafeAddr longdivider, longdivider.len)
+    if unlikely(writeToSocket(unsafeAddr lengthstring, lengthstring.len) != Complete): return Fail
+    return writeToSocket(unsafeAddr longdivider, longdivider.len)
 
 
-proc reply*(code: HttpCode, body: ptr string = nil, headers: ptr string = nil) {.inline, gcsafe, raises: [].} =
+proc reply*(code: HttpCode, body: ptr string, headers: ptr string) {.inline, gcsafe, raises: [].} =
   let length = if body == nil: 0 else: body[].len
   if likely(reply(code, body, $length, length, headers, false) == Complete): server.log(TRACE, "reply ok")
   else: server.log(INFO, $http.socketdata.socket & ": reply failed")
@@ -158,7 +153,7 @@ proc replyStart*(code: HttpCode, contentlength: int, headers: openArray[string])
 
 proc replyMore*(bodypart: ptr string, start: int, partlength: int = -1): (SocketState , int) {.inline, gcsafe, raises: [].} =
   let length = if partlength != -1: partlength else: bodypart[].len
-  return writeToSocketNonBlocking(bodypart, start, length)
+  return tryWriteToSocket(bodypart, start, length)
 
 template reply*(code: HttpCode, headers: openArray[string]) =
   reply(code, nil, headers)
@@ -178,9 +173,9 @@ template reply*(code: HttpCode, body: string, headers: openArray[string]) =
     reply(code, unsafeAddr body, headers)
   else: {.fatal: "posix.send requires taking pointer to body, but body has no address".}
 
-template reply*(code: HttpCode, body: string) =
+template reply*(body: string, headers: openArray[string]) =
   when compiles(unsafeAddr body):
-    reply(code, unsafeAddr body, nil)
+    reply(Http200, unsafeAddr body, headers)
   else: {.fatal: "posix.send requires taking pointer to body, but body has no address".}
 
 template replyMore*(bodypart: string): bool =

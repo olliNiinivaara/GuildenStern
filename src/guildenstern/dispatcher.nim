@@ -14,17 +14,21 @@ static: doAssert(defined(threadsafe))
 
 const
   RcvTimeOut* {.intdefine.} = 5 # SO_RCVTIMEO, https://linux.die.net/man/7/socket
-  QueueSize {.intdefine.} = 500
+  QueueSize {.intdefine.} = 200
 
 type
   WorkerData = ref object
     gsselector: Selector[SocketData]
     queue: array[QueueSize, ptr SocketData]
     tail: int
-    head: int # -1
+    head: int = -1
     workavailable: Cond
     worklock: Lock
-    currentload: int
+    activethreadcount: int
+    suspendedthreadcount: int
+
+let
+  processorcount = countProcessors()
   
 var
   workerdatas = initTable[int, WorkerData]()
@@ -36,16 +40,22 @@ initLock(workerdataslock)
 
 
 proc getLoad*(server: GuildenServer): int =
-  withLock(workerdataslock):  
+  let wd = workerdatas.getOrDefault(server.threadid)
+  return wd.activethreadcount
+
+
+proc suspend(server: GuildenServer, sleepmillisecs: int) {.gcsafe, nimcall, raises: [].} = 
+  {.gcsafe.}:
     let wd = workerdatas.getOrDefault(server.threadid)
-    if wd == nil: return 0
-    return wd.currentload
+  wd.activethreadcount.atomicdec()
+  sleep(sleepmillisecs)
+  wd.activethreadcount.atomicinc()
 
 
 proc restoreRead(server: GuildenServer, selector: Selector[SocketData], socket: int) {.inline.} =
   var success = true
   var failures = 0
-  if likely(selector.contains(socket)) and unlikely(socket != INVALID_SOCKET.int):
+  if unlikely(socket != INVALID_SOCKET.int) and likely(selector.contains(socket)):
     try: selector.updateHandle(socket, {Event.Read})
     except: success = false
     while not success:
@@ -55,8 +65,8 @@ proc restoreRead(server: GuildenServer, selector: Selector[SocketData], socket: 
         success = true
       except:
         failures += 1
-        if failures == 30: success = true
-    if unlikely(failures == 30):
+        if failures == 10: success = true
+    if unlikely(failures == 10):
       server.log(ERROR, "add read handle error for socket " & $socket)
 
 
@@ -73,14 +83,14 @@ proc workerthreadLoop(server: GuildenServer) {.thread.} =
         workerdatas[server.threadid] = wd
         if server.initializerCallback != nil: server.initializerCallback(server)
 
-  wd.currentload.atomicInc()
+  wd.activethreadcount.atomicInc()
   while true:
     if unlikely(shuttingdown): break
     if unlikely(wd.tail >= wd.head):
-      wd.currentload.atomicDec()
+      wd.activethreadcount.atomicDec()
       withLock(wd.worklock):
         wait(wd.workavailable, wd.worklock)
-      wd.currentload.atomicInc()
+      wd.activethreadcount.atomicInc()
       continue
     let mytail = wd.tail.atomicInc() # var?
     if unlikely(mytail > wd.head): continue
@@ -212,7 +222,9 @@ proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].}
     if unlikely(wd.gsselector == nil):
       withLock(workerdataslock): wd.gsselector = gsselector
 
-  if wd.currentload == server.workerthreadcount: return
+  if wd.activethreadcount > processorcount:
+    sleep(1)
+    return
 
   try:
     gsselector.updateHandle(fd.int, {})
@@ -222,8 +234,7 @@ proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].}
 
   if unlikely(wd.head == QueueSize - 1):
     while wd.tail < QueueSize - 1:
-      if wd.currentload < server.workerthreadcount:
-        signal(wd.workavailable)
+      if wd.activethreadcount < processorcount: signal(wd.workavailable)
       discard sched_yield()
       if shuttingdown: break
     wd.tail = 0
@@ -291,9 +302,9 @@ proc dispatch(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raises: [
     server.port = 0
     return
 
-  workerthreads = newSeq[Thread[GuildenServer]](server.workerthreadcount)
+  workerthreads = newSeq[Thread[GuildenServer]](server.availablethreadcount)
   try:
-    for i in 0 ..< server.workerthreadcount: createThread(workerthreads[i], workerthreadLoop, server)
+    for i in 0 ..< server.availablethreadcount: createThread(workerthreads[i], workerthreadLoop, server)
   except ResourceExhaustedError:
     server.log(FATAL, "Could not create worker threads")
     server.port = 0
@@ -319,9 +330,10 @@ proc start*(server: GuildenServer, port: int, threadcount: uint = 0, loglevel = 
     if threadcount < 2: threadcount = 2
   server.initialize(loglevel)
   server.port = port.uint16
+  server.suspendCallback = suspend
   server.closeSocket = closeSocket
   server.closeOtherSocketCallback = closeOtherSocketInOtherThread
-  server.workerthreadcount = threadcount.int
+  server.availablethreadcount = threadcount.int
   createThread(server.thread, dispatch, unsafeAddr server)
   while not server.started:
     sleep(50)

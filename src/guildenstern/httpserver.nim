@@ -13,7 +13,7 @@ type
   HttpServer* = ref object of GuildenServer
     maxheaderlength*: int
     maxrequestlength*: int
-    blockingsendtimeoutms*: int
+    sockettimeoutms*: int
     requestCallback*: proc(){.gcsafe, nimcall, raises: [].}
     parserequestline*: bool
     parseheaders*: bool
@@ -33,6 +33,11 @@ type
     TryAgain = 0
     Progress = 1
     Complete = 2
+
+
+const
+  MSG_DONTWAIT* = 0x40.cint
+  MSG_MORE* = 0x8000.cint
 
 
 proc isHttpHandler*(): bool = return guildenhandler is HttpHandler
@@ -99,7 +104,7 @@ proc handleRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
 proc initHttpServer*(s: HttpServer, parserequestline = true, parseheaders = true, hascontent = true) =
   s.maxheaderlength = 10000
   s.maxrequestlength = 100000
-  s.blockingsendtimeoutms = 3000
+  s.sockettimeoutms = 3000
   s.parserequestline = parserequestline
   s.parseheaders = parseheaders
   s.hascontent = hascontent

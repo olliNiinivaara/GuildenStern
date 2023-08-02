@@ -1,4 +1,6 @@
-## Server for cases when request body must be processed as it's being received (for example, when client is uploading data to filesystem). 
+## Server for cases when request body must be processed as it's being received (for example, when client is uploading a large dataset). 
+## TODO: multipart download (server -> client), parallel processing of parts 
+
 
 import std/[times, monotimes]
 from os import osLastError, osErrorMsg, OSErrorCode, sleep
@@ -48,15 +50,13 @@ proc hasData*(): bool  =
   return stream.contentlength > 0 and stream.contentdelivered < stream.contentlength
 
 
-const DONTWAIT = 0x40.cint
-
 proc receiveChunk*(): SocketState {.gcsafe, raises:[] .} =
   if shuttingdown: return Fail
   if stream.contentdelivered == 0 and stream.contentreceived > 0:
     stream.contentdelivered = stream.requestlen - stream.bodystart
     stream.requestlen = stream.contentdelivered.int
     return Progress
-  let ret = recv(stream.socketdata.socket, addr stream.request[0], (stream.contentlength - stream.contentreceived).int, DONTWAIT)
+  let ret = recv(stream.socketdata.socket, addr stream.request[0], (stream.contentlength - stream.contentreceived).int, MSG_DONTWAIT)
   result = checkSocketState(ret, true)
   stream.contentreceived += ret
   stream.contentdelivered += ret

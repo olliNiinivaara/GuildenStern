@@ -111,13 +111,14 @@ proc getBodylen*(): int =
 
 when compiles((var x = 1; var vx: var int = x)):
   # --experimental:views is enabled
-  proc getBody(): openArray[char] =
+  proc getBodyview*(http: HttpHandler): openArray[char] =
     if http.bodystart < 1: return http.request.toOpenArray(0, -1)
-    else: return http.request.toOpenArray(ctx.bodystart, ctx.requestlen - 1)
-else:
-  proc getBody*(): string =
-    if http.bodystart < 1: return ""
-    return http.request[http.bodystart ..< http.requestlen]
+    else: return http.request.toOpenArray(http.bodystart, http.requestlen - 1)
+
+
+proc getBody*(): string =
+  if http.bodystart < 1: return ""
+  return http.request[http.bodystart ..< http.requestlen]
 
 
 proc isBody*(body: string): bool =
@@ -215,11 +216,23 @@ proc parseHeaders*(headers: StringTableRef) =
 
 proc receiveAllHttp(): bool {.gcsafe, raises:[] .} =
   var expectedlength = server.maxrequestlength + 1
+  var backoff = 1
+  var totalbackoff = 0
   while true:
     if shuttingdown: return false
-    let ret = recv(http.socketdata.socket, addr http.request[http.requestlen], expectedlength - http.requestlen, 0)
-    let state = if likely(ret > 0): Progress else: checkSocketState(ret)
-    if state == Fail: return false
+    let ret = recv(http.socketdata.socket, addr http.request[http.requestlen], expectedlength - http.requestlen, MSG_DONTWAIT)
+    if unlikely(ret < 1):
+      let state = checkSocketState(ret)
+      if state == Fail: return false
+      if state == TryAgain:
+        server.suspend(backoff)
+        totalbackoff += backoff
+        backoff *= 2
+        if totalbackoff > server.sockettimeoutms:
+          server.closeSocket(http.socketdata, TimedOut, "didn't read from socket")
+          return false
+        continue
+
     let previouslen = http.requestlen
     http.requestlen += ret
 
@@ -244,10 +257,16 @@ proc receiveAllHttp(): bool {.gcsafe, raises:[] .} =
 
 
 proc receiveHeader*(): bool {.gcsafe, raises:[].} =
+  # TODO non-blocking
   while true:
     if shuttingdown: return false
-    let ret = recv(http.socketdata.socket, addr http.request[http.requestlen], 1 + server.maxheaderlength - http.requestlen, 0)
-    if unlikely(ret < 1) and checkSocketState(ret) == Fail: return false
+    let ret = recv(http.socketdata.socket, addr http.request[http.requestlen], 1 + server.maxheaderlength - http.requestlen, 0) # MSG_DONTWAIT
+    if unlikely(ret < 1):
+      let state = checkSocketState(ret)
+      if state == Fail: return false
+      if state == TryAgain:
+        server.suspend(1)
+        continue
     http.requestlen += ret
     if http.requestlen > server.maxheaderlength:
       server.closeSocket(guildenhandler.socketdata, ProtocolViolated, "receiveHeader: Max header size exceeded")

@@ -53,6 +53,7 @@ type
 
   InitializerCallback* = proc(server: GuildenServer){.nimcall, gcsafe, raises: [].}
   HandlerCallback* = proc(socketdata: ptr SocketData){.nimcall, gcsafe, raises: [].}
+  SuspendCallback* = proc(server: GuildenServer, sleepmillisecs: int){.nimcall, gcsafe, raises: [].}
   CloseSocketCallback* = proc(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
   CloseOtherSocketCallback* = proc(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause, msg: string = ""){.gcsafe, nimcall, raises: [].}
   OnCloseSocketCallback* = proc(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
@@ -62,12 +63,13 @@ type
     loggerproc*: proc(loglevel: LogLevel, message: string) {.gcsafe, nimcall, raises: [].}
     loglevel*: LogLevel
     port*: uint16
-    workerthreadcount*: int
+    availablethreadcount*: int
     thread*: Thread[ptr GuildenServer]
     threadid*: int
     started*: bool
     initializerCallback*: InitializerCallback
     handlerCallback*: HandlerCallback
+    suspendCallback*: SuspendCallback
     closeSocket*: CloseSocketCallback
     closeOtherSocketCallback*: CloseOtherSocketCallback
     onCloseSocketCallback*: OnCloseSocketCallback
@@ -130,6 +132,10 @@ proc registerConnectionclosedhandler*(server: GuildenServer, onclosesocketcallba
 
 proc closeOtherSocket*(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause = CloseCalled, msg: string = "") =
   server.closeOtherSocketCallback(server, socket, cause, msg)
+
+
+proc suspend*(server:  GuildenServer, sleepmillisecs: int) {.inline.} =
+  server.suspendCallback(server, sleepmillisecs)
 
 
 template handleRead*(socketdata: ptr SocketData) =
