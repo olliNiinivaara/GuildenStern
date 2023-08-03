@@ -16,52 +16,6 @@ let
   zerocontent = "Content-Length: 0\c\L"
 
 
-proc writeVersion*(): SocketState {.inline, gcsafe, raises: [].} =
-  {.gcsafe.}:
-    let ret = send(http.socketdata.socket, unsafeAddr version[0], 9, intermediateflags)
-  if unlikely(ret != 9):
-    result = checkSocketState(ret)
-    if result == Progress:
-      result = Fail
-      server.closeSocket(http.socketdata, ProtocolViolated, "")
-  else: return Complete
-
-
-proc writeCode*(code: HttpCode): SocketState {.inline, gcsafe, raises: [].} =
-# TODO non-blocking  
-  var ret: int
-  try:
-    if code == Http200:
-      {.gcsafe.}: ret = send(http.socketdata.socket, unsafeAddr http200string[0], 8, 0)
-    else:
-      let codestring = $code & "\c\L" # slow...
-      ret = send(http.socketdata.socket, unsafeAddr codestring[0], codestring.len.cint, 0)
-  except CatchableError:
-    ret = Excepted.int
-  result = checkSocketState(ret)
-  if likely(result == Progress): result = Complete
-
-
-proc tryWriteToSocket*(text: ptr string, start: int, length: int, flags = intermediateflags): (SocketState , int) {.inline, gcsafe, raises: [].} =
-  assert(text != nil and length > 0)
-  result[1] =
-    try: send(http.socketdata.socket, unsafeAddr text[start], length.cint, flags)
-    except CatchableError: Excepted.int
-  if likely(result[1] > 0):
-    if result[1] == length: result[0] = Complete
-    else: result[0] = Progress
-  else: result[0] =  checkSocketState(result[1])
-
-
-proc replyFinish*(): SocketState {.discardable, inline, gcsafe, raises: [].} =
-  let ret =
-    try: send(http.socketdata.socket, nil, 0, lastflags)
-    except CatchableError: Excepted.int
-  if likely(ret != -1): return Complete
-  discard checkSocketState(-1)
-  return Fail
-
-
 proc writeToSocket*(text: ptr string, length: int, flags = intermediateflags): SocketState {.inline, gcsafe, raises: [].} =
   if length == 0: return Complete
   var bytessent = 0
@@ -85,6 +39,39 @@ proc writeToSocket*(text: ptr string, length: int, flags = intermediateflags): S
         return Fail
       continue
     else: return result
+
+
+proc writeVersion*(): SocketState {.inline, gcsafe, raises: [].} =
+  {.gcsafe.}: return writeToSocket(unsafeAddr version, 9, intermediateflags)
+
+
+proc writeCode*(code: HttpCode): SocketState {.inline, gcsafe, raises: [].} =
+  var ret: int
+  if code == Http200:
+    {.gcsafe.}: return writeToSocket(unsafeAddr http200string, 8, intermediateflags)
+  else:
+    let codestring = $code & "\c\L" # slow...
+    return writeToSocket(unsafeAddr codestring, codestring.len.cint, intermediateflags)
+
+
+proc tryWriteToSocket*(text: ptr string, start: int, length: int, flags = intermediateflags): (SocketState , int) {.inline, gcsafe, raises: [].} =
+  assert(text != nil and length > 0)
+  result[1] =
+    try: send(http.socketdata.socket, unsafeAddr text[start], length.cint, flags)
+    except CatchableError: Excepted.int
+  if likely(result[1] > 0):
+    if result[1] == length: result[0] = Complete
+    else: result[0] = Progress
+  else: result[0] =  checkSocketState(result[1])
+
+
+proc replyFinish*(): SocketState {.discardable, inline, gcsafe, raises: [].} =
+  let ret =
+    try: send(http.socketdata.socket, nil, 0, lastflags)
+    except CatchableError: Excepted.int
+  if likely(ret != -1): return Complete
+  discard checkSocketState(-1)
+  return Fail
 
 
 proc reply*(code: HttpCode): SocketState {.discardable, inline, gcsafe, raises: [].} =

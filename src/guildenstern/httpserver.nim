@@ -61,7 +61,7 @@ proc prepareHttpHandler*(socketdata: ptr SocketData) {.inline.} =
 
 {.push checks: off.}
 
-proc checkSocketState*(ret: int, nonblocking = false): SocketState =
+proc checkSocketState*(ret: int): SocketState =
   if unlikely(shuttingdown): return Fail
   if likely(ret > 0): return Progress
   if unlikely(ret == 0): return TryAgain
@@ -70,9 +70,7 @@ proc checkSocketState*(ret: int, nonblocking = false): SocketState =
     if unlikely(ret == Excepted.int): Excepted
     else:
       # https://www-numi.fnal.gov/offline_software/srt_public_context/WebDocs/Errors/unix_system_errors.html
-      if lasterror in [EAGAIN.int, EWOULDBLOCK.int]:
-        if nonblocking: return TryAgain
-        else: TimedOut
+      if lasterror in [EAGAIN.int, EWOULDBLOCK.int]: return TryAgain
       elif lasterror in [2,9]: AlreadyClosed
       elif lasterror == 32: ConnectionLost
       elif lasterror == 104: ClosedbyClient
@@ -89,12 +87,18 @@ include httpresponse
 proc handleRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
   prepareHttpHandler(data)
   if not server.hascontent:
-    if not receiveHeader(): return
+    if not receiveHeader():
+      server.log(NOTICE, "reciverHeader failed for socket " & $data.socket)
+      return
   else:
-    if not receiveAllHttp(): return
-  if server.parserequestline and not parseRequestLine(): return
+    if not receiveAllHttp():
+      server.log(NOTICE, "receiveAllHttp failed for socket " & $data.socket)
+      return
+  if server.parserequestline and not parseRequestLine():
+    server.log(NOTICE, "parserequestline failed for socket " & $data.socket)
+    return
   if server.parseHeaders: parseHeaders(http.headers)
-
+  server.log(DEBUG, "Request of size " & $http.requestlen & " read from socket " & $data.socket)
   {.gcsafe.}: server.requestCallback()
 
 
@@ -104,7 +108,7 @@ proc handleRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
 proc initHttpServer*(s: HttpServer, parserequestline = true, parseheaders = true, hascontent = true) =
   s.maxheaderlength = 10000
   s.maxrequestlength = 100000
-  s.sockettimeoutms = 3000
+  s.sockettimeoutms = 5000
   s.parserequestline = parserequestline
   s.parseheaders = parseheaders
   s.hascontent = hascontent

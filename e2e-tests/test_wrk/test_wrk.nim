@@ -17,7 +17,7 @@ Transfer/sec:     13.14MB
 
 import osproc, streams, strutils, guildenstern/[dispatcher, httpserver]
 
-# from os import sleep
+import segfaults
 
 
 proc doWrk(): int =
@@ -32,8 +32,12 @@ proc doWrk(): int =
 
 proc handle() = reply(Http204)
 
+proc onClose(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string) {.gcsafe, nimcall, raises: [].} =
+  echo socketdata.socket, ": ", cause
+
 proc run() =
   let httpserver = newHttpServer(handle, false, false, false)
+  # httpserver.registerConnectionclosedhandler(onClose)
   httpserver.start(5050, 4)
   let errorcode = doWrk()
   joinThread(httpserver.thread)

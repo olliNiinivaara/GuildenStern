@@ -60,6 +60,7 @@ type
 
 
   GuildenServer* {.inheritable.} = ref object
+    id*: int
     loggerproc*: proc(loglevel: LogLevel, message: string) {.gcsafe, nimcall, raises: [].}
     loglevel*: LogLevel
     port*: uint16
@@ -86,6 +87,7 @@ var
   shuttingdown* = false
   shutdownevent* = newSelectEvent()
   guildenhandler* {.threadvar.}: GuildenHandler
+  nextid: int
   
 
 proc shutdown*() =
@@ -109,6 +111,8 @@ template log*(server: GuildenServer, level: LogLevel, message: string) =
 
 
 proc initialize*(server: GuildenServer, loglevel: LogLevel) =
+  server.id = nextid
+  nextid += 1
   server.loglevel = loglevel
   if server.loggerproc == nil: server.loggerproc = proc(loglevel: LogLevel, message: string) = (
     block:

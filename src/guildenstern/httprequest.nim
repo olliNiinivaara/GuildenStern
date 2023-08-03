@@ -219,12 +219,11 @@ proc receiveAllHttp(): bool {.gcsafe, raises:[] .} =
   var backoff = 1
   var totalbackoff = 0
   while true:
-    if shuttingdown: return false
+    if unlikely(shuttingdown): return false
     let ret = recv(http.socketdata.socket, addr http.request[http.requestlen], expectedlength - http.requestlen, MSG_DONTWAIT)
     if unlikely(ret < 1):
       let state = checkSocketState(ret)
-      if state == Fail: return false
-      if state == TryAgain:
+      if likely(state == TryAgain):
         server.suspend(backoff)
         totalbackoff += backoff
         backoff *= 2
@@ -232,11 +231,12 @@ proc receiveAllHttp(): bool {.gcsafe, raises:[] .} =
           server.closeSocket(http.socketdata, TimedOut, "didn't read from socket")
           return false
         continue
+      if state == Fail: return false
 
     let previouslen = http.requestlen
     http.requestlen += ret
 
-    if http.requestlen >= server.maxrequestlength:
+    if unlikely(http.requestlen >= server.maxrequestlength):
       server.closeSocket(http.socketdata, ProtocolViolated, "recvHttp: Max request size exceeded")
       return false
 
@@ -257,16 +257,22 @@ proc receiveAllHttp(): bool {.gcsafe, raises:[] .} =
 
 
 proc receiveHeader*(): bool {.gcsafe, raises:[].} =
-  # TODO non-blocking
+  var backoff = 1
+  var totalbackoff = 0
   while true:
-    if shuttingdown: return false
-    let ret = recv(http.socketdata.socket, addr http.request[http.requestlen], 1 + server.maxheaderlength - http.requestlen, 0) # MSG_DONTWAIT
+    if unlikely(shuttingdown): return false
+    let ret = recv(http.socketdata.socket, addr http.request[http.requestlen], 1 + server.maxheaderlength - http.requestlen, MSG_DONTWAIT)
     if unlikely(ret < 1):
       let state = checkSocketState(ret)
-      if state == Fail: return false
-      if state == TryAgain:
-        server.suspend(1)
+      if (likely)state == TryAgain:
+        server.suspend(backoff - 1)
+        totalbackoff += backoff
+        backoff = backoff shl 2
+        if unlikely(totalbackoff > server.sockettimeoutms):
+          server.closeSocket(http.socketdata, TimedOut, "didn't read from socket in " & $server.sockettimeoutms & " ms")
+          return false
         continue
+      if state == Fail: return false
     http.requestlen += ret
     if http.requestlen > server.maxheaderlength:
       server.closeSocket(guildenhandler.socketdata, ProtocolViolated, "receiveHeader: Max header size exceeded")
@@ -274,3 +280,6 @@ proc receiveHeader*(): bool {.gcsafe, raises:[].} =
     if http.request[http.requestlen-4] == '\c' and http.request[http.requestlen-3] == '\l' and
      http.request[http.requestlen-2] == '\c' and http.request[http.requestlen-1] == '\l': break
   return http.requestlen > 0
+
+
+

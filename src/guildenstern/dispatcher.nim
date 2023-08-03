@@ -1,20 +1,11 @@
-import selectors, net, os, posix, tables, locks
+import selectors, net, os, posix, locks
 from nativesockets import accept, setBlocking, close
 from osproc import countProcessors
 import guildenserver
 
 static: doAssert(defined(threadsafe))
 
-#[ ???
-  var one = 1
-  discard setsockopt(fd, cint(SOL_SOCKET), cint(TCP_NODELAY), addr one, SockLen(sizeof(one)))
-  var TCP_QUICKACK = 12
-  discard setsockopt(fd, cint(SOL_SOCKET), cint(TCP_QUICKACK), addr one, SockLen(sizeof(one)))
-]#
-
-const
-  RcvTimeOut* {.intdefine.} = 5 # SO_RCVTIMEO, https://linux.die.net/man/7/socket
-  QueueSize {.intdefine.} = 200
+const QueueSize {.intdefine.} = 200
 
 type
   WorkerData = ref object
@@ -31,25 +22,20 @@ let
   processorcount = countProcessors()
   
 var
-  workerdatas = initTable[int, WorkerData]()
-  workerdataslock: Lock
+  workerdatas: array[30, WorkerData]
   gsselector* {.threadvar.}: Selector[SocketData]
   workerthreads {.threadvar.} : seq[Thread[GuildenServer]]
 
-initLock(workerdataslock)
-
 
 proc getLoad*(server: GuildenServer): int =
-  let wd = workerdatas.getOrDefault(server.threadid)
-  return wd.activethreadcount
+  return workerdatas[server.id].activethreadcount
 
 
-proc suspend(server: GuildenServer, sleepmillisecs: int) {.gcsafe, nimcall, raises: [].} = 
+proc suspend(server: GuildenServer, sleepmillisecs: int) {.gcsafe, nimcall, raises: [].} =
   {.gcsafe.}:
-    let wd = workerdatas.getOrDefault(server.threadid)
-  wd.activethreadcount.atomicdec()
-  sleep(sleepmillisecs)
-  wd.activethreadcount.atomicinc()
+    discard workerdatas[server.id].activethreadcount.atomicdec()
+    sleep(sleepmillisecs)
+    discard workerdatas[server.id].activethreadcount.atomicinc()
 
 
 proc restoreRead(server: GuildenServer, selector: Selector[SocketData], socket: int) {.inline.} =
@@ -73,26 +59,24 @@ proc restoreRead(server: GuildenServer, selector: Selector[SocketData], socket: 
 proc workerthreadLoop(server: GuildenServer) {.thread.} =
   var wd: WorkerData
   {.gcsafe.}:
-    withLock(workerdataslock):  
-      wd = workerdatas.getOrDefault(server.threadid)
-      if wd == nil:
-        wd = new WorkerData
-        wd.head = -1
-        initCond(wd.workavailable)
-        initLock(wd.worklock)
-        workerdatas[server.threadid] = wd
-        if server.initializerCallback != nil: server.initializerCallback(server)
+    if workerdatas[server.id] == nil:
+      workerdatas[server.id] = new WorkerData
+      workerdatas[server.id].head = -1
+      initCond(workerdatas[server.id].workavailable)
+      initLock(workerdatas[server.id].worklock)
+      if server.initializerCallback != nil: server.initializerCallback(server)
+    wd = workerdatas[server.id]
 
   wd.activethreadcount.atomicInc()
   while true:
     if unlikely(shuttingdown): break
-    if unlikely(wd.tail >= wd.head):
+    if wd.tail >= wd.head:  
       wd.activethreadcount.atomicDec()
       withLock(wd.worklock):
         wait(wd.workavailable, wd.worklock)
       wd.activethreadcount.atomicInc()
       continue
-    let mytail = wd.tail.atomicInc() # var?
+    let mytail = wd.tail.atomicInc()
     if unlikely(mytail > wd.head): continue
 
     server.log(TRACE, "handling: " & $mytail)
@@ -104,12 +88,9 @@ proc workerthreadLoop(server: GuildenServer) {.thread.} =
 
 proc findSelectorForSocket(server: GuildenServer, socket: posix.SocketHandle): Selector[SocketData] =
   {.gcsafe.}:
-      withLock(workerdataslock):
-        let wd = workerdatas.getOrDefault(server.threadid)
-        if wd == nil: return nil
-        if wd.gsselector == nil: return nil
-        if not wd.gsselector.contains(socket): return nil
-        return wd.gsselector
+    if workerdatas[server.id].gsselector == nil: return nil
+    if not workerdatas[server.id].gsselector.contains(socket): return nil
+    return workerdatas[server.id].gsselector
 
 
 proc closeSocket*(socketdata: ptr SocketData, cause = CloseCalled, msg = "") {.gcsafe, nimcall, raises: [].} =
@@ -206,24 +187,18 @@ proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].}
         server.log(TRACE, "invalid new socket")
         return
       gsselector.registerHandle(fd.int, {Event.Read}, SocketData(server: server, isserversocket: false, socket: fd))
-      var tv = RcvTimeOut
-      if setsockopt(fd, cint(posix.SOL_SOCKET), cint(RcvTimeOut), addr(tv), SockLen(sizeof(tv))) < 0'i32:
-        gsselector.unregister(fd.int)
-        server.log(ERROR, "setting timeout failed: " & $fd)
-      else: server.log(DEBUG, "socket " & $fd & " connected to thread " & $getThreadId())
+      server.log(DEBUG, "socket " & $fd & " connected to thread " & $getThreadId())
     except CatchableError, Defect:
       server.log(ERROR, "selector registerHandle error")
     finally:
       return
 
   var wd: WorkerData
-  {.gcsafe.}: 
-    wd = workerdatas.getOrDefault(server.threadid)
-    if unlikely(wd.gsselector == nil):
-      withLock(workerdataslock): wd.gsselector = gsselector
+  {.gcsafe.}: wd = workerdatas[server.id]
+  if unlikely(wd.gsselector == nil): wd.gsselector = gsselector
 
   if wd.activethreadcount > processorcount:
-    sleep(1)
+    sleep(0)
     return
 
   try:
@@ -233,10 +208,11 @@ proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].}
     return
 
   if unlikely(wd.head == QueueSize - 1):
-    while wd.tail < QueueSize - 1:
-      if wd.activethreadcount < processorcount: signal(wd.workavailable)
+    while likely(wd.tail < QueueSize - 1):
+      if wd.activethreadcount < processorcount:
+        signal(wd.workavailable)
       discard sched_yield()
-      if shuttingdown: break
+      if unlikely(shuttingdown): break
     wd.tail = 0
     wd.head = -1
     
