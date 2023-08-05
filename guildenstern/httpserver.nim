@@ -46,11 +46,14 @@ template http*(): untyped = HttpHandler(guildenhandler)
 
 template server*(): untyped = HttpServer(guildenhandler.socketdata.server)
 
+{.push checks: off.}
 
 proc prepareHttpHandler*(socketdata: ptr SocketData) {.inline.} =
   if unlikely(guildenhandler == nil): guildenhandler = new HttpHandler
   http.socketdata = socketdata
-  if unlikely(http.request.len != server.maxrequestlength + 1): http.request = newString(server.maxrequestlength + 1)
+  if unlikely(http.request.len != server.maxrequestlength + 1):
+    http.request = newString(server.maxrequestlength + 1)
+    if server.threadInitializerCallback != nil: server.threadInitializerCallback(server)
   if server.parseheaders and http.headers == nil: http.headers = newStringTable()
   http.requestlen = 0
   http.uristart = 0
@@ -58,8 +61,6 @@ proc prepareHttpHandler*(socketdata: ptr SocketData) {.inline.} =
   http.methlen = 0
   http.bodystart = -1
 
-
-{.push checks: off.}
 
 proc checkSocketState*(ret: int): SocketState =
   if unlikely(shuttingdown): return Fail
@@ -85,27 +86,24 @@ include httpresponse
 
 
 proc handleRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
-  prepareHttpHandler(data)
+  let socketdata = data[]
+  let socketint = socketdata.socket.int
+  if unlikely(socketint == -1): return
+  prepareHttpHandler(addr socketdata)
   if not server.hascontent:
-    if not receiveHeader():
-      server.log(NOTICE, "reciverHeader failed for socket " & $data.socket)
-      return
+    if not receiveHeader(): return
   else:
-    if not receiveAllHttp():
-      server.log(NOTICE, "receiveAllHttp failed for socket " & $data.socket)
-      return
-  if server.parserequestline and not parseRequestLine():
-    server.log(NOTICE, "parserequestline failed for socket " & $data.socket)
-    return
+    if not receiveAllHttp(): return
+  if server.parserequestline and not parseRequestLine(): return
   if server.parseHeaders: parseHeaders(http.headers)
-  server.log(DEBUG, "Request of size " & $http.requestlen & " read from socket " & $data.socket)
+  server.log(DEBUG, "Request of size " & $http.requestlen & " read from socket " & $socketint)
   {.gcsafe.}: server.requestCallback()
-
 
 {.pop.}
 
 
-proc initHttpServer*(s: HttpServer, parserequestline = true, parseheaders = true, hascontent = true) =
+proc initHttpServer*(s: HttpServer, loglevel: LogLevel, parserequestline = true, parseheaders = true, hascontent = true) =
+  s.initialize(loglevel)
   s.maxheaderlength = 10000
   s.maxrequestlength = 100000
   s.sockettimeoutms = 5000
@@ -114,8 +112,8 @@ proc initHttpServer*(s: HttpServer, parserequestline = true, parseheaders = true
   s.hascontent = hascontent
 
 
-proc newHttpServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, parserequestline = true, parseheaders = true, hascontent = true): HttpServer =
+proc newHttpServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, loglevel = LogLevel.WARN, parserequestline = true, parseheaders = true, hascontent = true): HttpServer =
   result = new HttpServer
-  result.initHttpServer(parserequestline, parseheaders, hascontent)
-  result.registerHandler(handleRequest)
+  result.initHttpServer(loglevel, parserequestline, parseheaders, hascontent)
+  result.handlerCallback = handleRequest
   result.requestCallback = onrequestcallback

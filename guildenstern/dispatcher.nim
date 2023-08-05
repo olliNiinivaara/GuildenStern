@@ -1,6 +1,5 @@
 import selectors, net, os, posix, locks
 from nativesockets import accept, setBlocking, close
-from osproc import countProcessors
 import guildenserver
 
 static: doAssert(defined(threadsafe))
@@ -18,9 +17,7 @@ type
     activethreadcount: int
     suspendedthreadcount: int
 
-let
-  processorcount = countProcessors()
-  
+
 var
   workerdatas: array[30, WorkerData]
   gsselector* {.threadvar.}: Selector[SocketData]
@@ -64,7 +61,6 @@ proc workerthreadLoop(server: GuildenServer) {.thread.} =
       workerdatas[server.id].head = -1
       initCond(workerdatas[server.id].workavailable)
       initLock(workerdatas[server.id].worklock)
-      if server.initializerCallback != nil: server.initializerCallback(server)
     wd = workerdatas[server.id]
 
   wd.activethreadcount.atomicInc()
@@ -79,9 +75,9 @@ proc workerthreadLoop(server: GuildenServer) {.thread.} =
     let mytail = wd.tail.atomicInc()
     if unlikely(mytail > wd.head): continue
 
-    server.log(TRACE, "handling: " & $mytail)
+    server.log(TRACE, "handling event at queue position " & $mytail)
     handleRead(wd.queue[mytail])
-    server.log(TRACE, "handled: " & $mytail)
+    server.log(TRACE, "handled event at queue position " & $mytail)
 
     restoreRead(server, wd.gsselector, wd.queue[mytail].socket.int)
 
@@ -197,7 +193,7 @@ proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].}
   {.gcsafe.}: wd = workerdatas[server.id]
   if unlikely(wd.gsselector == nil): wd.gsselector = gsselector
 
-  if wd.activethreadcount > processorcount:
+  if wd.activethreadcount > server.maxactivethreadcount:
     sleep(0)
     return
 
@@ -209,7 +205,7 @@ proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].}
 
   if unlikely(wd.head == QueueSize - 1):
     while likely(wd.tail < QueueSize - 1):
-      if wd.activethreadcount < processorcount:
+      if wd.activethreadcount < server.maxactivethreadcount:
         signal(wd.workavailable)
       discard sched_yield()
       if unlikely(shuttingdown): break
@@ -237,12 +233,9 @@ proc eventLoop(server: GuildenServer) {.gcsafe, raises: [].} =
       continue
     if unlikely(server.loglevel == TRACE):
       eventid += 1
-      server.log(TRACE, "event received: " & $eventid)
+      server.log(TRACE, "\L--- event nr " & $eventid & " received ---")
     if unlikely(shuttingdown): break
-
     processEvent(server, eventbuffer[0])
-    if unlikely(server.loglevel == TRACE):
-      server.log(TRACE, "event dispatched: " & $eventid)
 
 
 proc dispatch(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raises: [].} =
@@ -256,6 +249,7 @@ proc dispatch(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raises: [
     gsselector.registerEvent(shutdownevent, SocketData())
   except Exception, CatchableError, Defect:
     server.log(FATAL, "Could not create selector")
+    server.started = true
     server.port = 0
     return
 
@@ -267,6 +261,7 @@ proc dispatch(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raises: [
     portserver.listen()
   except CatchableError, Defect:
     server.log(FATAL, "Could not open port " & $server.port)
+    server.started = true
     server.port = 0
     return
   try:
@@ -275,6 +270,7 @@ proc dispatch(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raises: [
     portserver.setSockOpt(OptNoDelay, true, level = cint(Protocol.IPPROTO_TCP))
   except CatchableError, Defect:
     server.log(FATAL, "Could not listen to port " & $server.port)
+    server.started = true
     server.port = 0
     return
 
@@ -283,6 +279,7 @@ proc dispatch(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raises: [
     for i in 0 ..< server.availablethreadcount: createThread(workerthreads[i], workerthreadLoop, server)
   except ResourceExhaustedError:
     server.log(FATAL, "Could not create worker threads")
+    server.started = true
     server.port = 0
     return
 
@@ -298,13 +295,10 @@ proc dispatch(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raises: [
       discard
 
 
-proc start*(server: GuildenServer, port: int, threadcount: uint = 0, loglevel = LogLevel.WARN) =
+proc start*(server: GuildenServer, port: int, threadcount: uint = 0) =
   doAssert(not server.started)
   var threadcount = threadcount.int
-  if threadcount == 0:
-    threadcount = countProcessors() - 1
-    if threadcount < 2: threadcount = 2
-  server.initialize(loglevel)
+  if threadcount == 0: threadcount = server.maxactivethreadcount * 2
   server.port = port.uint16
   server.suspendCallback = suspend
   server.closeSocket = closeSocket
@@ -314,6 +308,4 @@ proc start*(server: GuildenServer, port: int, threadcount: uint = 0, loglevel = 
   while not server.started:
     sleep(50)
     if shuttingdown: break
-  if server.port == 0:
-     server.log(FATAL, "Could not start server thread for port " & $port)
-     raise newException(GuildenServerException, "Could not start server thread for port " & $port)
+  if server.port == 0: shuttingdown = true

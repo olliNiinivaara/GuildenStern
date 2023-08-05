@@ -2,8 +2,8 @@ version       = "6.0.0"
 author        = "Olli"
 description   = "Modular multithreading Linux HTTP + WebSocket server"
 license       = "MIT"
-srcDir        = "src"
+srcDir        = "guildenstern"
 
-skipDirs = @[".github", "e2e-tests"]
+skipDirs = @["guildenstern/htmldocs", "tests"]
 
-requires "nim >= 1.6.4"
+requires "nim >= 2.0.0", "checksums"

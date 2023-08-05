@@ -1,6 +1,7 @@
 ## Websocket server
 
-import nativesockets, net, posix, os, std/sha1, base64, times, std/monotimes, sets, locks
+import nativesockets, net, posix, os, base64, times, std/monotimes, sets, locks
+import checksums/sha1
 import httpserver
 export httpserver
 
@@ -35,7 +36,7 @@ type
   State = tuple[sent: int, sendstate: SendState]
   
   WsDelivery* = tuple[sockets: seq[posix.SocketHandle], message: ptr string, binary: bool, states: seq[State]]
-    ## `multiSend` takes pointer to this as parameter.
+    ## `send` takes pointer to this as parameter.
     ## | `sockets`: the websockets that should receive this message
     ## | `message`: the message to send
     ## | `binary`: whether the message contains bytes or chars
@@ -266,10 +267,11 @@ proc handleWsRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
         {.gcsafe.}: wsserver.messageCallback()
 
 
-proc newWebsocketServer*(upgradecallback: WsUpgradeCallback, afterupgradecallback: WsAfterUpgradeCallback, onwsmessagecallback: WsMessageCallback, onclosesocketcallback: OnCloseSocketCallback): WebsocketServer =
+proc newWebsocketServer*(upgradecallback: WsUpgradeCallback, afterupgradecallback: WsAfterUpgradeCallback,
+ onwsmessagecallback: WsMessageCallback, onclosesocketcallback: OnCloseSocketCallback, loglevel = LogLevel.WARN): WebsocketServer =
   result = new WebsocketServer
-  initHttpServer(result, true, true, false)
-  result.registerHandler(handleWsRequest)
+  initHttpServer(result, loglevel, true, true, false)
+  result.handlerCallback = handleWsRequest
   result.upgradeCallback = upgradecallback
   result.afterupgradeCallback = afterupgradecallback
   result.messageCallback = onwsmessagecallback
@@ -387,7 +389,7 @@ proc send*(server: GuildenServer, delivery: ptr WsDelivery, timeoutsecs = 20, sl
 
 proc send*(server: GuildenServer, sockets: seq[posix.SocketHandle], message: string, timeoutsecs = 20, sleepmillisecs = 100): bool {.discardable.} =
   when compiles(unsafeAddr message):
-    when not defined(gcDestructors): {.fatal: "gc:arc or orc compiler option required".}
+    when not defined(gcDestructors): {.fatal: "mm:arc or mm:orc required".}
     delivery.sockets = sockets
     delivery.message = unsafeAddr(message)
     delivery.binary = false
@@ -397,7 +399,7 @@ proc send*(server: GuildenServer, sockets: seq[posix.SocketHandle], message: str
 
 proc send*(server: GuildenServer, socket: posix.SocketHandle, message: string, timeoutsecs = 20, sleepmillisecs = 100): bool {.discardable.} =
   when compiles(unsafeAddr message):
-    when not defined(gcDestructors): {.fatal: "gc:arc or orc compiler option required".}
+    when not defined(gcDestructors): {.fatal: "mm:arc or mm:orc required".}
     delivery.sockets.setLen(1)
     delivery.sockets[0] = socket
     delivery.message = unsafeAddr(message)

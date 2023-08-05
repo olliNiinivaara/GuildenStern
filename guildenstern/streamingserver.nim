@@ -1,16 +1,12 @@
 ## Server for cases when request body must be processed as it's being received (for example, when client is uploading a large dataset). 
 ## TODO: multipart download (server -> client), parallel processing of parts 
 
-
 import std/[times, monotimes]
 from os import osLastError, osErrorMsg, OSErrorCode, sleep
 from posix import recv, SocketHandle
 from strutils import find, startsWith
-
-
 import httpserver
 export httpserver
-
 
 type
   FileState = enum Before, In, After
@@ -57,7 +53,7 @@ proc receiveChunk*(): SocketState {.gcsafe, raises:[] .} =
     stream.requestlen = stream.contentdelivered.int
     return Progress
   let ret = recv(stream.socketdata.socket, addr stream.request[0], (stream.contentlength - stream.contentreceived).int, MSG_DONTWAIT)
-  result = checkSocketState(ret, true)
+  result = checkSocketState(ret)
   stream.contentreceived += ret
   stream.contentdelivered += ret
   stream.requestlen = ret
@@ -109,14 +105,12 @@ proc handleStreamRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
   stream.contentreceived = 0
   stream.contentdelivered = 0
   if receiveStreamingHeader():
-    echo "header saatiin"
     if parseRequestLine():
-      echo "request line ok"
       {.gcsafe.}: HttpServer(data.server).requestCallback()
     
 
-proc newStreamingServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}): HttpServer =
+proc newStreamingServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, loglevel = LogLevel.WARN): HttpServer =
   result = new HttpServer
-  result.initHttpServer(true, true, true)
-  result.registerHandler(handleStreamRequest)
+  result.initHttpServer(loglevel, true, true, true)
+  result.handlerCallback = handleStreamRequest
   result.requestCallback = onrequestcallback

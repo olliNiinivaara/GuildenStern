@@ -18,6 +18,7 @@ from std/posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onS
 from std/net import Socket, newSocket
 from std/nativesockets import close
 from std/strutils import replace
+from std/osproc import countProcessors
 export SocketHandle, INVALID_SOCKET, posix.`==`
 
 static: doAssert(compileOption("threads"))
@@ -50,8 +51,8 @@ type
     SecurityThreatened
     DontClose
 
-
-  InitializerCallback* = proc(server: GuildenServer){.nimcall, gcsafe, raises: [].}
+  LogCallback* = proc(loglevel: LogLevel, message: string) {.gcsafe, nimcall, raises: [].}
+  ThreadInitializerCallback* = proc(server: GuildenServer){.nimcall, gcsafe, raises: [].}
   HandlerCallback* = proc(socketdata: ptr SocketData){.nimcall, gcsafe, raises: [].}
   SuspendCallback* = proc(server: GuildenServer, sleepmillisecs: int){.nimcall, gcsafe, raises: [].}
   CloseSocketCallback* = proc(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
@@ -61,14 +62,15 @@ type
 
   GuildenServer* {.inheritable.} = ref object
     id*: int
-    loggerproc*: proc(loglevel: LogLevel, message: string) {.gcsafe, nimcall, raises: [].}
+    logCallback*: LogCallback
     loglevel*: LogLevel
     port*: uint16
     availablethreadcount*: int
+    maxactivethreadcount*: int
     thread*: Thread[ptr GuildenServer]
     threadid*: int
     started*: bool
-    initializerCallback*: InitializerCallback
+    threadInitializerCallback*: ThreadInitializerCallback
     handlerCallback*: HandlerCallback
     suspendCallback*: SuspendCallback
     closeSocket*: CloseSocketCallback
@@ -101,20 +103,17 @@ onSignal(SIGTERM): shutdown()
 onSignal(SIGINT): shutdown()
 
 
-proc setLogger*(server: GuildenServer, logger: proc(loglevel: LogLevel, message: string) {.gcsafe, nimcall, raises: [].}) =
-  server.loggerproc = logger
-
-
 template log*(server: GuildenServer, level: LogLevel, message: string) =
   if unlikely(int(level) >= int(server.loglevel)):
-    if server.loggerproc != nil: server.loggerproc(level, message)
+    if likely(server.logCallback != nil): server.logCallback(level, message)
 
 
 proc initialize*(server: GuildenServer, loglevel: LogLevel) =
+  server.maxactivethreadcount = countProcessors()
   server.id = nextid
   nextid += 1
   server.loglevel = loglevel
-  if server.loggerproc == nil: server.loggerproc = proc(loglevel: LogLevel, message: string) = (
+  if server.logCallback == nil: server.logCallback = proc(loglevel: LogLevel, message: string) = (
     block:
       if unlikely(getCurrentException() != nil):
         echo LogColors[loglevel.int], loglevel, "\e[0m ", message, ": ", getCurrentExceptionMsg()
@@ -123,15 +122,6 @@ proc initialize*(server: GuildenServer, loglevel: LogLevel) =
         let excerpt = message[0 .. 49] & " ... (" & $(message.len - 100) & " chars omitted) ... " & message[(message.len - 50) .. (message.len - 1)]
         echo LogColors[loglevel.int], loglevel, "\e[0m ", excerpt.replace("\n", "\\n ")
   )
-
-
-proc registerHandler*(server: GuildenServer, handlercallback: HandlerCallback) =
-  if server.handlerCallback != nil: server.log(INFO, "handler changed")
-  server.handlerCallback = handlercallback
-
-
-proc registerConnectionclosedhandler*(server: GuildenServer, onclosesocketcallback: OnCloseSocketCallback) =
-  server.onclosesocketcallback = onclosesocketcallback
 
 
 proc closeOtherSocket*(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause = CloseCalled, msg: string = "") =

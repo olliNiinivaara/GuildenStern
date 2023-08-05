@@ -6,7 +6,7 @@ Modular multithreading Linux HTTP + WebSocket server
 ## Example
 
 ```nim
-# nim r --gc:orc --d:release --threads:on --d:threadsafe thisexample
+# nim r --d:release --d:threadsafe thisexample
 
 import cgi, guildenstern/[dispatcher, httpserver]
      
@@ -31,7 +31,7 @@ joinThreads(getserver.thread, postserver.thread)
 
 ## Documentation
 
-TODO
+[guildenserver](https://github.com/olliNiinivaara/GuildenStern/blob/dev/guildenstern/htmldocs/guildenserver.nim)
 
 ## Installation
 

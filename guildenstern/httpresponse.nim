@@ -46,7 +46,6 @@ proc writeVersion*(): SocketState {.inline, gcsafe, raises: [].} =
 
 
 proc writeCode*(code: HttpCode): SocketState {.inline, gcsafe, raises: [].} =
-  var ret: int
   if code == Http200:
     {.gcsafe.}: return writeToSocket(unsafeAddr http200string, 8, intermediateflags)
   else:

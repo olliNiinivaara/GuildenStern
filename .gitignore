@@ -1,7 +1,1 @@
-.github/
-.idea/
-e2e-tests/package.json
-e2e-tests/node_modules/
-e2e-tests/dev_tests/
 nim.cfg
-todo.txt
