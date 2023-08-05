@@ -31,7 +31,7 @@ joinThreads(getserver.thread, postserver.thread)
 
 ## Documentation
 
-[guildenserver](https://github.com/olliNiinivaara/GuildenStern/blob/dev/guildenstern/htmldocs/guildenserver.nim)
+[guildenserver](https://github.com/olliNiinivaara/GuildenStern/blob/dev/guildenstern/htmldocs/guildenserver.html)
 
 ## Installation
 
