@@ -85,7 +85,7 @@ template `[]`(value: uint8, index: int): bool =
 
 
 template error(msg: string) =
-  wsserver.closeSocket(guildenhandler.socketdata, ProtocolViolated, msg)
+  closeSocket(ProtocolViolated, msg)
   ws.opcode = WsFail
   return -1
 
@@ -124,7 +124,7 @@ proc recvFrame() =
   var expectedlen: int  
   expectedlen = recvHeader()
   if ws.opcode in [WsFail, Close]:
-    if ws.opcode == Close: wsserver.closeSocket(ws.socketdata, ClosedbyClient, "")
+    if ws.opcode == Close: closeSocket(ClosedbyClient, "")
     return
   while true:
     if shuttingdown: (ws.opcode = WsFail; return)
@@ -133,7 +133,7 @@ proc recvFrame() =
       else: recv(ws.socketdata.socket, addr ws.request[ws.requestlen], (expectedLen - ws.requestlen).cint, 0)
     if shuttingdown: (ws.opcode = WsFail; return)
 
-    if ret == 0: (wsserver.closeSocket(ws.socketdata, ClosedbyClient, ""); ws.opcode = WsFail; return)
+    if ret == 0: (closeSocket(ClosedbyClient, ""); ws.opcode = WsFail; return)
     if ret == -1:
       let lastError = osLastError().int
       let cause =
@@ -143,7 +143,7 @@ proc recvFrame() =
         else: NetErrored
       wsserver.log(WARN, "websocket " & $ws.socketdata.socket & " receive error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
       ws.opcode = WsFail
-      wsserver.closeSocket(ws.socketdata, cause, "ws receive error")
+      closeSocket(cause, "ws receive error")
       return
 
     ws.requestlen += ret
@@ -159,7 +159,7 @@ proc receiveWs() =
     for i in 0 ..< ws.requestlen: ws.request[i] = (ws.request[i].uint8 xor maskkey[i mod 4].uint8).char
   except:
     wsserver.log(WARN, "websocket " & $ws.socketdata.socket & " receive exception")
-    wsserver.closeSocket(ws.socketdata, Excepted, "ws receive exception")
+    closeSocket(Excepted, "ws receive exception")
     ws.opcode = WsFail
 
 
@@ -237,7 +237,7 @@ proc handleWsUpgradehandshake() =
     try: replyHandshake()
     except: (Excepted , getCurrentExceptionMsg())
   if state != DontClose:
-    wsserver.closeSocket(ws.socketdata, state, errormessage)
+    closeSocket(state, errormessage)
     return
   ws.socketdata.flags = 1
   if wsserver.afterupgradeCallback != nil:
@@ -389,7 +389,7 @@ proc send*(server: GuildenServer, delivery: ptr WsDelivery, timeoutsecs = 20, sl
 
 proc send*(server: GuildenServer, sockets: seq[posix.SocketHandle], message: string, timeoutsecs = 20, sleepmillisecs = 100): bool {.discardable.} =
   when compiles(unsafeAddr message):
-    when not defined(gcDestructors): {.fatal: "mm:arc or mm:orc required".}
+    when not defined(nimdoc) and not defined(gcDestructors): {.fatal: "mm:arc or mm:orc required".}
     delivery.sockets = sockets
     delivery.message = unsafeAddr(message)
     delivery.binary = false
@@ -399,7 +399,7 @@ proc send*(server: GuildenServer, sockets: seq[posix.SocketHandle], message: str
 
 proc send*(server: GuildenServer, socket: posix.SocketHandle, message: string, timeoutsecs = 20, sleepmillisecs = 100): bool {.discardable.} =
   when compiles(unsafeAddr message):
-    when not defined(gcDestructors): {.fatal: "mm:arc or mm:orc required".}
+    when not defined(nimdoc) and not defined(gcDestructors): {.fatal: "mm:arc or mm:orc required".}
     delivery.sockets.setLen(1)
     delivery.sockets[0] = socket
     delivery.message = unsafeAddr(message)

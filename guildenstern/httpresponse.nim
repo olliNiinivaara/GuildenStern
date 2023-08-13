@@ -31,11 +31,11 @@ proc writeToSocket*(text: ptr string, length: int, flags = intermediateflags): S
       continue
     result = checkSocketState(ret)
     if result == TryAgain:
-      server.suspend(backoff)
+      suspend(backoff)
       totalbackoff += backoff
       backoff *= 2
       if totalbackoff > server.sockettimeoutms:
-        server.closeSocket(http.socketdata, TimedOut, "didn't write to socket")
+        closeSocket(TimedOut, "didn't write to socket")
         return Fail
       continue
     else: return result

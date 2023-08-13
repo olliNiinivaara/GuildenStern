@@ -19,7 +19,7 @@ type
     parseheaders*: bool
     hascontent*: bool
 
-  HttpHandler* {.inheritable.} = ref object of GuildenHandler
+  HttpHandler* = ref object of GuildenHandler
     request*: string
     requestlen*: int
     uristart*: int
@@ -76,8 +76,8 @@ proc checkSocketState*(ret: int): SocketState =
       elif lasterror == 32: ConnectionLost
       elif lasterror == 104: ClosedbyClient
       else: NetErrored
-  if cause == Excepted: server.closeSocket(http.socketdata, Excepted, getCurrentExceptionMsg())
-  else:  server.closeSocket(http.socketdata, cause, osErrorMsg(OSErrorCode(lastError)))
+  if cause == Excepted: closeSocket(Excepted, getCurrentExceptionMsg())
+  else: closeSocket(cause, osErrorMsg(OSErrorCode(lastError)))
   return Fail
 
 

@@ -35,7 +35,7 @@ proc receiveStreamingHeader(): bool {.gcsafe, raises:[].} =
     http.requestlen += ret
     if isHeaderreceived(http.requestlen - ret, http.requestlen): break
     if http.requestlen > server.maxheaderlength:
-      server.closeSocket(http.socketdata, ProtocolViolated, "stream receiveHeader: Max header size exceeded")
+      closeSocket(ProtocolViolated, "stream receiveHeader: Max header size exceeded")
       return false
   stream.contentlength = getContentLength()
   stream.contentreceived = http.requestlen - http.bodystart

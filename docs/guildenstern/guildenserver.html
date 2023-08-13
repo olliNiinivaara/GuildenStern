@@ -12,10 +12,10 @@
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAA3XAAAN1wFCKJt4AAAAB3RJTUUH4QQQEwksSS9ZWwAAAk1JREFUWMPtll2ITVEUx39nn/O7Y5qR8f05wtCUUr6ZIS++8pEnkZInPImneaCQ5METNdOkeFBKUhMPRIkHKfEuUZSUlGlKPN2TrgfncpvmnntnmlEyq1Z7t89/rf9a6+y99oZxGZf/XeIq61EdtgKXgdXA0xrYAvBjOIF1AI9zvjcC74BSpndrJPkBWDScTF8Aa4E3wDlgHbASaANmVqlcCnwHvgDvgVfAJ+AikAAvgfVZwLnSVZHZaOuKoQi3ZOMi4NkYkpe1p4J7A8BpYAD49hfIy/oqG0+hLomiKP2L5L+1ubn5115S+3OAn4EnwBlgMzCjyt6ZAnQCJ4A7wOs88iRJHvw50HoujuPBoCKwHWiosy8MdfZnAdcHk8dxXFJ3VQbQlCTJvRBCGdRbD4M6uc5glpY3eAihpN5S5w12diSEcCCEcKUO4ljdr15T76ur1FDDLIQQ3qv71EdDOe3Kxj3leRXyk+pxdWnFWod6Wt2bY3de3aSuUHcPBVimHs7mK9WrmeOF6lR1o9qnzskh2ar2qm1qizpfXaPeVGdlmGN5pb09qMxz1Xb1kLqgzn1RyH7JUXW52lr5e/Kqi9qpto7V1atuUzfnARrV7jEib1T76gG2qxdGmXyiekkt1GswPTtek0aBfJp6YySGBfWg2tPQ0FAYgf1stUfdmdcjarbYJEniKIq6gY/Aw+zWHAC+p2labGpqiorFYgGYCEzN7oQdQClN07O1/EfDyGgC0ALMBdYAi4FyK+4H3gLPsxfR1zRNi+NP7nH5J+QntnXe5B5mpfQAAAAASUVORK5CYII=">
 
 <!-- CSS -->
-<link rel="stylesheet" type="text/css" href="nimdoc.out.css">
+<link rel="stylesheet" type="text/css" href="../nimdoc.out.css">
 
 <!-- JS -->
-<script type="text/javascript" src="dochack.js"></script>
+<script type="text/javascript" src="../dochack.js"></script>
 </head>
 <body>
   <div class="document" id="documentId">
@@ -33,7 +33,7 @@
     </div>
     <div id="global-links">
       <ul class="simple">
-        <li><a id="indexLink" href="theindex.html">Index</a></li>
+        <li><a id="indexLink" href="../theindex.html">Index</a></li>
       </ul>
     </div>
     <div id="searchInputDiv">
@@ -65,14 +65,15 @@
   loglevel*: LogLevel
   port*: uint16
   availablethreadcount*: int
-  maxactivethreadcount*: int
+  maxactivethreadcount*: int ## \
+                             ## documentation about a field
   thread*: Thread[ptr GuildenServer]
   threadid*: int
   started*: bool
   threadInitializerCallback*: ThreadInitializerCallback
   handlerCallback*: HandlerCallback
   suspendCallback*: SuspendCallback
-  closeSocket*: CloseSocketCallback
+  closeSocketCallback*: CloseSocketCallback
   closeOtherSocketCallback*: CloseOtherSocketCallback
   onCloseSocketCallback*: OnCloseSocketCallback">GuildenServer</a></li>
 <li><a class="reference" href="#GuildenServerException" title="GuildenServerException = Exception">GuildenServerException</a></li>
@@ -136,6 +137,10 @@
                  cause: SocketCloseCause = CloseCalled; msg: string = &quot;&quot;)</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">closeSocket
+  <li><a class="reference" href="#closeSocket%2Cstring" title="closeSocket(cause = CloseCalled; msg = &quot;&quot;)">closeSocket(cause = CloseCalled; msg = &quot;&quot;)</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">initialize
   <li><a class="reference" href="#initialize%2CGuildenServer%2CLogLevel" title="initialize(server: GuildenServer; loglevel: LogLevel)">initialize(server: GuildenServer; loglevel: LogLevel)</a></li>
 
@@ -145,7 +150,7 @@
 
 </ul>
 <ul class="simple nested-toc-section">suspend
-  <li><a class="reference" href="#suspend%2CGuildenServer%2Cint" title="suspend(server: GuildenServer; sleepmillisecs: int)">suspend(server: GuildenServer; sleepmillisecs: int)</a></li>
+  <li><a class="reference" href="#suspend%2Cint" title="suspend(sleepmillisecs: int)">suspend(sleepmillisecs: int)</a></li>
 
 </ul>
 
@@ -217,14 +222,15 @@
   <span class="Identifier">loglevel</span><span class="Operator">*</span><span class="Other">:</span> <a href="guildenserver.html#LogLevel"><span class="Identifier">LogLevel</span></a>
   <span class="Identifier">port</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">uint16</span>
   <span class="Identifier">availablethreadcount</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span>
-  <span class="Identifier">maxactivethreadcount</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span>
+  <span class="Identifier">maxactivethreadcount</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span> <span class="Comment">## \</span>
+                             <span class="Comment">## documentation about a field</span>
   <span class="Identifier">thread</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Thread</span><span class="Other">[</span><span class="Keyword">ptr</span> <a href="guildenserver.html#GuildenServer"><span class="Identifier">GuildenServer</span></a><span class="Other">]</span>
   <span class="Identifier">threadid</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span>
   <span class="Identifier">started</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
   <span class="Identifier">threadInitializerCallback</span><span class="Operator">*</span><span class="Other">:</span> <a href="guildenserver.html#ThreadInitializerCallback"><span class="Identifier">ThreadInitializerCallback</span></a>
   <span class="Identifier">handlerCallback</span><span class="Operator">*</span><span class="Other">:</span> <a href="guildenserver.html#HandlerCallback"><span class="Identifier">HandlerCallback</span></a>
   <span class="Identifier">suspendCallback</span><span class="Operator">*</span><span class="Other">:</span> <a href="guildenserver.html#SuspendCallback"><span class="Identifier">SuspendCallback</span></a>
-  <span class="Identifier">closeSocket</span><span class="Operator">*</span><span class="Other">:</span> <a href="guildenserver.html#CloseSocketCallback"><span class="Identifier">CloseSocketCallback</span></a>
+  <span class="Identifier">closeSocketCallback</span><span class="Operator">*</span><span class="Other">:</span> <a href="guildenserver.html#CloseSocketCallback"><span class="Identifier">CloseSocketCallback</span></a>
   <span class="Identifier">closeOtherSocketCallback</span><span class="Operator">*</span><span class="Other">:</span> <a href="guildenserver.html#CloseOtherSocketCallback"><span class="Identifier">CloseOtherSocketCallback</span></a>
   <span class="Identifier">onCloseSocketCallback</span><span class="Operator">*</span><span class="Other">:</span> <a href="guildenserver.html#OnCloseSocketCallback"><span class="Identifier">OnCloseSocketCallback</span></a>
 </pre></dt>
@@ -386,7 +392,19 @@
   <div id="closeOtherSocket,GuildenServer,,SocketCloseCause,string">
   <dt><pre><span class="Keyword">proc</span> <a href="#closeOtherSocket%2CGuildenServer%2C%2CSocketCloseCause%2Cstring"><span class="Identifier">closeOtherSocket</span></a><span class="Other">(</span><span class="Identifier">server</span><span class="Other">:</span> <a href="guildenserver.html#GuildenServer"><span class="Identifier">GuildenServer</span></a><span class="Other">;</span> <span class="Identifier">socket</span><span class="Other">:</span> <span class="Identifier">posix</span><span class="Other">.</span><span class="Identifier">SocketHandle</span><span class="Other">;</span>
                       <span class="Identifier">cause</span><span class="Other">:</span> <a href="guildenserver.html#SocketCloseCause"><span class="Identifier">SocketCloseCause</span></a> <span class="Other">=</span> <span class="Identifier">CloseCalled</span><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">string</span> <span class="Other">=</span> <span class="StringLit">&quot;&quot;</span><span class="Other">)</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> </span><span class="Identifier">nimcall</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+
+</div>
+<div id="closeSocket-procs-all">
+  <div id="closeSocket,string">
+  <dt><pre><span class="Keyword">proc</span> <a href="#closeSocket%2Cstring"><span class="Identifier">closeSocket</span></a><span class="Other">(</span><span class="Identifier">cause</span> <span class="Other">=</span> <span class="Identifier">CloseCalled</span><span class="Other">;</span> <span class="Identifier">msg</span> <span class="Other">=</span> <span class="StringLit">&quot;&quot;</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> </span><span class="Identifier">nimcall</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     
@@ -419,9 +437,9 @@
 
 </div>
 <div id="suspend-procs-all">
-  <div id="suspend,GuildenServer,int">
-  <dt><pre><span class="Keyword">proc</span> <a href="#suspend%2CGuildenServer%2Cint"><span class="Identifier">suspend</span></a><span class="Other">(</span><span class="Identifier">server</span><span class="Other">:</span> <a href="guildenserver.html#GuildenServer"><span class="Identifier">GuildenServer</span></a><span class="Other">;</span> <span class="Identifier">sleepmillisecs</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <div id="suspend,int">
+  <dt><pre><span class="Keyword">proc</span> <a href="#suspend%2Cint"><span class="Identifier">suspend</span></a><span class="Other">(</span><span class="Identifier">sleepmillisecs</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span>
+                                    <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     
@@ -468,7 +486,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2023-08-05 14:00:38 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2023-08-13 13:02:31 UTC</small>
       </div>
     </div>
   </div>

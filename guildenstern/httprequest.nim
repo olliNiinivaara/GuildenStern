@@ -1,16 +1,16 @@
 proc parseMethod*(): bool =
   if unlikely(http.requestlen < 13):
     server.log(WARN, "too short request: " & http.request)
-    server.closeSocket(http.socketdata, ProtocolViolated, "")
+    closeSocket(ProtocolViolated, "")
     return false
   while http.methlen < http.requestlen and http.request[http.methlen] != ' ': http.methlen.inc
   if unlikely(http.methlen == http.requestlen):
     server.log(WARN, "http method missing")
-    server.closeSocket(http.socketdata, ProtocolViolated, "")
+    closeSocket(ProtocolViolated, "")
     return false
   if unlikely(http.request[0 .. 1] notin ["GE", "PO", "HE", "PU", "DE", "CO", "OP", "TR", "PA"]):
     server.log(WARN, "invalid http method: " & http.request[0 .. 12])
-    server.closeSocket(http.socketdata, ProtocolViolated, "")
+    closeSocket(ProtocolViolated, "")
     return false
   return true
   
@@ -25,11 +25,11 @@ proc parseRequestLine*(): bool {.gcsafe, raises: [].} =
 
   if unlikely(http.requestlen < http.uristart + http.urilen + 9):
     server.log(WARN, "parseRequestLine: no version")
-    (server.closeSocket(http.socketdata, ProtocolViolated, ""); return false)
+    (closeSocket(ProtocolViolated, ""); return false)
 
   if unlikely(http.request[http.uristart + http.urilen + 1] != 'H' or http.request[http.uristart + http.urilen + 8] != '1'):
     server.log(WARN, "request not HTTP/1.1: " & http.request[http.uristart + http.urilen + 1 .. http.uristart + http.urilen + 8])
-    (server.closeSocket(http.socketdata, ProtocolViolated, ""); return false)
+    (closeSocket(ProtocolViolated, ""); return false)
   server.log(DEBUG, $server.port & "/" & $http.socketdata.socket &  ": " & http.request[0 .. http.uristart + http.urilen + 8])
   true
 
@@ -224,11 +224,11 @@ proc receiveAllHttp(): bool {.gcsafe, raises:[] .} =
     if unlikely(ret < 1):
       let state = checkSocketState(ret)
       if likely(state == TryAgain):
-        server.suspend(backoff)
+        suspend(backoff)
         totalbackoff += backoff
         backoff *= 2
         if totalbackoff > server.sockettimeoutms:
-          server.closeSocket(http.socketdata, TimedOut, "didn't read from socket")
+          closeSocket(TimedOut, "didn't read from socket")
           return false
         continue
       if state == Fail: return false
@@ -237,14 +237,14 @@ proc receiveAllHttp(): bool {.gcsafe, raises:[] .} =
     http.requestlen += ret
 
     if unlikely(http.requestlen >= server.maxrequestlength):
-      server.closeSocket(http.socketdata, ProtocolViolated, "recvHttp: Max request size exceeded")
+      closeSocket(ProtocolViolated, "recvHttp: Max request size exceeded")
       return false
 
     if http.requestlen == expectedlength: break
 
     if not isHeaderreceived(previouslen, http.requestlen):
       if http.requestlen >= server.maxheaderlength:
-        server.closeSocket(http.socketdata,ProtocolViolated, "recvHttp: Max header size exceeded" )
+        closeSocket(ProtocolViolated, "recvHttp: Max header size exceeded" )
         return false
       continue
 
@@ -265,17 +265,17 @@ proc receiveHeader*(): bool {.gcsafe, raises:[].} =
     if unlikely(ret < 1):
       let state = checkSocketState(ret)
       if (likely)state == TryAgain:
-        server.suspend(backoff - 1)
+        suspend(backoff - 1)
         totalbackoff += backoff
         backoff = backoff shl 2
         if unlikely(totalbackoff > server.sockettimeoutms):
-          server.closeSocket(http.socketdata, TimedOut, "didn't read from socket in " & $server.sockettimeoutms & " ms")
+          closeSocket(TimedOut, "didn't read from socket in " & $server.sockettimeoutms & " ms")
           return false
         continue
       if state == Fail: return false
     http.requestlen += ret
     if http.requestlen > server.maxheaderlength:
-      server.closeSocket(guildenhandler.socketdata, ProtocolViolated, "receiveHeader: Max header size exceeded")
+      closeSocket(ProtocolViolated, "receiveHeader: Max header size exceeded")
       return false
     if http.request[http.requestlen-4] == '\c' and http.request[http.requestlen-3] == '\l' and
      http.request[http.requestlen-2] == '\c' and http.request[http.requestlen-1] == '\l': break

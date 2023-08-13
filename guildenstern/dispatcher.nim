@@ -1,6 +1,9 @@
+## .. importdoc::  guildenserver.nim
+
 import selectors, net, os, posix, locks
 from nativesockets import accept, setBlocking, close
 import guildenserver
+
 
 static: doAssert(defined(threadsafe))
 
@@ -20,12 +23,14 @@ type
 
 var
   workerdatas: array[30, WorkerData]
-  gsselector* {.threadvar.}: Selector[SocketData]
+  gsselector {.threadvar.}: Selector[SocketData]
   workerthreads {.threadvar.} : seq[Thread[GuildenServer]]
 
 
-proc getLoad*(server: GuildenServer): int =
-  return workerdatas[server.id].activethreadcount
+#[proc getLoad*(server: GuildenServer): int =
+  ## returns number of currently running worker threads of this server.
+  ## Use server's [maxactivethreadcount] parameter for control.
+  return workerdatas[server.id].activethreadcount]#
 
 
 proc suspend(server: GuildenServer, sleepmillisecs: int) {.gcsafe, nimcall, raises: [].} =
@@ -89,7 +94,7 @@ proc findSelectorForSocket(server: GuildenServer, socket: posix.SocketHandle): S
     return workerdatas[server.id].gsselector
 
 
-proc closeSocket*(socketdata: ptr SocketData, cause = CloseCalled, msg = "") {.gcsafe, nimcall, raises: [].} =
+proc closeSocketImpl(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string) {.gcsafe, nimcall, raises: [].} =
   if socketdata.socket.int in [0, INVALID_SOCKET.int]:
     socketdata.server.log(TRACE, "use of invalid socket: " & $socketdata.socket)
     return
@@ -107,7 +112,7 @@ proc closeSocket*(socketdata: ptr SocketData, cause = CloseCalled, msg = "") {.g
     socketdata.socket = INVALID_SOCKET
 
 
-proc closeOtherSocketInOtherThread*(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause, msg: string = "") {.gcsafe, nimcall, raises: [].} =
+proc closeOtherSocketInOtherThreadImpl(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause, msg: string = "") {.gcsafe, nimcall, raises: [].} =
   if socket.int in [0, INVALID_SOCKET.int]: return
   server.log(DEBUG, "closeOtherSocketInOtherThread " & $cause & ": " & $socket & "  " & msg)
 
@@ -165,13 +170,13 @@ proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].}
         elif event.errorCode.cint == 32: ConnectionLost
         elif event.errorCode.cint == 104: ClosedbyClient
         else: NetErrored
-      closeSocket(socketdata, cause, osErrorMsg(event.errorCode))
+      closeSocketImpl(socketdata, cause, osErrorMsg(event.errorCode))
     return
 
   if unlikely(Event.Read notin event.events):
     try:
       server.log(INFO, "dysunctional " & $fd & ": " & $event.events)
-      closeSocket(socketdata, NetErrored, "non-read " & $fd & ": " & $event.events)
+      closeSocketImpl(socketdata, NetErrored, "non-read " & $fd & ": " & $event.events)
     except CatchableError, Defect: discard
     finally: return
 
@@ -241,8 +246,8 @@ proc eventLoop(server: GuildenServer) {.gcsafe, raises: [].} =
 proc dispatch(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raises: [].} =
   let server = serverptr[]
   server.threadid = getThreadId()
-  var
-    linger = TLinger(l_onoff: 1, l_linger: 0)
+  when not defined nimdoc:
+    var linger = TLinger(l_onoff: 1, l_linger: 0)
   try:
     {.gcsafe.}: signal(SIG_PIPE, SIG_IGN)
     gsselector = newSelector[SocketData]()
@@ -257,7 +262,8 @@ proc dispatch(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raises: [
   try:
     portserver = newSocket()
     portserver.bindAddr(net.Port(server.port), "")
-    discard setsockopt(portserver.getFd(), cint(SOL_SOCKET), cint(SO_LINGER), addr linger, SockLen(sizeof(TLinger)))
+    when not defined nimdoc:
+      discard setsockopt(portserver.getFd(), cint(SOL_SOCKET), cint(SO_LINGER), addr linger, SockLen(sizeof(TLinger)))
     portserver.listen()
   except CatchableError, Defect:
     server.log(FATAL, "Could not open port " & $server.port)
@@ -301,8 +307,8 @@ proc start*(server: GuildenServer, port: int, threadcount: uint = 0) =
   if threadcount == 0: threadcount = server.maxactivethreadcount * 2
   server.port = port.uint16
   server.suspendCallback = suspend
-  server.closeSocket = closeSocket
-  server.closeOtherSocketCallback = closeOtherSocketInOtherThread
+  server.closeSocketCallback = closeSocketImpl
+  server.closeOtherSocketCallback = closeOtherSocketInOtherThreadImpl
   server.availablethreadcount = threadcount.int
   createThread(server.thread, dispatch, unsafeAddr server)
   while not server.started:

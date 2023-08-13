@@ -4,6 +4,6 @@ description   = "Modular multithreading Linux HTTP + WebSocket server"
 license       = "MIT"
 srcDir        = "guildenstern"
 
-skipDirs = @["guildenstern/htmldocs", "tests"]
+skipDirs = @["docs", "examples"]
 
 requires "nim >= 2.0.0", "checksums"

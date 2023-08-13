@@ -8,7 +8,7 @@ proc handleHttpRequest*() {.gcsafe, raises: [].} =
   doAssert(header[0] == "keep-alive")
   doAssert(isHeader("connection", "keep-alive"))
   if getUri() == "/close":
-    closeSocket(http.socketdata)
+    closeSocket()
     return
   reply(body)
   if getUri() == "/stop":

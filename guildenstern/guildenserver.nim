@@ -13,6 +13,7 @@ const GuildenSternVersion* = "6.0.0"
 #  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 
+
 from std/selectors import newSelectEvent, trigger
 from std/posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onSignal, `==`
 from std/net import Socket, newSocket
@@ -66,14 +67,15 @@ type
     loglevel*: LogLevel
     port*: uint16
     availablethreadcount*: int
-    maxactivethreadcount*: int
+    maxactivethreadcount*: int ## \
+      ## documentation about a field
     thread*: Thread[ptr GuildenServer]
     threadid*: int
     started*: bool
     threadInitializerCallback*: ThreadInitializerCallback
     handlerCallback*: HandlerCallback
     suspendCallback*: SuspendCallback
-    closeSocket*: CloseSocketCallback
+    closeSocketCallback*: CloseSocketCallback
     closeOtherSocketCallback*: CloseOtherSocketCallback
     onCloseSocketCallback*: OnCloseSocketCallback
 
@@ -98,9 +100,11 @@ proc shutdown*() =
     try: trigger(shutdownevent)
     except: discard
  
-
+ 
+{.hint[XDeclaredButNotUsed]:off.}
 onSignal(SIGTERM): shutdown()
 onSignal(SIGINT): shutdown()
+{.hint[XDeclaredButNotUsed]:on.}
 
 
 template log*(server: GuildenServer, level: LogLevel, message: string) =
@@ -124,12 +128,16 @@ proc initialize*(server: GuildenServer, loglevel: LogLevel) =
   )
 
 
-proc closeOtherSocket*(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause = CloseCalled, msg: string = "") =
+proc closeSocket*(cause = CloseCalled, msg = "") {.gcsafe, nimcall, raises: [].} =
+  guildenhandler.socketdata.server.closeSocketCallback(guildenhandler.socketdata, cause, msg)
+
+
+proc closeOtherSocket*(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause = CloseCalled, msg: string = "") {.gcsafe, nimcall, raises: [].} =
   server.closeOtherSocketCallback(server, socket, cause, msg)
 
 
-proc suspend*(server:  GuildenServer, sleepmillisecs: int) {.inline.} =
-  server.suspendCallback(server, sleepmillisecs)
+proc suspend*(sleepmillisecs: int) {.inline.} =
+  guildenhandler.socketdata.server.suspendCallback(guildenhandler.socketdata.server, sleepmillisecs)
 
 
 template handleRead*(socketdata: ptr SocketData) =

@@ -37,12 +37,13 @@ joinThreads(getserver.thread, postserver.thread)
 
 `git clone -b dev --single-branch https://github.com/olliNiinivaara/GuildenStern.git`
 
-## Features
 
-- Modular architecture: simple codebase and easy customization
-- Every request is processed in dedicated thread: preemptive multitasking scales vertically
-- Listen to different ports with different kinds of servers: creates opportunities for performance optimization
+## Release notes, 6.0.0 (2023-08-13)
 
-## Release notes, 6.0.0 (2023-07-29)
-
-- major rewrite
+- major rewrite, see [docs/migration.md](https://github.com/olliNiinivaara/GuildenStern/blob/dev/docs/migration.md)
+- dispatcher(s) can now be replaced just by changing import(s)
+- every TCP port is now served by different server, allowing port-by-port configuration of resource usage (request buffer size, threadpool size, etc.)
+- non-blocking I/O with cooperative multithreading now used everywhere
+- new suspend procedure for allowing other threads to run also when waiting for I/O in user code
+- overall compatibility with Nim version 2.0
+- single-threaded mode is no more
