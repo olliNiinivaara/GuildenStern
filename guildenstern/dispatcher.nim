@@ -1,4 +1,16 @@
 ## .. importdoc::  guildenserver.nim
+## 
+## This is the default dispatcher that ships with GuildenStern. Use it by importing guildenstern/dispatcher and
+## then starting a server's dispatcher thread by calling [start].
+## 
+## This dispatcher spawns a thread from a server-specific threadpool for 
+## every incoming read request. The threadpool size can be set in the start procedure.
+## This dispatcher is 'clever' in the sense that it will not spawn a thread if
+## activethreadcount has reached maxactivethreadcount,
+## in order to avoid futile thread swapping. If a thread reports itself as inactive (by calling server's suspend procedure),
+## another thread is allowed to run. This keeps the server serving even when there are
+## more threads waiting for I/O than the maxactivethreadcount. This architecture seems to deliver enough
+## performance in practice without the need to use complex asynchronous concurrency techniques.    
 
 import selectors, net, os, posix, locks
 from nativesockets import accept, setBlocking, close
@@ -8,6 +20,7 @@ import guildenserver
 static: doAssert(defined(threadsafe))
 
 const QueueSize {.intdefine.} = 200
+## Empirically found number. Should be larger than maxactivethreadcount.
 
 type
   WorkerData = ref object
@@ -18,7 +31,6 @@ type
     workavailable: Cond
     worklock: Lock
     activethreadcount: int
-    suspendedthreadcount: int
 
 
 var
@@ -102,10 +114,10 @@ proc closeSocketImpl(socketdata: ptr SocketData, cause: SocketCloseCause, msg: s
   if unlikely(socketdata.isserversocket): socketdata.server.log(DEBUG, "note: closing socket " & $socketdata.socket & " is server socket")
   try:
     if socketdata.server.onclosesocketcallback != nil: socketdata.server.onCloseSocketCallback(socketdata, cause, msg)
-    if cause != ClosedbyClient:
-      socketdata.socket.close()
+    if socketdata.socket.int notin [0, INVALID_SOCKET.int]:
       let theselector = findSelectorForSocket(socketdata.server, socketdata.socket)
       if theselector != nil: theselector.unregister(socketdata.socket)
+      if cause != ClosedbyClient: socketdata.socket.close()
   except Defect, CatchableError:
     socketdata.server.log(ERROR, "socket close error")
   finally:
@@ -116,19 +128,19 @@ proc closeOtherSocketInOtherThreadImpl(server: GuildenServer, socket: posix.Sock
   if socket.int in [0, INVALID_SOCKET.int]: return
   server.log(DEBUG, "closeOtherSocketInOtherThread " & $cause & ": " & $socket & "  " & msg)
 
+  var gs = SocketData()
+  gs.socket = socket
   if server.onclosesocketcallback != nil:
-    var gs = SocketData()
     gs.server = server
-    gs.socket = socket
     server.onCloseSocketCallback(addr gs, cause, msg) 
   
-  if cause != ClosedbyClient:
-    socket.close()
+  if gs.socket.int notin [0, INVALID_SOCKET.int]:
     let theselector = findSelectorForSocket(server, socket)
     try:
       if theselector != nil: theselector.unregister(socket)
     except CatchableError, Defect:
       server.log(ERROR, "error closing socket in another thread")
+    if cause != ClosedbyClient: socket.close()
 
 
 proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].} =
@@ -302,6 +314,11 @@ proc dispatch(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raises: [
 
 
 proc start*(server: GuildenServer, port: int, threadcount: uint = 0) =
+  ## Starts the server.thread loop, which then listens the given port for read requests until shuttingdown == true.
+  ## The server's threadpool size can be controlled with the threadcount parameter.
+  ## By default it is server.maxactivethreadcount * 2, where maxactivethreadcount by default is the number 
+  ## of processor cores. If you a running lots of servers, or if a server is not under a heavy load, the 
+  ## theadcount can be lowered. But it should be at least 2, to avoid any single client from stalling the server.
   doAssert(not server.started)
   var threadcount = threadcount.int
   if threadcount == 0: threadcount = server.maxactivethreadcount * 2

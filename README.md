@@ -1,5 +1,3 @@
-![Tests](https://github.com/olliNiinivaara/GuildenStern/workflows/Tests/badge.svg)
-
 # GuildenStern
 Modular multithreading Linux HTTP + WebSocket server
 
