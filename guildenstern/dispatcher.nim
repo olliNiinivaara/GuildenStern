@@ -5,22 +5,27 @@
 ## 
 ## This dispatcher spawns a thread from a server-specific threadpool for 
 ## every incoming read request. The threadpool size can be set in the start procedure.
-## This dispatcher is 'clever' in the sense that it will not spawn a thread if
-## activethreadcount has reached maxactivethreadcount,
-## in order to avoid futile thread swapping. If a thread reports itself as inactive (by calling server's suspend procedure),
+## Dispatcher avoids excessive thread swapping by not spawning a thread when
+## activethreadcount has reached maxactivethreadcount.
+## However, if a thread reports itself as inactive (by calling server's suspend procedure),
 ## another thread is allowed to run. This keeps the server serving even when there are
-## more threads waiting for I/O than the maxactivethreadcount. This architecture seems to deliver enough
-## performance in practice without the need to use complex asynchronous concurrency techniques.    
+## more threads waiting for I/O than the maxactivethreadcount. This design seems to deliver decent
+## performance without leaning to more complex asynchronous concurrency techniques.    
 
 import selectors, net, os, posix, locks
 from nativesockets import accept, setBlocking, close
+from std/osproc import countProcessors
 import guildenserver
 
 
 static: doAssert(defined(threadsafe))
 
-const QueueSize {.intdefine.} = 200
-## Empirically found number. Should be larger than maxactivethreadcount.
+const
+  QueueSize {.intdefine.} = 200
+  ## Empirically found number. Should be larger than maxactivethreadcount.
+  MaxServerCount {.intdefine.} = 30
+  ## Maximum number of servers
+
 
 type
   WorkerData = ref object
@@ -31,17 +36,15 @@ type
     workavailable: Cond
     worklock: Lock
     activethreadcount: int
+    maxactivethreadcount: int
+    threadpoolsize: int
 
 
-var
-  workerdatas: array[30, WorkerData]
-  gsselector {.threadvar.}: Selector[SocketData]
-  workerthreads {.threadvar.} : seq[Thread[GuildenServer]]
+var workerdatas: array[MaxServerCount, WorkerData]
 
 
 #[proc getLoad*(server: GuildenServer): int =
   ## returns number of currently running worker threads of this server.
-  ## Use server's [maxactivethreadcount] parameter for control.
   return workerdatas[server.id].activethreadcount]#
 
 
@@ -52,7 +55,7 @@ proc suspend(server: GuildenServer, sleepmillisecs: int) {.gcsafe, nimcall, rais
     discard workerdatas[server.id].activethreadcount.atomicinc()
 
 
-proc restoreRead(server: GuildenServer, selector: Selector[SocketData], socket: int) {.inline.} =
+proc restoreRead(server: ptr GuildenServer, selector: Selector[SocketData], socket: int) {.inline.} =
   var success = true
   var failures = 0
   if unlikely(socket != INVALID_SOCKET.int) and likely(selector.contains(socket)):
@@ -67,17 +70,12 @@ proc restoreRead(server: GuildenServer, selector: Selector[SocketData], socket: 
         failures += 1
         if failures == 10: success = true
     if unlikely(failures == 10):
-      server.log(ERROR, "add read handle error for socket " & $socket)
+      server[].log(ERROR, "add read handle error for socket " & $socket)
 
 
-proc workerthreadLoop(server: GuildenServer) {.thread.} =
+proc workerthreadLoop(server: ptr GuildenServer) {.thread.} =
   var wd: WorkerData
   {.gcsafe.}:
-    if workerdatas[server.id] == nil:
-      workerdatas[server.id] = new WorkerData
-      workerdatas[server.id].head = -1
-      initCond(workerdatas[server.id].workavailable)
-      initLock(workerdatas[server.id].worklock)
     wd = workerdatas[server.id]
 
   wd.activethreadcount.atomicInc()
@@ -92,9 +90,9 @@ proc workerthreadLoop(server: GuildenServer) {.thread.} =
     let mytail = wd.tail.atomicInc()
     if unlikely(mytail > wd.head): continue
 
-    server.log(TRACE, "handling event at queue position " & $mytail)
+    server[].log(TRACE, "handling event at queue position " & $mytail)
     handleRead(wd.queue[mytail])
-    server.log(TRACE, "handled event at queue position " & $mytail)
+    server[].log(TRACE, "handled event at queue position " & $mytail)
 
     restoreRead(server, wd.gsselector, wd.queue[mytail].socket.int)
 
@@ -115,9 +113,10 @@ proc closeSocketImpl(socketdata: ptr SocketData, cause: SocketCloseCause, msg: s
   try:
     if socketdata.server.onclosesocketcallback != nil: socketdata.server.onCloseSocketCallback(socketdata, cause, msg)
     if socketdata.socket.int notin [0, INVALID_SOCKET.int]:
-      let theselector = findSelectorForSocket(socketdata.server, socketdata.socket)
-      if theselector != nil: theselector.unregister(socketdata.socket)
-      if cause != ClosedbyClient: socketdata.socket.close()
+      {.gcsafe.}:
+        let theselector = findSelectorForSocket(socketdata.server, socketdata.socket)
+        if theselector != nil: theselector.unregister(socketdata.socket)
+        if cause != ClosedbyClient: socketdata.socket.close()
   except Defect, CatchableError:
     socketdata.server.log(ERROR, "socket close error")
   finally:
@@ -160,10 +159,13 @@ proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].}
   let fd = posix.SocketHandle(event.fd)
   server.log(TRACE, "socket " & $fd & ": " & $event.events)
 
+  var wd: WorkerData
+  {.gcsafe.}: wd = workerdatas[server.id]
+
   var socketdata: ptr SocketData
   try:
     {.push warning[ProveInit]: off.}
-    socketdata = addr(gsselector.getData(fd.int))
+    socketdata = addr(wd.gsselector.getData(fd.int))
     {.pop.}
     if unlikely(socketdata == nil):
       server.log(TRACE, "socketdata missing")
@@ -199,30 +201,27 @@ proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].}
       if fd.int in [0, INVALID_SOCKET.int]:
         server.log(TRACE, "invalid new socket")
         return
-      gsselector.registerHandle(fd.int, {Event.Read}, SocketData(server: server, isserversocket: false, socket: fd))
+      wd.gsselector.registerHandle(fd.int, {Event.Read}, SocketData(server: server, isserversocket: false, socket: fd))
       server.log(DEBUG, "socket " & $fd & " connected to thread " & $getThreadId())
     except CatchableError, Defect:
       server.log(ERROR, "selector registerHandle error")
     finally:
       return
 
-  var wd: WorkerData
-  {.gcsafe.}: wd = workerdatas[server.id]
-  if unlikely(wd.gsselector == nil): wd.gsselector = gsselector
-
-  if wd.activethreadcount > server.maxactivethreadcount:
+  if wd.activethreadcount > wd.maxactivethreadcount:
     sleep(0)
     return
 
   try:
-    gsselector.updateHandle(fd.int, {})
+    wd.gsselector.updateHandle(fd.int, {})
   except:
     server.log(ERROR, "remove read handle error")
     return
 
   if unlikely(wd.head == QueueSize - 1):
+    server.log(TRACE, "queue head reached the end, stalling for " & $(wd.head - wd.tail) & " requests")
     while likely(wd.tail < QueueSize - 1):
-      if wd.activethreadcount < server.maxactivethreadcount:
+      if wd.activethreadcount < wd.maxactivethreadcount:
         signal(wd.workavailable)
       discard sched_yield()
       if unlikely(shuttingdown): break
@@ -240,11 +239,14 @@ proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].}
 proc eventLoop(server: GuildenServer) {.gcsafe, raises: [].} =
   var eventbuffer: array[1, ReadyKey]
   var eventid: int
+  {.gcsafe.}:
+    let gsselector = workerdatas[server.id].gsselector
   server.started = true
   while true:
     if unlikely(shuttingdown): break
     var ret: int
-    try: ret = gsselector.selectInto(-1, eventbuffer)
+    try:
+      ret = gsselector.selectInto(-1, eventbuffer)
     except CatchableError, Defect:
       server.log(ERROR, "selector.select")
       continue
@@ -255,15 +257,15 @@ proc eventLoop(server: GuildenServer) {.gcsafe, raises: [].} =
     processEvent(server, eventbuffer[0])
 
 
-proc dispatch(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raises: [].} =
-  let server = serverptr[]
-  server.threadid = getThreadId()
+proc dispatchloop(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raises: [].} =
+  var server = serverptr[]
   when not defined nimdoc:
     var linger = TLinger(l_onoff: 1, l_linger: 0)
   try:
-    {.gcsafe.}: signal(SIG_PIPE, SIG_IGN)
-    gsselector = newSelector[SocketData]()
-    gsselector.registerEvent(shutdownevent, SocketData())
+    {.gcsafe.}:
+      signal(SIG_PIPE, SIG_IGN)
+      workerdatas[server.id].gsselector = newSelector[SocketData]()
+      workerdatas[server.id].gsselector.registerEvent(shutdownevent, SocketData())
   except Exception, CatchableError, Defect:
     server.log(FATAL, "Could not create selector")
     server.started = true
@@ -283,7 +285,8 @@ proc dispatch(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raises: [
     server.port = 0
     return
   try:
-    gsselector.registerHandle(portserver.getFd().int, {Event.Read}, SocketData(server: server, isserversocket: true))
+    {.gcsafe.}:
+      workerdatas[server.id].gsselector.registerHandle(portserver.getFd().int, {Event.Read}, SocketData(server: server, isserversocket: true))
     portserver.getFd().setBlocking(false)
     portserver.setSockOpt(OptNoDelay, true, level = cint(Protocol.IPPROTO_TCP))
   except CatchableError, Defect:
@@ -292,14 +295,15 @@ proc dispatch(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raises: [
     server.port = 0
     return
 
-  workerthreads = newSeq[Thread[GuildenServer]](server.availablethreadcount)
-  try:
-    for i in 0 ..< server.availablethreadcount: createThread(workerthreads[i], workerthreadLoop, server)
-  except ResourceExhaustedError:
-    server.log(FATAL, "Could not create worker threads")
-    server.started = true
-    server.port = 0
-    return
+  {.gcsafe.}:
+    var workerthreads = newSeq[Thread[ptr GuildenServer]](workerdatas[server.id].threadpoolsize)
+    try:
+      for i in 0 ..< workerdatas[server.id].threadpoolsize: createThread(workerthreads[i], workerthreadLoop, addr server)
+    except ResourceExhaustedError:
+      server.log(FATAL, "Could not create worker threads")
+      server.started = true
+      server.port = 0
+      return
 
   eventLoop(server)
 
@@ -313,21 +317,26 @@ proc dispatch(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raises: [
       discard
 
 
-proc start*(server: GuildenServer, port: int, threadcount: uint = 0) =
+proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0, maxactivethreadcount: uint = 0) =
   ## Starts the server.thread loop, which then listens the given port for read requests until shuttingdown == true.
-  ## The server's threadpool size can be controlled with the threadcount parameter.
-  ## By default it is server.maxactivethreadcount * 2, where maxactivethreadcount by default is the number 
-  ## of processor cores. If you a running lots of servers, or if a server is not under a heavy load, the 
-  ## theadcount can be lowered. But it should be at least 2, to avoid any single client from stalling the server.
+  ## By default maxactivethreadcount will be set to processor core count, and threadpoolsize twice that.
+  ## If you a running lots of servers, or if this server is not under a heavy load, these numbers can be lowered.
+  doAssert(server.id < MaxServerCount)
   doAssert(not server.started)
-  var threadcount = threadcount.int
-  if threadcount == 0: threadcount = server.maxactivethreadcount * 2
+  doAssert(threadpoolsize >= maxactivethreadcount)
+  workerdatas[server.id] = new WorkerData
+  workerdatas[server.id].head = -1
+  initCond(workerdatas[server.id].workavailable)
+  initLock(workerdatas[server.id].worklock)
+  workerdatas[server.id].maxactivethreadcount = maxactivethreadcount.int
+  if workerdatas[server.id].maxactivethreadcount == 0: workerdatas[server.id].maxactivethreadcount = countProcessors()
+  workerdatas[server.id].threadpoolsize = threadpoolsize.int
+  if workerdatas[server.id].threadpoolsize == 0: workerdatas[server.id].threadpoolsize = workerdatas[server.id].maxactivethreadcount * 2
   server.port = port.uint16
   server.suspendCallback = suspend
   server.closeSocketCallback = closeSocketImpl
   server.closeOtherSocketCallback = closeOtherSocketInOtherThreadImpl
-  server.availablethreadcount = threadcount.int
-  createThread(server.thread, dispatch, unsafeAddr server)
+  createThread(server.thread, dispatchloop, addr server)
   while not server.started:
     sleep(50)
     if shuttingdown: break

@@ -11,7 +11,7 @@ export httpserver
 type
   FileState = enum Before, In, After
 
-  StreamingHandler* = ref object of HttpHandler
+  StreamingContext* = ref object of HttpContext
     contentlength*: int64
     contentreceived*: int64
     contentdelivered*: int64
@@ -22,9 +22,9 @@ type
     filestate: FileState
   
   
-proc isStreamingHandler*(): bool = return guildenhandler is StreamingHandler
+proc isStreamingHandler*(): bool = return socketcontext is StreamingContext
 
-template stream*(): untyped = StreamingHandler(guildenhandler)
+template stream*(): untyped = StreamingContext(socketcontext)
 
 
 proc receiveStreamingHeader(): bool {.gcsafe, raises:[].} =
@@ -99,7 +99,7 @@ proc receiveMultipart*(): (SocketState , string) {.gcsafe, raises: [].} =
 
 
 proc handleStreamRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
-  if (unlikely)guildenhandler == nil: guildenhandler = new StreamingHandler
+  if (unlikely)socketcontext == nil: socketcontext = new StreamingContext
   prepareHttpHandler(data)
   stream.contentlength = -1
   stream.contentreceived = 0

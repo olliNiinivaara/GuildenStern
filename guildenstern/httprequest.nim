@@ -111,7 +111,7 @@ proc getBodylen*(): int =
 
 when compiles((var x = 1; var vx: var int = x)):
   # --experimental:views is enabled
-  proc getBodyview*(http: HttpHandler): openArray[char] =
+  proc getBodyview*(http: HttpContext): openArray[char] =
     if http.bodystart < 1: return http.request.toOpenArray(0, -1)
     else: return http.request.toOpenArray(http.bodystart, http.requestlen - 1)
 

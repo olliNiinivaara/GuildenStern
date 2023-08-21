@@ -19,7 +19,6 @@ from std/posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onS
 from std/net import Socket, newSocket
 from std/nativesockets import close
 from std/strutils import replace
-from std/osproc import countProcessors
 export SocketHandle, INVALID_SOCKET, posix.`==`
 
 static: doAssert(compileOption("threads"))
@@ -38,7 +37,6 @@ type
     isserversocket*: bool
     customdata*: pointer
     flags*: int
-
 
   SocketCloseCause* = enum
     Excepted = -1000
@@ -66,11 +64,7 @@ type
     logCallback*: LogCallback
     loglevel*: LogLevel
     port*: uint16
-    availablethreadcount*: int
-    maxactivethreadcount*: int ## \
-      ## documentation about a field
     thread*: Thread[ptr GuildenServer]
-    threadid*: int
     started*: bool
     threadInitializerCallback*: ThreadInitializerCallback
     handlerCallback*: HandlerCallback
@@ -80,7 +74,7 @@ type
     onCloseSocketCallback*: OnCloseSocketCallback
 
 
-  GuildenHandler* {.inheritable.} = ref object
+  SocketContext* {.inheritable.} = ref object
     socketdata*: ptr SocketData 
 
 
@@ -90,7 +84,7 @@ proc `$`*(x: SocketHandle): string {.inline.} = $(x.cint)
 var
   shuttingdown* = false
   shutdownevent* = newSelectEvent()
-  guildenhandler* {.threadvar.}: GuildenHandler
+  socketcontext* {.threadvar.}: SocketContext
   nextid: int
   
 
@@ -113,7 +107,6 @@ template log*(server: GuildenServer, level: LogLevel, message: string) =
 
 
 proc initialize*(server: GuildenServer, loglevel: LogLevel) =
-  server.maxactivethreadcount = countProcessors()
   server.id = nextid
   nextid += 1
   server.loglevel = loglevel
@@ -129,7 +122,7 @@ proc initialize*(server: GuildenServer, loglevel: LogLevel) =
 
 
 proc closeSocket*(cause = CloseCalled, msg = "") {.gcsafe, nimcall, raises: [].} =
-  guildenhandler.socketdata.server.closeSocketCallback(guildenhandler.socketdata, cause, msg)
+  socketcontext.socketdata.server.closeSocketCallback(socketcontext.socketdata, cause, msg)
 
 
 proc closeOtherSocket*(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause = CloseCalled, msg: string = "") {.gcsafe, nimcall, raises: [].} =
@@ -137,7 +130,7 @@ proc closeOtherSocket*(server: GuildenServer, socket: posix.SocketHandle, cause:
 
 
 proc suspend*(sleepmillisecs: int) {.inline.} =
-  guildenhandler.socketdata.server.suspendCallback(guildenhandler.socketdata.server, sleepmillisecs)
+  socketcontext.socketdata.server.suspendCallback(socketcontext.socketdata.server, sleepmillisecs)
 
 
 template handleRead*(socketdata: ptr SocketData) =

@@ -1,7 +1,7 @@
 ## Websocket server
 
 import nativesockets, net, posix, os, base64, times, std/monotimes, sets, locks
-import checksums/sha1
+from sha1 import secureHash, `$`
 import httpserver
 export httpserver
 
@@ -30,7 +30,7 @@ type
     sendingsockets: HashSet[posix.Sockethandle]
     sendlock: Lock
 
-  WebsocketHandler* = ref object of HttpHandler
+  WebsocketContext* = ref object of HttpContext
     opcode*: OpCode
 
   State = tuple[sent: int, sendstate: SendState]
@@ -52,11 +52,11 @@ var
   
 {.push checks: off.}
 
-proc isWebsocketHandler*(): bool = return guildenhandler is WebsocketHandler
+proc isWebsocketHandler*(): bool = return socketcontext is WebsocketContext
 
-template ws*(): untyped = WebsocketHandler(guildenhandler)
+template ws*(): untyped = WebsocketContext(socketcontext)
 
-template wsserver*(): untyped = WebsocketServer(guildenhandler.socketdata.server)
+template wsserver*(): untyped = WebsocketServer(socketcontext.socketdata.server)
 
 
 template `[]`(value: uint8, index: int): bool =
@@ -245,8 +245,8 @@ proc handleWsUpgradehandshake() =
 
 
 proc prepareWebsocketHandler*(socketdata: ptr SocketData) {.inline.} =
-  if (unlikely)guildenhandler == nil:
-    guildenhandler = new WebsocketHandler
+  if (unlikely)socketcontext == nil:
+    socketcontext = new WebsocketContext
     prepareHttpHandler(socketdata)
     delivery = (sockets: newSeq[posix.SocketHandle](), message: nil, binary: false, states: newSeq[State]())
   ws.socketdata = socketdata

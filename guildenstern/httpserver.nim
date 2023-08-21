@@ -19,7 +19,7 @@ type
     parseheaders*: bool
     hascontent*: bool
 
-  HttpHandler* = ref object of GuildenHandler
+  HttpContext* = ref object of SocketContext
     request*: string
     requestlen*: int
     uristart*: int
@@ -40,16 +40,16 @@ const
   MSG_MORE* = 0x8000.cint
 
 
-proc isHttpHandler*(): bool = return guildenhandler is HttpHandler
+proc isHttpHandler*(): bool = return socketcontext is HttpContext
 
-template http*(): untyped = HttpHandler(guildenhandler)
+template http*(): untyped = HttpContext(socketcontext)
 
-template server*(): untyped = HttpServer(guildenhandler.socketdata.server)
+template server*(): untyped = HttpServer(socketcontext.socketdata.server)
 
 {.push checks: off.}
 
 proc prepareHttpHandler*(socketdata: ptr SocketData) {.inline.} =
-  if unlikely(guildenhandler == nil): guildenhandler = new HttpHandler
+  if unlikely(socketcontext == nil): socketcontext = new HttpContext
   http.socketdata = socketdata
   if unlikely(http.request.len != server.maxrequestlength + 1):
     http.request = newString(server.maxrequestlength + 1)
