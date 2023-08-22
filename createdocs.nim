@@ -2,6 +2,8 @@ import guildenstern/[dispatcher, guildenserver, httpserver, streamingserver, web
 import osproc
 discard execCmd("nim doc --project --index:on --outdir:docs createdocs.nim")
 
-
-# nim doc --project --index:on --outdir:../docs guildenserver.nim
+# rm docs/*
+# cd guildenstern
 # nim buildIndex -o:../docs/theindex.html ../docs
+# nim doc --project --index:on --outdir:../docs guildenserver.nim
+

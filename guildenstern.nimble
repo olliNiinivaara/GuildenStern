@@ -6,4 +6,4 @@ srcDir        = "guildenstern"
 
 skipDirs = @["docs", "examples"]
 
-requires "nim >= 2.0.0", "checksums"
+requires "nim >= 2.0.0"

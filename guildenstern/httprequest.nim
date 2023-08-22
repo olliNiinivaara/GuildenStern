@@ -1,75 +1,84 @@
-proc parseMethod*(): bool =
-  if unlikely(http.requestlen < 13):
-    server.log(WARN, "too short request: " & http.request)
-    closeSocket(ProtocolViolated, "")
-    return false
-  while http.methlen < http.requestlen and http.request[http.methlen] != ' ': http.methlen.inc
-  if unlikely(http.methlen == http.requestlen):
-    server.log(WARN, "http method missing")
-    closeSocket(ProtocolViolated, "")
-    return false
-  if unlikely(http.request[0 .. 1] notin ["GE", "PO", "HE", "PU", "DE", "CO", "OP", "TR", "PA"]):
-    server.log(WARN, "invalid http method: " & http.request[0 .. 12])
-    closeSocket(ProtocolViolated, "")
-    return false
-  return true
-  
-
-proc parseRequestLine*(): bool {.gcsafe, raises: [].} =
-  if not parseMethod(): return false
-  var i = http.methlen + 1
-  let start = i
-  while i < http.requestlen and http.request[i] != ' ': i.inc()
-  http.uristart = start
-  http.urilen = i - start
-
-  if unlikely(http.requestlen < http.uristart + http.urilen + 9):
-    server.log(WARN, "parseRequestLine: no version")
-    (closeSocket(ProtocolViolated, ""); return false)
-
-  if unlikely(http.request[http.uristart + http.urilen + 1] != 'H' or http.request[http.uristart + http.urilen + 8] != '1'):
-    server.log(WARN, "request not HTTP/1.1: " & http.request[http.uristart + http.urilen + 1 .. http.uristart + http.urilen + 8])
-    (closeSocket(ProtocolViolated, ""); return false)
-  server.log(DEBUG, $server.port & "/" & $http.socketdata.socket &  ": " & http.request[0 .. http.uristart + http.urilen + 8])
-  true
+from std/strutils import find, parseInt, isLowerAscii, toLowerAscii
+import strtabs
 
 
-proc isHeaderreceived*(previouslen, currentlen: int): bool =
-  if currentlen < 4: return false
-  if http.request[currentlen-4] == '\c' and http.request[currentlen-3] == '\l' and http.request[currentlen-2] == '\c' and
-  http.request[currentlen-1] == '\l':
-    http.bodystart = currentlen
+when not defined(nimdoc):
+  proc parseMethod*(): bool =
+    if unlikely(http.requestlen < 13):
+      server.log(WARN, "too short request: " & http.request)
+      closeSocket(ProtocolViolated, "")
+      return false
+    while http.methlen < http.requestlen and http.request[http.methlen] != ' ': http.methlen.inc
+    if unlikely(http.methlen == http.requestlen):
+      server.log(WARN, "http method missing")
+      closeSocket(ProtocolViolated, "")
+      return false
+    if unlikely(http.request[0 .. 1] notin ["GE", "PO", "HE", "PU", "DE", "CO", "OP", "TR", "PA"]):
+      server.log(WARN, "invalid http method: " & http.request[0 .. 12])
+      closeSocket(ProtocolViolated, "")
+      return false
     return true
+    
 
-  var i = if previouslen > 4: previouslen - 4 else: previouslen
-  while i <= currentlen - 4:
-    if http.request[i] == '\c' and http.request[i+1] == '\l' and http.request[i+2] == '\c' and http.request[i+3] == '\l':
-      http.bodystart = i + 4
+  proc parseRequestLine*(): bool {.gcsafe, raises: [].} =
+    if not parseMethod(): return false
+    var i = http.methlen + 1
+    let start = i
+    while i < http.requestlen and http.request[i] != ' ': i.inc()
+    http.uristart = start
+    http.urilen = i - start
+
+    if unlikely(http.requestlen < http.uristart + http.urilen + 9):
+      server.log(WARN, "parseRequestLine: no version")
+      (closeSocket(ProtocolViolated, ""); return false)
+
+    if unlikely(http.request[http.uristart + http.urilen + 1] != 'H' or http.request[http.uristart + http.urilen + 8] != '1'):
+      server.log(WARN, "request not HTTP/1.1: " & http.request[http.uristart + http.urilen + 1 .. http.uristart + http.urilen + 8])
+      (closeSocket(ProtocolViolated, ""); return false)
+    server.log(DEBUG, $server.port & "/" & $http.socketdata.socket &  ": " & http.request[0 .. http.uristart + http.urilen + 8])
+    true
+
+
+  proc getContentLength*(): int {.raises: [].} =
+    const length  = "content-length: ".len
+    var start = http.request.find("content-length: ")
+    if start == -1: start = http.request.find("Content-Length: ")
+    if start == -1: return 0
+    var i = start + length
+    while i < http.requestlen and http.request[i] != '\c': i += 1
+    if i == http.requestlen: return 0
+    try: return parseInt(http.request[start + length ..< i])
+    except CatchableError:
+      server.log(WARN, "could not parse content-length from: " & http.request)
+      return 0
+
+
+  proc isHeaderreceived*(previouslen, currentlen: int): bool =
+    if currentlen < 4: return false
+    if http.request[currentlen-4] == '\c' and http.request[currentlen-3] == '\l' and http.request[currentlen-2] == '\c' and
+    http.request[currentlen-1] == '\l':
+      http.bodystart = currentlen
       return true
-    inc i
-  false
 
-
-proc getContentLength*(): int {.raises: [].} =
-  const length  = "content-length: ".len
-  var start = http.request.find("content-length: ")
-  if start == -1: start = http.request.find("Content-Length: ")
-  if start == -1: return 0
-  var i = start + length
-  while i < http.requestlen and http.request[i] != '\c': i += 1
-  if i == http.requestlen: return 0
-  try: return parseInt(http.request[start + length ..< i])
-  except CatchableError:
-    server.log(WARN, "could not parse content-length from: " & http.request)
-    return 0
+    var i = if previouslen > 4: previouslen - 4 else: previouslen
+    while i <= currentlen - 4:
+      if http.request[i] == '\c' and http.request[i+1] == '\l' and http.request[i+2] == '\c' and http.request[i+3] == '\l':
+        http.bodystart = i + 4
+        return true
+      inc i
+    false
   
  
 proc getUri*(): string {.raises: [].} =
+  ## When parserequestline == true, returns the uri as a string copy
+  assert(server.parserequestline)
   if http.urilen == 0: return
   return http.request[http.uristart ..< http.uristart + http.urilen]
 
 
 proc isUri*(uri: string): bool {.raises: [].} =
+  ## Compares the uri without making a string copy
+  assert(server.parserequestline)
   if http.urilen != uri.len: return false
   for i in 0 ..< http.urilen:
     if http.request[http.uristart + i] != uri[i]: return false
@@ -77,6 +86,8 @@ proc isUri*(uri: string): bool {.raises: [].} =
 
 
 proc startsUri*(uristart: string): bool {.raises: [].} =
+  ## Compares the beginning of the uri without making a string copy
+  assert(server.parserequestline)
   if http.urilen < uristart.len: return false
   for i in 0 ..< uristart.len:
     if http.request[http.uristart + i] != uristart[i]: return false
@@ -84,24 +95,19 @@ proc startsUri*(uristart: string): bool {.raises: [].} =
 
 
 proc getMethod*(): string {.raises: [].} =
+  ## When parserequestline == true, returns the method as a string copy
+  assert(server.parserequestline)
   if http.methlen == 0: return
   return http.request[0 ..< http.methlen]
 
 
 proc isMethod*(amethod: string): bool {.raises: [].} =
+  ## Compares method uri without making a string copy
+  assert(server.parserequestline)
   if http.methlen != amethod.len: return false
   for i in 0 ..< http.methlen:
     if http.request[i] != amethod[i]: return false
   true
-
-
-proc getHeaders*(): string =
-  if http.bodystart < 1: return http.request
-  http.request[0 .. http.bodystart - 4]
-
-
-proc getBodystart*(): int {.inline.} =
-  http.bodystart
 
 
 proc getBodylen*(): int =
@@ -110,18 +116,23 @@ proc getBodylen*(): int =
 
 
 when compiles((var x = 1; var vx: var int = x)):
-  # --experimental:views is enabled
+  ## Returns the body without making a string copy.
   proc getBodyview*(http: HttpContext): openArray[char] =
+    assert(server.hascontent)
     if http.bodystart < 1: return http.request.toOpenArray(0, -1)
     else: return http.request.toOpenArray(http.bodystart, http.requestlen - 1)
 
 
 proc getBody*(): string =
+  ## Returns the body as a string copy.  When --experimental:views compiler switch is used, there is also getBodyview proc that does not take a copy.
+  assert(server.hascontent)
   if http.bodystart < 1: return ""
   return http.request[http.bodystart ..< http.requestlen]
 
 
 proc isBody*(body: string): bool =
+  ## Compares the body without making a string copy
+  assert(server.hascontent)
   let len = http.requestlen - http.bodystart
   if  len != body.len: return false
   for i in http.bodystart ..< http.bodystart + len:
@@ -133,24 +144,8 @@ proc getRequest*(): string =
   return http.request[0 ..< http.requestlen]
 
 
-proc getMessage*(): string =
-  return http.request[0 ..< http.requestlen]
-
-
-proc isRequest*(request: string): bool =
-  if http.requestlen != http.request.len: return false
-  for i in countup(0, http.requestlen - 1):
-    if http.request[i] != http.request[i]: return false
-  true
-
-
-proc isHeader*(headerfield: string, value: string): bool =
-  assert(server.parseheaders)
-  try: return http.headers[headerfield] == value
-  except: return false
-
-
 proc parseHeaders*(fields: openArray[string], toarray: var openArray[string]) =
+  ## Parses header `fields` values into `toarray`. See example above.
   assert(fields.len == toarray.len)
   for j in 0 ..< fields.len: assert(fields[j][0].isLowerAscii(), "Header field names must be given in all lowercase, wrt. " & fields[j])
   var value = false
@@ -186,8 +181,8 @@ proc parseHeaders*(fields: openArray[string], toarray: var openArray[string]) =
     i.inc
 
 
-proc parseHeaders*(headers: StringTableRef) =
-  # note: does not clear table first
+proc parseAllHeaders*(headers: StringTableRef) =
+  ## Parses all headers into given strtabs.StringTable.
   var value = false
   var current: (string, string) = ("", "")
   var i = 0
@@ -214,72 +209,73 @@ proc parseHeaders*(headers: StringTableRef) =
     i.inc
 
 
-proc receiveAllHttp(): bool {.gcsafe, raises:[] .} =
-  var expectedlength = server.maxrequestlength + 1
-  var backoff = 1
-  var totalbackoff = 0
-  while true:
-    if unlikely(shuttingdown): return false
-    let ret = recv(http.socketdata.socket, addr http.request[http.requestlen], expectedlength - http.requestlen, MSG_DONTWAIT)
-    if unlikely(ret < 1):
-      let state = checkSocketState(ret)
-      if likely(state == TryAgain):
-        suspend(backoff)
-        totalbackoff += backoff
-        backoff *= 2
-        if totalbackoff > server.sockettimeoutms:
-          closeSocket(TimedOut, "didn't read from socket")
-          return false
-        continue
-      if state == Fail: return false
+when not defined(nimdoc):
+  proc receiveAllHttp(): bool {.gcsafe, raises:[] .} =
+    var expectedlength = server.maxrequestlength + 1
+    var backoff = 1
+    var totalbackoff = 0
+    while true:
+      if unlikely(shuttingdown): return false
+      let ret = recv(http.socketdata.socket, addr http.request[http.requestlen], expectedlength - http.requestlen, MSG_DONTWAIT)
+      if unlikely(ret < 1):
+        let state = checkSocketState(ret)
+        if likely(state == SocketState.TryAgain):
+          suspend(backoff)
+          totalbackoff += backoff
+          backoff *= 2
+          if totalbackoff > server.sockettimeoutms:
+            closeSocket(TimedOut, "didn't read from socket")
+            return false
+          continue
+        if state == Fail: return false
 
-    let previouslen = http.requestlen
-    http.requestlen += ret
+      let previouslen = http.requestlen
+      http.requestlen += ret
 
-    if unlikely(http.requestlen >= server.maxrequestlength):
-      closeSocket(ProtocolViolated, "recvHttp: Max request size exceeded")
-      return false
-
-    if http.requestlen == expectedlength: break
-
-    if not isHeaderreceived(previouslen, http.requestlen):
-      if http.requestlen >= server.maxheaderlength:
-        closeSocket(ProtocolViolated, "recvHttp: Max header size exceeded" )
+      if unlikely(http.requestlen >= server.maxrequestlength):
+        closeSocket(ProtocolViolated, "recvHttp: Max request size exceeded")
         return false
-      continue
 
-    let contentlength = getContentLength()
-    if contentlength == 0: return true
-    expectedlength = http.bodystart + contentlength
-    if http.requestlen == expectedlength: break
-  server.log(DEBUG, $server.port & "/" & $http.socketdata.socket & ": " & http.request[http.bodystart .. http.bodystart + http.requestlen - 1])
-  true
+      if http.requestlen == expectedlength: break
 
-
-proc receiveHeader*(): bool {.gcsafe, raises:[].} =
-  var backoff = 1
-  var totalbackoff = 0
-  while true:
-    if unlikely(shuttingdown): return false
-    let ret = recv(http.socketdata.socket, addr http.request[http.requestlen], 1 + server.maxheaderlength - http.requestlen, MSG_DONTWAIT)
-    if unlikely(ret < 1):
-      let state = checkSocketState(ret)
-      if (likely)state == TryAgain:
-        suspend(backoff - 1)
-        totalbackoff += backoff
-        backoff = backoff shl 2
-        if unlikely(totalbackoff > server.sockettimeoutms):
-          closeSocket(TimedOut, "didn't read from socket in " & $server.sockettimeoutms & " ms")
+      if not isHeaderreceived(previouslen, http.requestlen):
+        if http.requestlen >= server.maxheaderlength:
+          closeSocket(ProtocolViolated, "recvHttp: Max header size exceeded" )
           return false
         continue
-      if state == Fail: return false
-    http.requestlen += ret
-    if http.requestlen > server.maxheaderlength:
-      closeSocket(ProtocolViolated, "receiveHeader: Max header size exceeded")
-      return false
-    if http.request[http.requestlen-4] == '\c' and http.request[http.requestlen-3] == '\l' and
-     http.request[http.requestlen-2] == '\c' and http.request[http.requestlen-1] == '\l': break
-  return http.requestlen > 0
+
+      let contentlength = getContentLength()
+      if contentlength == 0: return true
+      expectedlength = http.bodystart + contentlength
+      if http.requestlen == expectedlength: break
+    server.log(DEBUG, $server.port & "/" & $http.socketdata.socket & ": " & http.request[http.bodystart .. http.bodystart + http.requestlen - 1])
+    true
+
+
+  proc receiveHeader*(): bool {.gcsafe, raises:[].} =
+    var backoff = 1
+    var totalbackoff = 0
+    while true:
+      if unlikely(shuttingdown): return false
+      let ret = recv(http.socketdata.socket, addr http.request[http.requestlen], 1 + server.maxheaderlength - http.requestlen, MSG_DONTWAIT)
+      if unlikely(ret < 1):
+        let state = checkSocketState(ret)
+        if (likely)state == SocketState.TryAgain:
+          suspend(backoff - 1)
+          totalbackoff += backoff
+          backoff = backoff shl 2
+          if unlikely(totalbackoff > server.sockettimeoutms):
+            closeSocket(TimedOut, "didn't read from socket in " & $server.sockettimeoutms & " ms")
+            return false
+          continue
+        if state == Fail: return false
+      http.requestlen += ret
+      if http.requestlen > server.maxheaderlength:
+        closeSocket(ProtocolViolated, "receiveHeader: Max header size exceeded")
+        return false
+      if http.request[http.requestlen-4] == '\c' and http.request[http.requestlen-3] == '\l' and
+      http.request[http.requestlen-2] == '\c' and http.request[http.requestlen-1] == '\l': break
+    return http.requestlen > 0
 
 
 
