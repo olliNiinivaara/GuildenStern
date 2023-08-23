@@ -31,17 +31,20 @@ joinThreads(getserver.thread, postserver.thread)
 
 https://olliniinivaara.github.io/GuildenStern/index.html
 
+[migration guide](https://github.com/olliNiinivaara/GuildenStern/blob/master/docs/migration.md)
+
 ## Installation
 
-`git clone -b dev --single-branch https://github.com/olliNiinivaara/GuildenStern.git`
+atlas use GuildenStern
 
 
-## Release notes, 6.0.0 (2023-08-13)
+## Release notes, 6.0.0 (2023-08-23)
 
-- major rewrite, see [docs/migration.md](https://github.com/olliNiinivaara/GuildenStern/blob/dev/docs/migration.md)
+- major rewrite, breaking changes here and there, consult migration guide and code examples.
 - dispatcher(s) can now be replaced just by changing import(s)
-- every TCP port is now served by different server, allowing port-by-port configuration of resource usage (request buffer size, threadpool size, etc.)
+- every TCP port is now served by different server, allowing port-by-port configuration of resource usage
 - non-blocking I/O with cooperative multithreading now used everywhere
 - new suspend procedure for allowing other threads to run also when waiting for I/O in user code
 - overall compatibility with Nim version 2.0
 - single-threaded mode is no more
+- TimerCtx is no more
