@@ -6,7 +6,7 @@ Modular multithreading Linux HTTP + WebSocket server
 ```nim
 # nim r --d:release --d:threadsafe thisexample
 
-import cgi, guildenstern/[dispatcher, httpserver]
+import cgi, strtabs, guildenstern/[dispatcher, httpserver]
      
 proc handleGet() =
   let html = """
