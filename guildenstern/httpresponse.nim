@@ -15,8 +15,8 @@ let
   http200nocontentlen = 38
   http204string = "HTTP/1.1 204 No Content\c\L\c\L"
   http204stringlen = 27
-  shortdivider = "\c\L"
-  longdivider = "\c\L\c\L"
+  shortdivider* = "\c\L"
+  longdivider* = "\c\L\c\L"
   contentlen = "Content-Length: "
   zerocontent = "Content-Length: 0\c\L"
 
@@ -138,7 +138,11 @@ proc replyStart*(code: HttpCode, contentlength: int, headers: ptr string = nil):
 
       if headers != nil and headers[].len > 0:
         if writeToSocket(headers, headers[].len) != Complete: return Fail
-        if writeToSocket(unsafeAddr shortdivider, shortdivider.len) != Complete: return Fail
+
+      if contentlength < 1: return writeToSocket(unsafeAddr longdivider, longdivider.len)
+
+      if headers != nil and headers[].len > 0:
+        if unlikely(writeToSocket(unsafeAddr shortdivider, shortdivider.len) != Complete): return Fail
       
       if unlikely(writeToSocket(unsafeAddr contentlen, contentlen.len) != Complete): return Fail
       let lengthstring = $contentlength

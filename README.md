@@ -38,13 +38,11 @@ https://olliniinivaara.github.io/GuildenStern/index.html
 atlas use GuildenStern
 
 
-## Release notes, 6.0.0 (2023-08-23)
+## Release notes, 6.1.0 (2023-09-02)
 
-- major rewrite, breaking changes here and there, consult migration guide and code examples.
-- dispatcher(s) can now be replaced just by changing import(s)
-- every TCP port is now served by different server, allowing port-by-port configuration of resource usage
-- non-blocking I/O with cooperative multithreading now used everywhere
-- new suspend procedure for allowing other threads to run also when waiting for I/O in user code
-- overall compatibility with Nim version 2.0
-- single-threaded mode is no more
-- TimerCtx is no more
+- fixed nimble path
+- fixed README example
+- new receiveInChucks iterator in streamingserver for receiving big data, for example POST data that does not fit in main memory
+- new startDownload-continueDownload-finishDownload combo in streamingserver for sending big and/or dynamic responses as *Transfer-Encoding: chunked*
+- new and upgraded streamingserver examples as required
+
