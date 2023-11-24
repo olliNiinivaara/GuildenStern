@@ -68,7 +68,7 @@ type
 
 when not defined(nimdoc):
   const
-    MSG_DONTWAIT* = 0x40.cint
+    MSG_DONTWAIT* = when defined(macosx): 0x80.cint else: 0x40.cint
     MSG_MORE* = 0x8000.cint
 
 
