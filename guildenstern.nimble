@@ -1,4 +1,4 @@
-version       = "6.1.0"
+version       = "7.0.0"
 author        = "Olli"
 description   = "Modular multithreading Linux HTTP + WebSocket server"
 license       = "MIT"

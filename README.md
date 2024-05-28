@@ -1,3 +1,5 @@
+# <span style="color:red">VERSION 7, In progress</span>
+
 # GuildenStern
 Modular multithreading Linux HTTP + WebSocket server
 

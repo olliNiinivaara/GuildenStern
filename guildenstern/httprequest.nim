@@ -1,5 +1,4 @@
 from std/strutils import find, parseInt, isLowerAscii, toLowerAscii
-import strtabs
 
 
 when not defined(nimdoc):
@@ -39,18 +38,20 @@ when not defined(nimdoc):
     true
 
 
-  proc getContentLength*(): int {.raises: [].} =
+  proc getContentLength*(): bool {.raises: [].} =
     const length  = "content-length: ".len
     var start = http.request.find("content-length: ")
     if start == -1: start = http.request.find("Content-Length: ")
-    if start == -1: return 0
+    if start == -1: return true
     var i = start + length
     while i < http.requestlen and http.request[i] != '\c': i += 1
-    if i == http.requestlen: return 0
-    try: return parseInt(http.request[start + length ..< i])
-    except CatchableError:
-      server.log(WARN, "could not parse content-length from: " & http.request)
-      return 0
+    if i == http.requestlen: return true
+    try:
+      http.contentlength = parseInt(http.request[start + length ..< i])
+      return true
+    except:
+      closeSocket(ProtocolViolated, "could not parse content-length")
+      return false
 
 
   proc isHeaderreceived*(previouslen, currentlen: int): bool =
@@ -71,7 +72,7 @@ when not defined(nimdoc):
  
 proc getUri*(): string {.raises: [].} =
   ## When parserequestline == true, returns the uri as a string copy
-  assert(server.parserequestline)
+  doAssert(server.parserequestline == true)
   if http.urilen == 0: return
   return http.request[http.uristart ..< http.uristart + http.urilen]
 
@@ -118,21 +119,23 @@ proc getBodylen*(): int =
 when compiles((var x = 1; var vx: var int = x)):
   ## Returns the body without making a string copy.
   proc getBodyview*(http: HttpContext): openArray[char] =
-    assert(server.hascontent)
+    assert(server.contenttype == SingleBuffer)
     if http.bodystart < 1: return http.request.toOpenArray(0, -1)
     else: return http.request.toOpenArray(http.bodystart, http.requestlen - 1)
 
 
 proc getBody*(): string =
   ## Returns the body as a string copy.  When --experimental:views compiler switch is used, there is also getBodyview proc that does not take a copy.
-  assert(server.hascontent)
+  if unlikely(server.contenttype != SingleBuffer):
+    echo "getBody is available only when server.contenttype == SingleBuffer"
+    quit()
   if http.bodystart < 1: return ""
   return http.request[http.bodystart ..< http.requestlen]
 
 
 proc isBody*(body: string): bool =
   ## Compares the body without making a string copy
-  assert(server.hascontent)
+  assert(server.contenttype == SingleBuffer)
   let len = http.requestlen - http.bodystart
   if  len != body.len: return false
   for i in http.bodystart ..< http.bodystart + len:
@@ -141,24 +144,47 @@ proc isBody*(body: string): bool =
 
 
 proc getRequest*(): string =
+  assert(server.contenttype == SingleBuffer)
   return http.request[0 ..< http.requestlen]
 
 
-proc parseHeaders*(fields: openArray[string], toarray: var openArray[string]) =
-  ## Parses header `fields` values into `toarray`. See example above.
-  assert(fields.len == toarray.len)
-  for j in 0 ..< fields.len: assert(fields[j][0].isLowerAscii(), "Header field names must be given in all lowercase, wrt. " & fields[j])
+proc receiveHeader(): bool {.gcsafe, raises:[].} =
+  var backoff = 4
+  var totalbackoff = 0
+  while true:
+    if shuttingdown: return false
+    let ret = recv(http.socketdata.socket, addr http.request[http.requestlen], 1 + server.maxheaderlength - http.requestlen, MSG_DONTWAIT)
+    let state = checkSocketState(ret)
+    if state == Fail: return false
+    if state == SocketState.TryAgain:
+      suspend(backoff)
+      totalbackoff += backoff
+      if totalbackoff > server.sockettimeoutms:
+        if http.requestlen == 0: closeSocket(TimedOut, "client sent nothing")
+        else: closeSocket(TimedOut, "didn't receive whole header in time")
+        return false
+      backoff *= 2
+      continue
+    totalbackoff = 0
+    http.requestlen += ret
+    if isHeaderreceived(http.requestlen - ret, http.requestlen): break
+    if http.requestlen > server.maxheaderlength:
+      closeSocket(ProtocolViolated, "maximum allowed header size exceeded")
+      return false
+  http.contentreceived = http.requestlen - http.bodystart
+  true
+
+
+proc parseHeaders() =
   var value = false
   var current: (string, string) = ("", "")
   var found = 0
   var i = 0
-
   while i <= http.requestlen - 4:
     case http.request[i]
     of '\c':
       if http.request[i+1] == '\l' and http.request[i+2] == '\c' and http.request[i+3] == '\l':
-        let index = fields.find(current[0])
-        if index != -1: toarray[index] = current[1]
+        if http.headers.contains(current[0]): http.headers[current[0]] = current[1]
         return
     of ':':
       if value: current[1].add(':')
@@ -168,11 +194,10 @@ proc parseHeaders*(fields: openArray[string], toarray: var openArray[string]) =
         if current[1].len != 0: current[1].add(http.request[i])
       else: current[0].add(http.request[i])
     of '\l':
-      let index = fields.find(current[0])
-      if index != -1:
-        toarray[index] = current[1]
+      if http.headers.contains(current[0]):
+        http.headers[current[0]] = current[1]
         found += 1
-        if found == toarray.len: return
+        if found == http.headers.len: return
       value = false
       current = ("", "")
     else:
@@ -181,101 +206,83 @@ proc parseHeaders*(fields: openArray[string], toarray: var openArray[string]) =
     i.inc
 
 
-proc parseAllHeaders*(headers: StringTableRef) =
-  ## Parses all headers into given strtabs.StringTable.
-  var value = false
-  var current: (string, string) = ("", "")
-  var i = 0
-  while i <= http.requestlen - 4:
-    case http.request[i]
-    of '\c':
-      if http.request[i+1] == '\l' and http.request[i+2] == '\c' and http.request[i+3] == '\l':
-        headers[current[0]] = current[1]
-        return
-    of ':':
-      if value: current[1].add(':')
-      value = true
-    of ' ':
-      if value:
-        if current[1].len != 0: current[1].add(http.request[i])
-      else: current[0].add(http.request[i])
-    of '\l':
-      headers[current[0]] = current[1]
-      value = false
-      current = ("", "")
+proc readHeader*(): bool {.gcsafe, raises:[].} =
+  if not receiveHeader(): return false
+  if server.headerfields.len == 0:
+    if server.contenttype == NoBody: return true
+    return getContentLength()
+  parseHeaders()
+  if server.contenttype != NoBody:
+    try:
+      if http.headers["content-length"].len > 0:
+        http.contentlength = http.headers["content-length"].parseInt()
+    except:
+      closeSocket(ProtocolViolated, "non-parseable content-length")
+      return false  
+  true
+
+
+iterator receiveStream*(): (SocketState , string) {.gcsafe, raises: [].} =
+  ## Receives a http request in chunks, yielding the state of operation and a possibly received new chuck on every iteration.
+  ## With this, you can receive POST data without worries about main memory usage.
+  ## See examples/streamingposttest.nim for a concrete working example of how to use this iterator.
+  when defined(nimdoc): discard
+  else:
+    if http.contentlength == 0: yield (Complete , "")
     else:
-      if value: current[1].add(http.request[i])
-      else: current[0].add(http.request[i].toLowerAscii())
-    i.inc
+      if http.contentreceived == http.contentlength:
+        if server.contenttype == Streaming: yield (Progress , http.request[http.bodystart ..< http.bodystart + http.contentlength])
+        yield (Complete , "")
+      else:
+        if server.contenttype == Streaming: yield (Progress , http.request[http.bodystart ..< http.bodystart + http.contentreceived])
+        var continues = true
+        while continues:
+          if shuttingdown:
+            yield (Fail , "")
+            continues = false
+          else:
+            let recvsize =
+              if http.contentlength - http.contentreceived > server.bufferlength: server.bufferlength
+              else: http.contentlength - http.contentreceived
+            let position =
+              if server.contenttype == Streaming: 0
+              else: http.contentreceived
+            let ret = recv(http.socketdata.socket, addr http.request[position], recvsize, MSG_DONTWAIT)
+            let state = checkSocketState(ret)
+            http.contentreceived += ret
+            http.requestlen =
+              if server.contenttype == Streaming: ret
+              else: http.contentreceived
+            if state == Fail:
+              yield (Fail , "")
+              continues = false
+            elif state == TryAgain:
+              yield (TryAgain , "")
+            elif state == Complete or http.contentlength == http.contentreceived:
+              if server.contenttype == Streaming: yield(Progress , http.request[0 ..< ret])
+              yield(Complete , "")
+              continues = false
+            else:
+              if server.contenttype == Streaming:
+                yield(Progress , http.request[0 ..< ret])
+              else: yield(Progress , "")
 
 
-when not defined(nimdoc):
-  proc receiveAllHttp(): bool {.gcsafe, raises:[] .} =
-    var expectedlength = server.maxrequestlength + 1
-    var backoff = 1
-    var totalbackoff = 0
-    while true:
-      if unlikely(shuttingdown): return false
-      let ret = recv(http.socketdata.socket, addr http.request[http.requestlen], expectedlength - http.requestlen, MSG_DONTWAIT)
-      if unlikely(ret < 1):
-        let state = checkSocketState(ret)
-        if likely(state == SocketState.TryAgain):
-          suspend(backoff)
-          totalbackoff += backoff
-          backoff *= 2
-          if totalbackoff > server.sockettimeoutms:
-            closeSocket(TimedOut, "didn't read from socket")
-            return false
-          continue
-        if state == Fail: return false
-
-      let previouslen = http.requestlen
-      http.requestlen += ret
-
-      if unlikely(http.requestlen >= server.maxrequestlength):
-        closeSocket(ProtocolViolated, "recvHttp: Max request size exceeded")
-        return false
-
-      if http.requestlen == expectedlength: break
-
-      if not isHeaderreceived(previouslen, http.requestlen):
-        if http.requestlen >= server.maxheaderlength:
-          closeSocket(ProtocolViolated, "recvHttp: Max header size exceeded" )
+proc receiveToSingleBuffer(): bool =
+  var backoff = 4
+  var totalbackoff = 0
+  for (state , chunk) in receiveStream():
+    case state:
+      of TryAgain:
+        suspend(backoff)
+        totalbackoff += backoff
+        if totalbackoff > server.sockettimeoutms:
+          closeSocket(TimedOut, "didn't read all contents from socket")
           return false
+        backoff *= 2
         continue
-
-      let contentlength = getContentLength()
-      if contentlength == 0: return true
-      expectedlength = http.bodystart + contentlength
-      if http.requestlen == expectedlength: break
-    server.log(DEBUG, $server.port & "/" & $http.socketdata.socket & ": " & http.request[http.bodystart .. http.bodystart + http.requestlen - 1])
-    true
-
-
-  proc receiveHeader*(): bool {.gcsafe, raises:[].} =
-    var backoff = 1
-    var totalbackoff = 0
-    while true:
-      if unlikely(shuttingdown): return false
-      let ret = recv(http.socketdata.socket, addr http.request[http.requestlen], 1 + server.maxheaderlength - http.requestlen, MSG_DONTWAIT)
-      if unlikely(ret < 1):
-        let state = checkSocketState(ret)
-        if (likely)state == SocketState.TryAgain:
-          suspend(backoff - 1)
-          totalbackoff += backoff
-          backoff = backoff shl 2
-          if unlikely(totalbackoff > server.sockettimeoutms):
-            closeSocket(TimedOut, "didn't read from socket in " & $server.sockettimeoutms & " ms")
-            return false
-          continue
-        if state == Fail: return false
-      http.requestlen += ret
-      if http.requestlen > server.maxheaderlength:
-        closeSocket(ProtocolViolated, "receiveHeader: Max header size exceeded")
-        return false
-      if http.request[http.requestlen-4] == '\c' and http.request[http.requestlen-3] == '\l' and
-      http.request[http.requestlen-2] == '\c' and http.request[http.requestlen-1] == '\l': break
-    return http.requestlen > 0
-
-
-
+      of Fail: return false
+      of Progress:
+        totalbackoff = 0
+        continue
+      of Complete: return true
