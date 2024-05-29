@@ -1,30 +1,24 @@
-import std/[times, monotimes, strtabs]
-from posix import recv, SocketHandle
-from strutils import find, parseInt, startsWith
-from strformat import fmt
+import std/strtabs
+from strutils import find, parseInt, startsWith, toLowerAscii
 export strtabs
 import httpserver
 export httpserver
 
 type
-  FileState = enum Before, In, After
-
-  StreamState = enum
-    StreamFail, StreamTryAgain, StreamProgress, StreamComplete, StreamPartStart
-
-  PartStreamState* = enum HeaderReady, PartChunk,  PartReady, Failed, Completed
-
+  PartState* = enum HeaderReady, BodyChunk, BodyReady, Failed, Completed
 
 when defined(nimdoc):
-  type StreamingContext* = ref object of HttpContext
+  type MultipartContext* = ref object of HttpContext
 else:
   type 
     MultipartContext* = ref object of HttpContext
       boundary: string
-      filestate: FileState
       partcache: string
+      partlen: int
       headercache: string
       headerlen: int
+      inheader: bool
+      parsepartheaders: bool
     
   
 proc isMultipartContext*(): bool = return socketcontext is MultipartContext
@@ -34,125 +28,146 @@ template multipart*(): untyped =
   MultipartContext(socketcontext)
 
 
-proc processPart(chunk: string): (StreamState , string) =
-  assert multipart.filestate != After
-  let endboundarylength = multipart.boundary.len + 2
-  multipart.partcache.add(chunk)
-  if multipart.partcache.len < endboundarylength:
-    # echo "cache might contain part of boundary, more data needed"
-    return (StreamTryAgain , "")
-  let boundarystartsat = multipart.partcache.find(multipart.boundary)
-  let boundaryfreeend = multipart.partcache.len - multipart.boundary.len - 1
-  if boundarystartsat == -1:
-    # echo "no boundaries found, end of cache might contain part of forthcoming boundary"
-    result[1] = multipart.partcache[0 .. boundaryfreeend]
-    multipart.partcache =  multipart.partcache[boundaryfreeend .. ^1]
-    if multipart.filestate == Before:
-      result[0] = StreamPartStart
-      multipart.filestate = In
-    else: result[0] = StreamProgress
+proc processHeader(c: char): PartState =
+  if multipart.headerlen + 1 > server.maxheaderlength:
+    closeSocket(ProtocolViolated, "header of part exceeded maximum allowed size")
+    return Failed
+  multipart.headercache[multipart.headerlen] = c
+  multipart.headerlen += 1
+  if multipart.headerlen > 20 and c == '\L':
+    if multipart.headercache[multipart.headerlen - 2] == '\c' and
+    multipart.headercache[multipart.headerlen - 3] == '\L' and
+    multipart.headercache[multipart.headerlen - 4] == '\c':
+      multipart.inheader = false
+      return HeaderReady
+    else: return Completed
+  else: return Completed
+
+
+proc atBoundary(): bool =
+  for i in countdown(multipart.boundary.len - 1, 0):
+    if multipart.boundary[i] != multipart.partcache[multipart.partlen - 1 - multipart.boundary.len - 1 + i]: return false
+  true
+
+
+proc processPart(c: char): PartState =
+  multipart.partcache[multipart.partlen] = c
+  multipart.partlen += 1
+  if multipart.partlen < multipart.boundary.len: return Completed
+  if atBoundary():
+    multipart.inheader = true
+    return BodyReady
   else:
-    # boundary found in cache
-    let boundaryendedbefore = boundarystartsat + multipart.boundary.len
-    if multipart.partcache.len < endboundarylength or multipart.partcache[boundaryendedbefore .. boundaryendedbefore + 1] != "--":
-      # echo "startboundary found"
-      result[1] = multipart.partcache[0 ..< boundarystartsat]
-      multipart.partcache = multipart.partcache[boundaryendedbefore .. ^1]
-      if multipart.filestate == Before:
-        result[0] = StreamPartStart
-      else:
-        result[0] = StreamProgress
-      multipart.filestate = Before
+    if multipart.partlen < multipart.partcache.len: return Completed
+    return BodyChunk
+
+
+iterator processChunk(chunk: string): (PartState , string) =
+  for c in chunk:
+    if multipart.inheader:
+      let headerstate = processHeader(c)
+      if headerstate == Failed:
+        yield(Failed, "header of part exceeded maximum allowed size")
+        break
+      elif headerstate == HeaderReady:
+        yield(HeaderReady, multipart.headercache[0 .. multipart.headerlen - 5])
+        multipart.headerlen = 0
+      else: yield(Completed , "")
     else:
-      # echo "end boundary found"
-      result[1] = multipart.partcache[0 ..< boundarystartsat]
-      multipart.partcache = ""
-      if multipart.filestate == Before:
-        result[0] = StreamPartStart
-      else: result[0] = StreamComplete
+      let partstate = processPart(c)
+      if partstate == Failed:
+        yield(Failed, "part processing failed")
+        break
+      elif partstate == BodyChunk:
+        yield(BodyChunk , multipart.partcache[0 .. multipart.partlen - multipart.boundary.len - 1])
+        for i in 0 .. multipart.boundary.len - 1: multipart.partcache[i] = multipart.partcache[multipart.partlen - multipart.boundary.len + i]
+        multipart.partlen = multipart.boundary.len
+      elif partstate == BodyReady:
+        let last = multipart.partlen - multipart.boundary.len - 5
+        yield(BodyChunk , multipart.partcache[0 .. last])
+        multipart.partlen = 0
+        yield(BodyReady , "")
+      else: yield(Completed , "")
 
 
-iterator coarseReceiveParts(): (StreamState , string) {.gcsafe, raises: [].} =
-  # assert(multipart.partcache == "readytostart", "forgot to call startReceiveMultipart?")
-  multipart.partcache = ""
+proc parseHeader(header: string) =
+  var value = false
+  var current: (string, string) = ("", "")
+  var i = 0
+  try:
+    for key in http.headers.keys: http.headers[key].setLen(0)
+  except:
+    echo "header key error, should never happen"
+  while i < header.len:
+    case header[i]
+    of '\c': discard
+    of ':':
+      if value: current[1].add(':')
+      value = true
+    of ' ':
+      if value:
+        if current[1].len != 0: current[1].add(header[i])
+      else: current[0].add(header[i])
+    of '\l':
+      if not current[0].startsWith("--"): http.headers[current[0]] = current[1]
+      value = false
+      current = ("", "")
+    else:
+      if value: current[1].add(header[i])
+      else: current[0].add((header[i]).toLowerAscii())
+    i.inc
+  if current[0].len > 1 and not current[0].startsWith("--"): http.headers[current[0]] = current[1]
+
+    
+iterator receiveParts*(parsepartheaders: bool = true): (PartState , string) =
+  multipart.headerlen = 0
+  multipart.partlen = 0
+  multipart.inheader = true
+  var failed = false
+  var backoff = 4
+  var totalbackoff = 0
+
+  var originalheaderfields = newSeq[string]() 
+  if parsepartheaders:
+    for key in http.headers.keys(): originalheaderfields.add(key)
+    http.headers.clear()
+
   for (state , chunk) in receiveStream():
-    #[if getMonoTime() - multipart.start > multipart.timeout:
-      closeSocket(TimedOut, "reached giveupSecs = " & $multipart.timeout)
-      yield(StreamState.Fail, "")
-      break]#
     case state:
       of TryAgain:
-        suspend(10) #multipart.waitms)
-        yield(StreamTryAgain, "")
-        # backoff timeout
-      of Fail: yield(StreamFail, "")
-      of Progress:
-        if multipart.filestate == After: continue
-        let (s , r) = processPart(chunk)
-        if s == StreamProgress: yield(StreamProgress, r)
-        elif s == StreamComplete:
-          if r.len > 0: yield(StreamProgress, r)
-          multipart.filestate = After
-        elif s == StreamPartStart:
-          yield(StreamPartStart, "")
-          if r.len > 0: yield(StreamProgress, r)
-      of Complete:
-        if multipart.filestate == After: yield(StreamComplete, "")
-        else:
-          while true:
-            let (s , r) = processPart("")
-            if s == StreamComplete:
-              if r.len > 0: yield(StreamProgress, r)
-              yield(StreamComplete, "")
-              break
-            elif s == StreamPartStart:
-              if r.len == 0:
-                yield(StreamComplete, "")
-                break
-              yield(StreamPartStart, "")
-              yield(StreamProgress, r)
-            else:
-              yield(StreamComplete, "")
-              break
-
-
-iterator receiveParts*(): (PartStreamState , string) =
-  var
-    trials = 0
-    inheader = true
-  multipart.headerlen = 0
-  for (recvstate , recvchunk) in coarseReceiveParts():
-    case recvstate:
-      of StreamTryAgain: # give up after x seconds of inactivity
-        trials += 1
-        if trials > 100:
-          closeSocket(TimedOut, "syy")
-          yield (Failed , "syy")
+        suspend(backoff)
+        totalbackoff += backoff
+        if totalbackoff > server.sockettimeoutms:
+          closeSocket(TimedOut, "didn't stream all contents from socket")
+          yield (Failed , "TimedOut")
           break
-      of StreamFail:
-        yield (Failed , "")
+        backoff *= 2
+        continue
+      of Fail:
+        yield (Failed , "socket failure")
         break
-      #[of HeaderStart:
-        if not inheader: yield(PartReady , "")
-        headerlen = 0
-        inheader = true]#
-      of StreamPartStart:
-        inheader = true
-        yield(HeaderReady , multipart.headercache[0 ..< multipart.headerlen])
-        multipart.headerlen = 0
-      of StreamProgress:
-        if inheader:
-          if multipart.headerlen + recvchunk.len > server.maxheaderlength:
-            closeSocket(ProtocolViolated, "syy")
-            yield(Failed , "syy")
-            break
-          for i in 0 ..< recvchunk.len: multipart.headercache[multipart.headerlen + i] = recvchunk[i]
-          multipart.headerlen += recvchunk.len
-        else:
-          yield(PartChunk , recvchunk)
-      of StreamComplete:
-        yield(PartReady , "") 
-        yield(Completed , "")       
+      of Progress:
+        totalbackoff = 0
+        for (partstate , part) in processChunk(chunk):
+          case partstate:
+            of Failed:
+              yield(Failed , part)
+              failed = true
+            of HeaderReady:
+              if parsepartheaders: parseHeader(part)
+              yield(HeaderReady, part)
+            of BodyChunk:
+              yield(BodyChunk, part)
+            of BodyReady:
+              yield(BodyReady, part)
+            of Completed: # nothing to deliver yet
+              discard
+      of Complete:
+        yield(Completed , "")
+    if failed: break
+
+  if parsepartheaders:
+    for key in originalheaderfields: http.headers[key] = ""
 
 
 when not defined(nimdoc):
@@ -165,24 +180,25 @@ when not defined(nimdoc):
     prepareHttpContext(addr socketdata)
     if unlikely(multipart.headercache.len != server.maxheaderlength + 1):
       multipart.headercache = newString(server.maxheaderlength + 1)
+      multipart.partcache = newString(server.bufferlength + 1)
     if not readHeader(): return        
     if not parseRequestLine(): return
     let contenttype = http.headers.getOrDefault("content-type")
     if not contenttype.startsWith("multipart/form-data; boundary="):
-      # remember logging...
+      closeSocket(ProtocolViolated, "Multipart request with wrong content-type (" & contenttype & ") received from socket " & $socketint)
       return
-    multipart.filestate = Before
-    multipart.boundary = "--" & contenttype[30 .. ^1] # START BOUNDARY
+    multipart.boundary = "--" & contenttype[30 .. ^1] # last boundary's extra -- is just ignored
+    if unlikely(multipart.boundary.len > server.bufferlength - 1): server.log(ERROR, "bufferlength too small, even part boundary does not fit")
     server.log(DEBUG, "Started multipart streaming with chunk of length " & $http.requestlen & " from socket " & $socketint)
     {.gcsafe.}: server.requestCallback()
 
 
-proc newMultipartServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, loglevel = LogLevel.WARN, headerfields: openArray[string] = ["content-type"]): HttpServer =
+proc newMultipartServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, loglevel = LogLevel.WARN, headerfields: openArray[string] = []): HttpServer =
   result = new HttpServer
   when not defined(nimdoc):
     var fields = newSeq[string](headerfields.len + 1)
     fields.add(headerfields)
-    if not fields.contains("content-type"): fields.add(headerfields)
+    if not fields.contains("content-type"): fields.add("content-type")
     result.initHttpServer(loglevel, true, Streaming, fields)
     result.handlerCallback = handleMultipartRequest
     result.requestCallback = onrequestcallback
