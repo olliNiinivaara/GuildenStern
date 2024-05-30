@@ -1,13 +1,14 @@
 # nim r --mm:orc --threads:on -d:release -d:threadsafe mummytest
 
-#[example result to expect:
+#[
+example result to expect:
   10 threads and 100 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency    92.39ms   61.38ms 518.03ms   82.64%
-    Req/Sec   115.03     26.71   292.00     76.63%
-  11441 requests in 10.01s, 726.24KB read
-Requests/sec:   1142.83
-Transfer/sec:     72.54KB
+    Latency    10.22ms  761.59us  19.60ms   98.97%
+    Req/Sec     0.98k    28.65     1.01k    83.90%
+  97793 requests in 10.01s, 6.06MB read
+Requests/sec:   9768.72
+Transfer/sec:    620.08KB
 ]#
 
 import osproc, streams, strutils, os, guildenstern/[dispatcher, httpserver]
@@ -35,7 +36,7 @@ proc handler() =
 
 proc run() =
   let httpserver = newHttpServer(handler, NONE, true, NoBody)
-  httpserver.start(8080, threadpoolsize = 100)
+  httpserver.start(8080, 100, 100)
   let errorcode = doWrk()
   joinThread(httpserver.thread)
   quit(errorcode)
