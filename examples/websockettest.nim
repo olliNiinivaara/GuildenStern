@@ -8,7 +8,7 @@ var
 
 proc onUpgradeRequest(): bool =
   echo "upgrade request for socket ", ws.socketdata.socket  
-  false
+  true
 
 proc afterUpgradeRequest() =
   {.gcsafe.}:
@@ -16,15 +16,14 @@ proc afterUpgradeRequest() =
   echo "registered  websocket ", ws.socketdata.socket
 
 proc onMessage() =
-  if getRequest() == "hallo":
-    for i in 1 .. 100:
-      {.gcsafe.}: 
-        if wsconnections.len == 0:
-          echo "nobody here"
-          break
-        messages += 1
-        let reply = $messages & " hello from thread " & $getThreadId()
-        discard wsserver.send(wsconnections, reply)
+  if not isMessage("hallo"): return
+  var currentconnections  = newSeq[SocketHandle]()
+  for i in 1 .. 100:
+    {.gcsafe.}:
+      messages += 1
+      let reply = $messages & " hello from thread " & $getThreadId()
+      withLock(lock): currentconnections = wsconnections
+    discard wsserver.send(currentconnections, reply)
   
 proc onLost(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string) =
   echo cause, ": socket ", socketdata.socket
@@ -40,7 +39,7 @@ proc onRequest() =
     let element = document.createElement("li")
     element.innerHTML = evt.data
     document.getElementById("ul").appendChild(element)
-  }
+    window.scrollTo(0, document.body.scrollHeight)}
   </script>
   <body><button style="position: fixed" onclick="websocket.send('hallo')">say hallo</button>
   <button style="position: fixed; left: 100px" onclick="

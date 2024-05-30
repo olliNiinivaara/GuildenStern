@@ -329,7 +329,7 @@ proc getMessage*(): string =
 
 
 proc isMessage*(message: string): bool =
-  if ws.requestlen != ws.request.len: return false
+  if ws.requestlen != message.len: return false
   for i in countup(0, ws.requestlen - 1):
     if ws.request[i] != ws.request[i]: return false
   true
