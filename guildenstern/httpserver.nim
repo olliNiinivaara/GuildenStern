@@ -10,12 +10,10 @@ export strtabs
 import guildenserver
 export guildenserver
 
-
 type
   ContentType* = enum NoBody, SingleBuffer, Streaming
 
   HttpContext* = ref object of SocketContext
-    # requestbuffer*: string
     request*: string
     requestlen*: int
     uristart*: int
@@ -27,15 +25,12 @@ type
     contentdelivered*: int64
     waitms: int
     headers*: StringTableRef
-  
 
   SocketState* = enum
     Fail = -1
     TryAgain = 0
     Progress = 1
     Complete = 2
-  
-  # bufferlength oli maxrequestlength
 
   HttpServer* = ref object of GuildenServer
     contenttype*: ContentType
@@ -45,8 +40,6 @@ type
     requestCallback*: proc(){.gcsafe, nimcall, raises: [].}
     parserequestline*: bool ## If you don't need uri or method, but need max perf, set this to false
     headerfields*: seq[string] # = @["content-length"] ## list of header fields to be parsed. content-length must always be kept included. 
-    # hascontent*: bool ## When serving GET or other method without body, set this to false
-
 
 when not defined(nimdoc):
   const
@@ -128,7 +121,7 @@ when not defined(nimdoc):
     let socketint = socketdata.socket.int
     if unlikely(socketint == -1): return
     prepareHttpContext(addr socketdata)
-    if not readHeader(): return        
+    if not readHeader(): return
     if server.parserequestline and not parseRequestLine(): return
     case server.contenttype:
       of NoBody:

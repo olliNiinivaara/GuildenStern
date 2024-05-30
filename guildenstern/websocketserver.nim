@@ -177,7 +177,7 @@ when not defined(nimdoc):
     let maskKeylen = ws.socketdata.socket.bytesRecv(maskkey[0].addr, 4)
     if maskKeylen != 4: error("length")
 
-    if expectedLen > server.maxrequestlength: error("Maximum request size bound to be exceeded: " & $(expectedLen))
+    if expectedLen > server.bufferlength: error("Maximum request size bound to be exceeded: " & $(expectedLen))
     
     return expectedLen
   {.pop.}
@@ -278,18 +278,19 @@ when not defined(nimdoc):
 
 
   proc replyHandshake(): (SocketCloseCause , string) =
-    if not receiveHeader(): return (ProtocolViolated , "header failure")
-    if not parseRequestLine(): return (ProtocolViolated , "requestline failure")
-    var headers = [""]
-    parseHeaders(["sec-websocket-key"], headers)
-    if headers[0] == "": return (ProtocolViolated , "sec-websocket-key header missing")
+    if not readHeader(): return (ProtocolViolated , "ws header failure")
+    if not parseRequestLine(): return (ProtocolViolated , "ws requestline failure")
+    let key = ws.headers.getOrDefault("sec-websocket-key")
+    if key == "": return (ProtocolViolated , "sec-websocket-key header missing")
     let accept = wsserver.upgradeCallback()
     if not accept:
       wsserver.log(DEBUG, "ws upgrade request was not accepted: " & getRequest())
+      reply(Http400)
+      sleep(200)
       return (CloseCalled , "not accepted")
     when not defined(nimdoc):
       let 
-        sh = secureHash(headers[0] & "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
+        sh = secureHash(key & "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
         acceptKey = base64.encode(decodeBase16($sh))
       reply(Http101, ["Sec-WebSocket-Accept: " & acceptKey, "Connection: Upgrade", "Upgrade: webSocket"])
     (DontClose , "")
@@ -338,7 +339,7 @@ proc newWebsocketServer*(upgradecallback: WsUpgradeCallback, afterupgradecallbac
  onwsmessagecallback: WsMessageCallback, onclosesocketcallback: OnCloseSocketCallback, loglevel = LogLevel.WARN): WebsocketServer =
   result = new WebsocketServer
   when not defined(nimdoc):
-    initHttpServer(result, loglevel, true, false)
+    initHttpServer(result, loglevel, true, SingleBuffer, ["sec-websocket-key"])
     result.handlerCallback = handleWsRequest
     result.upgradeCallback = upgradecallback
     result.afterupgradeCallback = afterupgradecallback
