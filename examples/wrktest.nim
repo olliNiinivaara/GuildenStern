@@ -1,4 +1,4 @@
-# nim r -d:danger -d:threadsafe test_wrk
+# nim r -d:danger -d:threadsafe wrktest
 
 #[example result to expect:
   4 threads and 100 connections
@@ -17,10 +17,6 @@ Transfer/sec:     13.14MB
 
 import osproc, streams, strutils, guildenstern/[dispatcher, httpserver]
 
-# import segfaults
-# from os import sleep
-
-
 proc doWrk(): int =
   try:
     let wrk = startProcess("wrkbin", "", ["-t4", "-c100",  "-d10s", "--latency", "http://127.0.0.1:5050"])
@@ -33,17 +29,9 @@ proc doWrk(): int =
 
 proc handle() = reply(Http204)
 
-#[proc onClose(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string) {.gcsafe, nimcall, raises: [].} =
-  echo socketdata.socket, ": ", cause
-
-proc initThread(server: GuildenServer) =
-  echo "initializing thread ", getThreadId()]#
-
 proc run() =
-  let httpserver = newHttpServer(handle, NONE, false, false, false)
-  # httpserver.onCloseSocketCallback = onClose
-  # httpserver.threadInitializerCallback = initThread
-  httpserver.start(5050, 4)
+  let httpserver = newHttpServer(handle, NONE, false, NoBody)
+  httpserver.start(5050)
   let errorcode = doWrk()
   joinThread(httpserver.thread)
   quit(errorcode)
