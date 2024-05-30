@@ -1,5 +1,6 @@
 {.push hint[DuplicateModuleImport]: off.}
 from std/strutils import join
+from std/strformat import fmt
 {.pop.}
 
 when not defined(nimdoc):
@@ -98,7 +99,8 @@ proc reply*(code: HttpCode): SocketState {.discardable, inline, gcsafe, raises: 
         if unlikely(writeCode(code) != Complete): return Fail
         if unlikely(writeToSocket(unsafeAddr zerocontent, zerocontent.len) != Complete): return Fail
         return writeToSocket(unsafeAddr shortdivider, shortdivider.len, lastflags)
-          
+
+
 when not defined(nimdoc):
   proc reply*(code: HttpCode, body: ptr string, lengthstring: string, length: int, headers: ptr string, moretocome: bool): SocketState {.gcsafe, raises: [].} =
     if unlikely(http.socketdata.socket.int in [0, INVALID_SOCKET.int]):
@@ -196,3 +198,56 @@ template replyMore*(bodypart: string): bool =
   when compiles(unsafeAddr bodypart):
     replyMore(unsafeAddr bodypart, 0)
   else: {.fatal: "posix.send requires taking pointer to bodypart, but bodypart has no address".}
+
+
+proc replyStartChunked*(code: HttpCode = Http200, headers: openArray[string] = []): bool =
+  ## Starts replying http response as `Transfer-encoding: chunked`.
+  ## Mainly for sending dynamic data, where Content-length header cannot be set.
+  ## 
+  ## Continue response with calls to `replyContinueChunked`.
+  ##
+  ## End response with `replyContinueChunked`.
+  ## 
+  ## See examples/replychunkedtest.nim for a concrete example.
+  ## 
+  return replyStart(code, -1, ["Transfer-Encoding: chunked"]) != Fail
+
+
+proc replyContinueChunked*(chunk: string): bool =
+  var backoff = 4
+  var totalbackoff = 0
+  var delivered = 0
+  try:
+    {.gcsafe.}:
+      let delimiter = fmt"{chunk.len:X}" & shortdivider
+    if writeToSocket(addr delimiter, delimiter.len) == Fail: return false
+  except: return false
+  while true:
+    if shuttingdown:
+      closeSocket()
+      return false
+    let (state , len) = tryWriteToSocket(addr chunk, delivered, chunk.len - delivered)
+    delivered += len
+    if state == Fail: return false
+    elif state == TryAgain:
+      suspend(backoff)
+      totalbackoff += backoff
+      if totalbackoff > server.sockettimeoutms:
+        closeSocket(TimedOut, "didn't write a chunk in time")
+        return false
+      backoff *= 2
+      continue
+    elif state == Complete or delivered == chunk.len:
+      {.gcsafe.}:
+        if writeToSocket(addr shortdivider, shortdivider.len) == Fail: return false
+      return true
+
+
+proc replyFinishChunked*(): bool {.discardable.} =
+  when defined(nimdoc): discard
+  else:
+    {.gcsafe.}:
+      let delimiter = "0" & longdivider
+    if writeToSocket(addr delimiter, delimiter.len) == Fail: return false
+    return replyFinish() != Fail
+

@@ -31,14 +31,14 @@ proc handleUpload() =
         if filename == "": continue
         case name:
           of "file1":
-            if not startFileUpload("file1", file1): return
+            if not startFileUpload("file1", file1): break
             file1opened = true
           of "file2":
-            if not startFileUpload("file2", file2): return
+            if not startFileUpload("file2", file2): break
             file2opened = true       
           else:
             interruptUpload(filename & " is wrong")
-            return 
+            break 
       of BodyChunk:
         try:
           case name:
@@ -49,7 +49,7 @@ proc handleUpload() =
             else: discard
         except:
           interruptUpload(name & " IO error")
-          return
+          break
       of BodyReady:
         case name:
           of "file1":
@@ -59,9 +59,7 @@ proc handleUpload() =
           of "msg": echo "msg: ", msg
           of "subject": echo "subject: ", subject
           else: discard
-      of Failed:
-        echo "failed: ", chunk
-        return
+      of Failed: echo "failed: ", chunk
       of Completed: discard
   if file1opened: file1.close()
   if file2opened: file2.close()

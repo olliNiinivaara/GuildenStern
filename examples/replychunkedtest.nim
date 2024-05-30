@@ -1,4 +1,4 @@
-import guildenstern/[dispatcher, streamingserver]
+import guildenstern/[dispatcher, httpserver]
 import random
 
 proc onRequest() =
@@ -7,15 +7,15 @@ proc onRequest() =
     let html = """<!doctype html><title></title><body><a href="/download" download>Download</a>"""
     reply(html)
   else:
-    if not startDownload(): (shutdown() ; return)
+    if not replyStartChunked(): (shutdown() ; return)
     var sentchunks = 0
     while sentchunks < 5:
       var chunk: string
       for _ in 1..rand(1 .. 1000): chunk.add(char(rand(int('A') .. int('Z'))))
-      if not continueDownload(chunk): break
+      if not replyContinueChunked(chunk): break
       sentchunks += 1
-    finishDownload()
+    replyFinishChunked()
 
-let s = newStreamingServer(onRequest)
+let s = newHttpServer(onRequest)
 s.start(5050)
 joinThread(s.thread)
