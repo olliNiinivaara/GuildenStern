@@ -1,73 +1,72 @@
 from std/strutils import find, parseInt, isLowerAscii, toLowerAscii
 
 
-when not defined(nimdoc):
-  proc parseMethod*(): bool =
-    if unlikely(http.requestlen < 13):
-      server.log(WARN, "too short request: " & http.request)
-      closeSocket(ProtocolViolated, "")
-      return false
-    while http.methlen < http.requestlen and http.request[http.methlen] != ' ': http.methlen.inc
-    if unlikely(http.methlen == http.requestlen):
-      server.log(WARN, "http method missing")
-      closeSocket(ProtocolViolated, "")
-      return false
-    if unlikely(http.request[0 .. 1] notin ["GE", "PO", "HE", "PU", "DE", "CO", "OP", "TR", "PA"]):
-      server.log(WARN, "invalid http method: " & http.request[0 .. 12])
-      closeSocket(ProtocolViolated, "")
-      return false
+proc parseMethod*(): bool =
+  if unlikely(http.requestlen < 13):
+    server.log(WARN, "too short request: " & http.request)
+    closeSocket(ProtocolViolated, "")
+    return false
+  while http.methlen < http.requestlen and http.request[http.methlen] != ' ': http.methlen.inc
+  if unlikely(http.methlen == http.requestlen):
+    server.log(WARN, "http method missing")
+    closeSocket(ProtocolViolated, "")
+    return false
+  if unlikely(http.request[0 .. 1] notin ["GE", "PO", "HE", "PU", "DE", "CO", "OP", "TR", "PA"]):
+    server.log(WARN, "invalid http method: " & http.request[0 .. 12])
+    closeSocket(ProtocolViolated, "")
+    return false
+  return true
+  
+
+proc parseRequestLine*(): bool {.gcsafe, raises: [].} =
+  if not parseMethod(): return false
+  var i = http.methlen + 1
+  let start = i
+  while i < http.requestlen and http.request[i] != ' ': i.inc()
+  http.uristart = start
+  http.urilen = i - start
+
+  if unlikely(http.requestlen < http.uristart + http.urilen + 9):
+    server.log(WARN, "parseRequestLine: no version")
+    (closeSocket(ProtocolViolated, ""); return false)
+
+  if unlikely(http.request[http.uristart + http.urilen + 1] != 'H' or http.request[http.uristart + http.urilen + 8] != '1'):
+    server.log(WARN, "request not HTTP/1.1: " & http.request[http.uristart + http.urilen + 1 .. http.uristart + http.urilen + 8])
+    (closeSocket(ProtocolViolated, ""); return false)
+  server.log(DEBUG, $server.port & "/" & $http.socketdata.socket &  ": " & http.request[0 .. http.uristart + http.urilen + 8])
+  true
+
+
+proc getContentLength*(): bool {.raises: [].} =
+  const length  = "content-length: ".len
+  var start = http.request.find("content-length: ")
+  if start == -1: start = http.request.find("Content-Length: ")
+  if start == -1: return true
+  var i = start + length
+  while i < http.requestlen and http.request[i] != '\c': i += 1
+  if i == http.requestlen: return true
+  try:
+    http.contentlength = parseInt(http.request[start + length ..< i])
     return true
-    
-
-  proc parseRequestLine*(): bool {.gcsafe, raises: [].} =
-    if not parseMethod(): return false
-    var i = http.methlen + 1
-    let start = i
-    while i < http.requestlen and http.request[i] != ' ': i.inc()
-    http.uristart = start
-    http.urilen = i - start
-
-    if unlikely(http.requestlen < http.uristart + http.urilen + 9):
-      server.log(WARN, "parseRequestLine: no version")
-      (closeSocket(ProtocolViolated, ""); return false)
-
-    if unlikely(http.request[http.uristart + http.urilen + 1] != 'H' or http.request[http.uristart + http.urilen + 8] != '1'):
-      server.log(WARN, "request not HTTP/1.1: " & http.request[http.uristart + http.urilen + 1 .. http.uristart + http.urilen + 8])
-      (closeSocket(ProtocolViolated, ""); return false)
-    server.log(DEBUG, $server.port & "/" & $http.socketdata.socket &  ": " & http.request[0 .. http.uristart + http.urilen + 8])
-    true
+  except:
+    closeSocket(ProtocolViolated, "could not parse content-length")
+    return false
 
 
-  proc getContentLength*(): bool {.raises: [].} =
-    const length  = "content-length: ".len
-    var start = http.request.find("content-length: ")
-    if start == -1: start = http.request.find("Content-Length: ")
-    if start == -1: return true
-    var i = start + length
-    while i < http.requestlen and http.request[i] != '\c': i += 1
-    if i == http.requestlen: return true
-    try:
-      http.contentlength = parseInt(http.request[start + length ..< i])
+proc isHeaderreceived*(previouslen, currentlen: int): bool =
+  if currentlen < 4: return false
+  if http.request[currentlen-4] == '\c' and http.request[currentlen-3] == '\l' and http.request[currentlen-2] == '\c' and
+  http.request[currentlen-1] == '\l':
+    http.bodystart = currentlen
+    return true
+
+  var i = if previouslen > 4: previouslen - 4 else: previouslen
+  while i <= currentlen - 4:
+    if http.request[i] == '\c' and http.request[i+1] == '\l' and http.request[i+2] == '\c' and http.request[i+3] == '\l':
+      http.bodystart = i + 4
       return true
-    except:
-      closeSocket(ProtocolViolated, "could not parse content-length")
-      return false
-
-
-  proc isHeaderreceived*(previouslen, currentlen: int): bool =
-    if currentlen < 4: return false
-    if http.request[currentlen-4] == '\c' and http.request[currentlen-3] == '\l' and http.request[currentlen-2] == '\c' and
-    http.request[currentlen-1] == '\l':
-      http.bodystart = currentlen
-      return true
-
-    var i = if previouslen > 4: previouslen - 4 else: previouslen
-    while i <= currentlen - 4:
-      if http.request[i] == '\c' and http.request[i+1] == '\l' and http.request[i+2] == '\c' and http.request[i+3] == '\l':
-        http.bodystart = i + 4
-        return true
-      inc i
-    false
+    inc i
+  false
   
  
 proc getUri*(): string {.raises: [].} =
@@ -226,46 +225,44 @@ iterator receiveStream*(): (SocketState , string) {.gcsafe, raises: [].} =
   ## Receives a http request in chunks, yielding the state of operation and a possibly received new chuck on every iteration.
   ## With this, you can receive POST data without worries about main memory usage.
   ## See examples/streamingposttest.nim for a concrete working example of how to use this iterator.
-  when defined(nimdoc): discard
+  if http.contentlength == 0: yield (Complete , "")
   else:
-    if http.contentlength == 0: yield (Complete , "")
+    if http.contentreceived == http.contentlength:
+      if server.contenttype == Streaming: yield (Progress , http.request[http.bodystart ..< http.bodystart + http.contentlength])
+      yield (Complete , "")
     else:
-      if http.contentreceived == http.contentlength:
-        if server.contenttype == Streaming: yield (Progress , http.request[http.bodystart ..< http.bodystart + http.contentlength])
-        yield (Complete , "")
-      else:
-        if server.contenttype == Streaming: yield (Progress , http.request[http.bodystart ..< http.bodystart + http.contentreceived])
-        var continues = true
-        while continues:
-          if shuttingdown:
+      if server.contenttype == Streaming: yield (Progress , http.request[http.bodystart ..< http.bodystart + http.contentreceived])
+      var continues = true
+      while continues:
+        if shuttingdown:
+          yield (Fail , "")
+          continues = false
+        else:
+          let recvsize =
+            if http.contentlength - http.contentreceived > server.bufferlength: server.bufferlength
+            else: http.contentlength - http.contentreceived
+          let position =
+            if server.contenttype == Streaming: 0
+            else: http.contentreceived
+          let ret = recv(http.socketdata.socket, addr http.request[position], recvsize, MSG_DONTWAIT)
+          let state = checkSocketState(ret)
+          http.contentreceived += ret
+          http.requestlen =
+            if server.contenttype == Streaming: ret
+            else: http.contentreceived
+          if state == Fail:
             yield (Fail , "")
             continues = false
+          elif state == TryAgain:
+            yield (TryAgain , "")
+          elif state == Complete or http.contentlength == http.contentreceived:
+            if server.contenttype == Streaming: yield(Progress , http.request[0 ..< ret])
+            yield(Complete , "")
+            continues = false
           else:
-            let recvsize =
-              if http.contentlength - http.contentreceived > server.bufferlength: server.bufferlength
-              else: http.contentlength - http.contentreceived
-            let position =
-              if server.contenttype == Streaming: 0
-              else: http.contentreceived
-            let ret = recv(http.socketdata.socket, addr http.request[position], recvsize, MSG_DONTWAIT)
-            let state = checkSocketState(ret)
-            http.contentreceived += ret
-            http.requestlen =
-              if server.contenttype == Streaming: ret
-              else: http.contentreceived
-            if state == Fail:
-              yield (Fail , "")
-              continues = false
-            elif state == TryAgain:
-              yield (TryAgain , "")
-            elif state == Complete or http.contentlength == http.contentreceived:
-              if server.contenttype == Streaming: yield(Progress , http.request[0 ..< ret])
-              yield(Complete , "")
-              continues = false
-            else:
-              if server.contenttype == Streaming:
-                yield(Progress , http.request[0 ..< ret])
-              else: yield(Progress , "")
+            if server.contenttype == Streaming:
+              yield(Progress , http.request[0 ..< ret])
+            else: yield(Progress , "")
 
 
 proc receiveToSingleBuffer(): bool =

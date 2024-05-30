@@ -7,18 +7,14 @@ export httpserver
 type
   PartState* = enum HeaderReady, BodyChunk, BodyReady, Failed, Completed
 
-when defined(nimdoc):
-  type MultipartContext* = ref object of HttpContext
-else:
-  type 
-    MultipartContext* = ref object of HttpContext
-      boundary: string
-      partcache: string
-      partlen: int
-      headercache: string
-      headerlen: int
-      inheader: bool
-      parsepartheaders: bool
+  MultipartContext* = ref object of HttpContext
+    boundary: string
+    partcache: string
+    partlen: int
+    headercache: string
+    headerlen: int
+    inheader: bool
+    parsepartheaders: bool
     
   
 proc isMultipartContext*(): bool = return socketcontext is MultipartContext
@@ -182,35 +178,33 @@ proc parseContentDisposition*(): (string , string) {.raises:[].} =
   result[1] = value[filenamestart .. value.len - 2]
 
 
-when not defined(nimdoc):
-  proc handleMultipartRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
-    let socketdata = data[]
-    let socketint = socketdata.socket.int
-    if unlikely(socketint == -1): return
-    if (unlikely)socketcontext == nil:
-      socketcontext = new MultipartContext 
-    prepareHttpContext(addr socketdata)
-    if unlikely(multipart.headercache.len != server.maxheaderlength + 1):
-      multipart.headercache = newString(server.maxheaderlength + 1)
-      multipart.partcache = newString(server.bufferlength + 1)
-    if not readHeader(): return        
-    if not parseRequestLine(): return
-    let contenttype = http.headers.getOrDefault("content-type")
-    if not contenttype.startsWith("multipart/form-data; boundary="):
-      closeSocket(ProtocolViolated, "Multipart request with wrong content-type (" & contenttype & ") received from socket " & $socketint)
-      return
-    multipart.boundary = "--" & contenttype[30 .. ^1] # last boundary's extra -- is just ignored
-    if unlikely(multipart.boundary.len > server.bufferlength - 1): server.log(ERROR, "bufferlength too small, even part boundary does not fit")
-    server.log(DEBUG, "Started multipart streaming with chunk of length " & $http.requestlen & " from socket " & $socketint)
-    {.gcsafe.}: server.requestCallback()
+proc handleMultipartRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
+  let socketdata = data[]
+  let socketint = socketdata.socket.int
+  if unlikely(socketint == -1): return
+  if (unlikely)socketcontext == nil:
+    socketcontext = new MultipartContext 
+  prepareHttpContext(addr socketdata)
+  if unlikely(multipart.headercache.len != server.maxheaderlength + 1):
+    multipart.headercache = newString(server.maxheaderlength + 1)
+    multipart.partcache = newString(server.bufferlength + 1)
+  if not readHeader(): return        
+  if not parseRequestLine(): return
+  let contenttype = http.headers.getOrDefault("content-type")
+  if not contenttype.startsWith("multipart/form-data; boundary="):
+    closeSocket(ProtocolViolated, "Multipart request with wrong content-type (" & contenttype & ") received from socket " & $socketint)
+    return
+  multipart.boundary = "--" & contenttype[30 .. ^1] # last boundary's extra -- is just ignored
+  if unlikely(multipart.boundary.len > server.bufferlength - 1): server.log(ERROR, "bufferlength too small, even part boundary does not fit")
+  server.log(DEBUG, "Started multipart streaming with chunk of length " & $http.requestlen & " from socket " & $socketint)
+  {.gcsafe.}: server.requestCallback()
 
 
 proc newMultipartServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, loglevel = LogLevel.WARN, headerfields: openArray[string] = []): HttpServer =
   result = new HttpServer
-  when not defined(nimdoc):
-    var fields = newSeq[string](headerfields.len + 1)
-    fields.add(headerfields)
-    if not fields.contains("content-type"): fields.add("content-type")
-    result.initHttpServer(loglevel, true, Streaming, fields)
-    result.handlerCallback = handleMultipartRequest
-    result.requestCallback = onrequestcallback
+  var fields = newSeq[string](headerfields.len + 1)
+  fields.add(headerfields)
+  if not fields.contains("content-type"): fields.add("content-type")
+  result.initHttpServer(loglevel, true, Streaming, fields)
+  result.handlerCallback = handleMultipartRequest
+  result.requestCallback = onrequestcallback
