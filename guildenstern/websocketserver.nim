@@ -315,15 +315,6 @@ when not defined(nimdoc):
     prepareHttpContext(socketdata)
 
 
-  proc handleWsRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
-      prepareWebsocketContext(data)
-      if (unlikely)ws.socketdata.flags == 0: handleWsUpgradehandshake()
-      else:
-        receiveWs()
-        if likely(ws.opcode notin [WsFail, Close]):
-          {.gcsafe.}: wsserver.messageCallback()
-
-
 proc getMessage*(): string =
   return ws.request[0 ..< ws.requestlen]
 
@@ -333,20 +324,6 @@ proc isMessage*(message: string): bool =
   for i in countup(0, ws.requestlen - 1):
     if ws.request[i] != ws.request[i]: return false
   true
-
-
-proc newWebsocketServer*(upgradecallback: WsUpgradeCallback, afterupgradecallback: WsAfterUpgradeCallback,
- onwsmessagecallback: WsMessageCallback, onclosesocketcallback: OnCloseSocketCallback, loglevel = LogLevel.WARN): WebsocketServer =
-  result = new WebsocketServer
-  when not defined(nimdoc):
-    initHttpServer(result, loglevel, true, SingleBuffer, ["sec-websocket-key"])
-    result.handlerCallback = handleWsRequest
-    result.upgradeCallback = upgradecallback
-    result.afterupgradeCallback = afterupgradecallback
-    result.messageCallback = onwsmessagecallback
-    result.onCloseSocketCallback = onclosesocketcallback
-    initLock(result.sendlock)
-    result.sendingsockets = initHashSet[posix.Sockethandle](3 * MaxParallelSendingSockets)
 
 
 when not defined(nimdoc):
@@ -480,9 +457,31 @@ proc send*(server: GuildenServer, socket: posix.SocketHandle, message: string, t
   else: {.fatal: "posix.send requires taking pointer to message, but message has no address".}
 
 
-proc sendPong*(server: GuildenServer, socket: posix.SocketHandle) =
-  let msg = ""
-  if not server.send(socket, msg, 5):
-    server.log(ERROR, "websocket " & $socket.int & " blocking, cannot reply PONG")
+proc handleWsRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
+    prepareWebsocketContext(data)
+    if (unlikely)ws.socketdata.flags == 0:
+      handleWsUpgradehandshake()
+      return
+    receiveWs()
+    if unlikely(ws.opcode in [WsFail, Close]): return
+    if ws.opcode != Ping: {.gcsafe.}: wsserver.messageCallback()
+    else:
+      let pingmsg = ""
+      if not server.send(ws.socketdata.socket, pingmsg, 5):
+        server.log(NOTICE, "websocket " & $ws.socketdata.socket & " blocking, could not autoreply to Ping")
+
+
+proc newWebsocketServer*(upgradecallback: WsUpgradeCallback, afterupgradecallback: WsAfterUpgradeCallback,
+ onwsmessagecallback: WsMessageCallback, onclosesocketcallback: OnCloseSocketCallback, loglevel = LogLevel.WARN): WebsocketServer =
+  result = new WebsocketServer
+  when not defined(nimdoc):
+    initHttpServer(result, loglevel, true, SingleBuffer, ["sec-websocket-key"])
+    result.handlerCallback = handleWsRequest
+    result.upgradeCallback = upgradecallback
+    result.afterupgradeCallback = afterupgradecallback
+    result.messageCallback = onwsmessagecallback
+    result.onCloseSocketCallback = onclosesocketcallback
+    initLock(result.sendlock)
+    result.sendingsockets = initHashSet[posix.Sockethandle](3 * MaxParallelSendingSockets)
 
 {.pop.}
