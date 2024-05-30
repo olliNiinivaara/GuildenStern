@@ -360,11 +360,11 @@ when not defined(nimdoc):
         result.inc
 
 
-proc send*(server: GuildenServer, delivery: ptr WsDelivery, timeoutsecs = 20, sleepmillisecs = 100): int {.discardable.} =
+proc send*(server: GuildenServer, delivery: ptr WsDelivery, timeoutsecs = 10, sleepmillisecs = 10): int {.discardable.} =
   ## Sends message to multiple websockets at once. Uses non-blocking I/O so that slow receivers do not slow down fast receivers.
   ## | Can be called from multiple threads in parallel.
   ## | `timeoutsecs`: a timeout after which sending is given up and all sockets with messages in-flight are closed
-  ## | `sleepmillisecs`: if all in-flight receivers are blocking, will sleep for (sleepmillisecs * current thread load) milliseconds
+  ## | `sleepmillisecs`: if all in-flight receivers are blocking, will sleep for (sleepmillisecs * in-flight receiver count) milliseconds
   ## Returns amount of websockets that had to be closed
   when defined(nimdoc): discard
   else:
@@ -424,8 +424,8 @@ proc send*(server: GuildenServer, delivery: ptr WsDelivery, timeoutsecs = 20, sl
           delivery.states[s].sent += ret      
           blockedsockets.inc
           if blockedsockets >= delivery.sockets.len - handled:           
-            server.log(DEBUG, "all remaining websockets are blocking, suspending for " & $(100 * sleepmillisecs) & " ms")
-            suspend(100 * sleepmillisecs)
+            server.log(DEBUG, "all remaining websockets are blocking, suspending for " & $(blockedsockets * sleepmillisecs) & " ms")
+            suspend(blockedsockets * sleepmillisecs)
             blockedsockets = 0
         else: discard
       if delivery.states[s].sendstate != Continue:
