@@ -140,8 +140,6 @@ when not defined(nimdoc):
         if not receiveToSingleBuffer():
           server.log(DEBUG, "Receiving request to single buffer failed from socket " & $socketint)
           return
-        #[if http.contentlength > 0 and not readContent(): return
-        server.log(DEBUG, "Full request of length " & $http.requestlen & " read from socket " & $socketint)]#
       of Streaming:
         server.log(DEBUG, "Started request streaming with chunk of length " & $http.requestlen & " from socket " & $socketint)
     {.gcsafe.}: server.requestCallback()
