@@ -1,37 +1,44 @@
-from std/strutils import find
 from std/os import sleep
 import guildenstern/[dispatcher, httpserver, multipartserver]
-
-const acceptedFileTypes = @["application/pdf", "text/plain"]
 
 proc interruptUpload(reason: string) =
   echo reason
   reply(Http500)
   sleep(200)
   closeSocket(CloseCalled, reason)
+
+proc startFileUpload(filename: string, file: var File): bool =
+  const acceptedFileTypes = @["application/pdf", "text/plain"]
+  if http.headers.getOrDefault("content-type") notin acceptedFileTypes:
+    interruptUpload(filename & " has wrong content type")
+    return false
+  if not file.open(filename, fmWrite):
+    interruptUpload(filename & " not writeable")
+    return false
+  return true
   
 proc handleUpload() =
   var
     name, msg, subject: string
     file1, file2: File
-  if not file1.open("file1", fmWrite):
-    interruptUpload("file1 not writeable")
-    return
-  if not file2.open("file2", fmWrite):
-    interruptUpload("file2 not writeable")
-    return
-  defer:
-    file1.close()
-    file2.close()
+    file1opened, file2opened: bool
   echo "=============="      
   for (state , chunk) in receiveParts():
     case state:
       of HeaderReady:
-        let value = http.headers.getOrDefault("content-disposition")
-        name = value[17 ..< value.find('"', 18)]
-        if name in ["file1", "file2"] and http.headers.getOrDefault("content-type") notin acceptedFileTypes:
-          interruptUpload(name & " has wrong content type")
-          return
+        var filename: string
+        (name , filename) = parseContentDisposition()
+        if filename == "": continue
+        case name:
+          of "file1":
+            if not startFileUpload("file1", file1): return
+            file1opened = true
+          of "file2":
+            if not startFileUpload("file2", file2): return
+            file2opened = true       
+          else:
+            interruptUpload(filename & " is wrong")
+            return 
       of BodyChunk:
         try:
           case name:
@@ -45,8 +52,10 @@ proc handleUpload() =
           return
       of BodyReady:
         case name:
-          of "file1": echo "file1 written"
-          of "file2": echo "file2 written"
+          of "file1":
+            if file1opened: echo "file1 written"
+          of "file2":
+            if file2opened: echo "file2 written"
           of "msg": echo "msg: ", msg
           of "subject": echo "subject: ", subject
           else: discard
@@ -54,6 +63,8 @@ proc handleUpload() =
         echo "failed: ", chunk
         return
       of Completed: discard
+  if file1opened: file1.close()
+  if file2opened: file2.close()
   reply(Http303, ["location: http://localhost:5050"])
 
 proc onRequest() =

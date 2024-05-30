@@ -157,7 +157,7 @@ iterator receiveParts*(parsepartheaders: bool = true): (PartState , string) =
               if parsepartheaders: parseHeader(part)
               yield(HeaderReady, part)
             of BodyChunk:
-              yield(BodyChunk, part)
+              if part.len != 0: yield(BodyChunk, part)
             of BodyReady:
               yield(BodyReady, part)
             of Completed: # nothing to deliver yet
@@ -168,6 +168,18 @@ iterator receiveParts*(parsepartheaders: bool = true): (PartState , string) =
 
   if parsepartheaders:
     for key in originalheaderfields: http.headers[key] = ""
+
+
+proc parseContentDisposition*(): (string , string) {.raises:[].} =
+  let value = http.headers.getOrDefault("content-disposition")
+  if value.len < 18: return
+  let nameend = value.find('"', 18)
+  if nameend == -1: return
+  result[0] = value[17 ..< nameend]
+  if result[0] == "": return
+  let filenamestart = value.find('"', nameend + 1) + 1
+  if filenamestart == 0: return
+  result[1] = value[filenamestart .. value.len - 2]
 
 
 when not defined(nimdoc):
