@@ -118,15 +118,15 @@ proc getBodylen*(): int =
 when compiles((var x = 1; var vx: var int = x)):
   ## Returns the body without making a string copy.
   proc getBodyview*(http: HttpContext): openArray[char] =
-    assert(server.contenttype == SingleBuffer)
+    assert(server.contenttype == Compact)
     if http.bodystart < 1: return http.request.toOpenArray(0, -1)
     else: return http.request.toOpenArray(http.bodystart, http.requestlen - 1)
 
 
 proc getBody*(): string =
   ## Returns the body as a string copy.  When --experimental:views compiler switch is used, there is also getBodyview proc that does not take a copy.
-  if unlikely(server.contenttype != SingleBuffer):
-    echo "getBody is available only when server.contenttype == SingleBuffer"
+  if unlikely(server.contenttype != Compact):
+    echo "getBody is available only when server.contenttype == Compact"
     quit()
   if http.bodystart < 1: return ""
   return http.request[http.bodystart ..< http.requestlen]
@@ -134,7 +134,7 @@ proc getBody*(): string =
 
 proc isBody*(body: string): bool =
   ## Compares the body without making a string copy
-  assert(server.contenttype == SingleBuffer)
+  assert(server.contenttype == Compact)
   let len = http.requestlen - http.bodystart
   if  len != body.len: return false
   for i in http.bodystart ..< http.bodystart + len:
@@ -143,7 +143,7 @@ proc isBody*(body: string): bool =
 
 
 proc getRequest*(): string =
-  assert(server.contenttype == SingleBuffer)
+  assert(server.contenttype == Compact)
   return http.request[0 ..< http.requestlen]
 
 

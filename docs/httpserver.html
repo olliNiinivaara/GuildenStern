@@ -55,7 +55,7 @@
     <summary><a class="reference reference-toplevel" href="#7" id="57">Types</a></summary>
     <ul class="simple simple-toc-section">
       <li><a class="reference" href="#ContentType" title="ContentType = enum
-  NoBody, SingleBuffer, Streaming">ContentType</a></li>
+  NoBody, Compact, Streaming">ContentType</a></li>
 <li><a class="reference" href="#HttpContext" title="HttpContext = ref object of SocketContext
   request*: string
   requestlen*: int
@@ -162,9 +162,9 @@
 <ul class="simple nested-toc-section">newHttpServer
   <li><a class="reference" href="#newHttpServer%2Cproc%29%2CopenArray%5Bstring%5D" title="newHttpServer(onrequestcallback: proc () {.gcsafe, nimcall, raises: [].};
               loglevel = LogLevel.WARN; parserequestline = true;
-              contenttype = SingleBuffer; headerfields: openArray[string] = []): HttpServer">newHttpServer(onrequestcallback: proc () {.gcsafe, nimcall, raises: [].};
+              contenttype = Compact; headerfields: openArray[string] = []): HttpServer">newHttpServer(onrequestcallback: proc () {.gcsafe, nimcall, raises: [].};
               loglevel = LogLevel.WARN; parserequestline = true;
-              contenttype = SingleBuffer; headerfields: openArray[string] = []): HttpServer</a></li>
+              contenttype = Compact; headerfields: openArray[string] = []): HttpServer</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">parseMethod
@@ -290,7 +290,7 @@
   <dl class="item">
     <div id="ContentType">
   <dt><pre><a href="httpserver.html#ContentType"><span class="Identifier">ContentType</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
-  <span class="Identifier">NoBody</span><span class="Other">,</span> <span class="Identifier">SingleBuffer</span><span class="Other">,</span> <span class="Identifier">Streaming</span></pre></dt>
+  <span class="Identifier">NoBody</span><span class="Other">,</span> <span class="Identifier">Compact</span><span class="Other">,</span> <span class="Identifier">Streaming</span></pre></dt>
   <dd>
     
     
@@ -542,7 +542,7 @@
   <div id="newHttpServer,proc),openArray[string]">
   <dt><pre><span class="Keyword">proc</span> <a href="#newHttpServer%2Cproc%29%2CopenArray%5Bstring%5D"><span class="Identifier">newHttpServer</span></a><span class="Other">(</span><span class="Identifier">onrequestcallback</span><span class="Other">:</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> </span><span class="Identifier">nimcall</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}<span class="Other">;</span>
                    <span class="Identifier">loglevel</span> <span class="Other">=</span> <a href="guildenserver.html#LogLevel"><span class="Identifier">LogLevel</span></a><span class="Other">.</span><span class="Identifier">WARN</span><span class="Other">;</span> <span class="Identifier">parserequestline</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">;</span>
-                   <span class="Identifier">contenttype</span> <span class="Other">=</span> <span class="Identifier">SingleBuffer</span><span class="Other">;</span>
+                   <span class="Identifier">contenttype</span> <span class="Other">=</span> <span class="Identifier">Compact</span><span class="Other">;</span>
                    <span class="Identifier">headerfields</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span> <span class="Other">=</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="httpserver.html#HttpServer"><span class="Identifier">HttpServer</span></a> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>

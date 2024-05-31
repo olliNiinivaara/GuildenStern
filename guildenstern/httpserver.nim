@@ -9,7 +9,7 @@ import guildenserver
 export guildenserver
 
 type
-  ContentType* = enum NoBody, SingleBuffer, Streaming
+  ContentType* = enum NoBody, Compact, Streaming
 
   HttpContext* = ref object of SocketContext
     request*: string
@@ -122,7 +122,7 @@ proc handleRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
   case server.contenttype:
     of NoBody:
         server.log(DEBUG, "Nobody request of length " & $http.requestlen & " read from socket " & $socketint)
-    of SingleBuffer:
+    of Compact:
       if http.contentlength > server.bufferlength:
           closeSocket(ProtocolViolated, "content-length larger than bufferlength")
           return
@@ -136,7 +136,7 @@ proc handleRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
 {.pop.}
 
 
-proc newHttpServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, loglevel = LogLevel.WARN, parserequestline = true, contenttype = SingleBuffer, headerfields: openArray[string] = []): HttpServer =
+proc newHttpServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, loglevel = LogLevel.WARN, parserequestline = true, contenttype = Compact, headerfields: openArray[string] = []): HttpServer =
   ## Constructs a new http server. The essential thing here is to set the onrequestcallback proc.
   ## When it is triggered in some thread, that thread offers access to the 
   ## [http] socket context.

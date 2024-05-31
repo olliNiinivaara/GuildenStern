@@ -471,7 +471,7 @@ proc handleWsRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
 proc newWebsocketServer*(upgradecallback: WsUpgradeCallback, afterupgradecallback: WsAfterUpgradeCallback,
  onwsmessagecallback: WsMessageCallback, onclosesocketcallback: OnCloseSocketCallback, loglevel = LogLevel.WARN): WebsocketServer =
   result = new WebsocketServer
-  initHttpServer(result, loglevel, true, SingleBuffer, ["sec-websocket-key"])
+  initHttpServer(result, loglevel, true, Compact, ["sec-websocket-key"])
   result.handlerCallback = handleWsRequest
   result.upgradeCallback = upgradecallback
   result.afterupgradeCallback = afterupgradecallback
