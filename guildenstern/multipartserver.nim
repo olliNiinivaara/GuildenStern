@@ -1,3 +1,8 @@
+## Multipart/formdata server
+## 
+## see examples/multiparttest.nim for a concrete example.
+##
+
 import std/strtabs
 from strutils import find, parseInt, startsWith, toLowerAscii
 export strtabs
@@ -5,9 +10,15 @@ import httpserver
 export httpserver
 
 type
-  PartState* = enum HeaderReady, BodyChunk, BodyReady, Failed, Completed
+  PartState* = enum
+    ## State of the request delivery inside the [receiveParts] iterator
+    HeaderReady ## New part starts. [parseContentDisposition] is your friend here. For accessing other fields, use http.headers
+    BodyChunk ## More data for the current part body has arrived
+    BodyReady ## Current part is received
+    Failed ## See contents of chunk for potential additional info
+    Completed ## That's it
 
-  MultipartContext* = ref object of HttpContext
+  MultipartContext = ref object of HttpContext
     boundary: string
     partcache: string
     partlen: int
@@ -17,12 +28,7 @@ type
     parsepartheaders: bool
     
   
-proc isMultipartContext*(): bool = return socketcontext is MultipartContext
-
-template multipart*(): untyped =
-  ## Casts the socketcontext thread local variable into a MultipartContext
-  MultipartContext(socketcontext)
-
+template multipart(): untyped = MultipartContext(socketcontext)
 
 proc processHeader(c: char): PartState =
   if multipart.headerlen + 1 > server.maxheaderlength:
@@ -116,6 +122,7 @@ proc parseHeader(header: string) =
 
     
 iterator receiveParts*(parsepartheaders: bool = true): (PartState , string) =
+  ## Iterator for streaming in multipart/formdata
   multipart.headerlen = 0
   multipart.partlen = 0
   multipart.inheader = true
@@ -167,6 +174,7 @@ iterator receiveParts*(parsepartheaders: bool = true): (PartState , string) =
 
 
 proc parseContentDisposition*(): (string , string) {.raises:[].} =
+  ## Returns values of name and filename properties of the content-disposition header field 
   let value = http.headers.getOrDefault("content-disposition")
   if value.len < 18: return
   let nameend = value.find('"', 18)
@@ -201,6 +209,7 @@ proc handleMultipartRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].
 
 
 proc newMultipartServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, loglevel = LogLevel.WARN, headerfields: openArray[string] = []): HttpServer =
+  ## Note: headerfields concern only the whole request, not part headers
   result = new HttpServer
   var fields = newSeq[string](headerfields.len + 1)
   fields.add(headerfields)

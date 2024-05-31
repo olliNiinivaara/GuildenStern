@@ -1,3 +1,8 @@
+## HTTP server, with three operating modes
+## 
+## see examples/httptest.nim, examples/streamingposttest.nim, and examples/replychunkedtest.nim for examples.
+##
+
 from os import sleep, osLastError, osErrorMsg, OSErrorCode
 from posix import recv, send, EAGAIN, EWOULDBLOCK, MSG_NOSIGNAL
 import httpcore
@@ -9,7 +14,11 @@ import guildenserver
 export guildenserver
 
 type
-  ContentType* = enum NoBody, Compact, Streaming
+  ContentType* = enum
+    ## mode of the server
+    NoBody ## offers slightly faster handling for requests like GET that do not have a body
+    Compact ## the default mode. Whole request body must fit into the request string (size defined with [bufferlength] parameter), from where it can then be accessed with [getRequest], [isBody] and [getBody] procs
+    Streaming ## read the body yourself with the [receiveStream] iterator 
 
   HttpContext* = ref object of SocketContext
     request*: string
@@ -21,7 +30,6 @@ type
     contentlength*: int64
     contentreceived*: int64
     contentdelivered*: int64
-    waitms: int
     headers*: StringTableRef
 
   SocketState* = enum
@@ -37,7 +45,7 @@ type
     sockettimeoutms* = 5000 ## If socket is unresponsive for longer, it will be closed.
     requestCallback*: proc(){.gcsafe, nimcall, raises: [].}
     parserequestline*: bool ## If you don't need uri or method, but need max perf, set this to false
-    headerfields*: seq[string] # = @["content-length"] ## list of header fields to be parsed. content-length must always be kept included. 
+    headerfields*: seq[string] ## list of header fields to be parsed 
 
 const
   MSG_DONTWAIT* = when defined(macosx): 0x80.cint else: 0x40.cint
@@ -138,10 +146,9 @@ proc handleRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
 
 proc newHttpServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, loglevel = LogLevel.WARN, parserequestline = true, contenttype = Compact, headerfields: openArray[string] = []): HttpServer =
   ## Constructs a new http server. The essential thing here is to set the onrequestcallback proc.
-  ## When it is triggered in some thread, that thread offers access to the 
-  ## [http] socket context.
+  ## When it is triggered, the [http] thread-local socket context is accessible.
   ## 
-  ## If you want to tinker with maxheaderlength, maxrequestlength and sockettimeoutms, that is best done
+  ## If you want to tinker with [maxheaderlength], [bufferlength] or [sockettimeoutms], that is best done
   ## after the server is constructed but before it is started.
   for field in headerfields:
     for c in field:

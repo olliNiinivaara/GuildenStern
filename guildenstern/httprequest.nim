@@ -70,7 +70,7 @@ proc isHeaderreceived*(previouslen, currentlen: int): bool =
   
  
 proc getUri*(): string {.raises: [].} =
-  ## When parserequestline == true, returns the uri as a string copy
+  ## Returns the uri as a string copy
   doAssert(server.parserequestline == true)
   if http.urilen == 0: return
   return http.request[http.uristart ..< http.uristart + http.urilen]
@@ -95,14 +95,14 @@ proc startsUri*(uristart: string): bool {.raises: [].} =
 
 
 proc getMethod*(): string {.raises: [].} =
-  ## When parserequestline == true, returns the method as a string copy
+  ## Returns the method as a string copy
   assert(server.parserequestline)
   if http.methlen == 0: return
   return http.request[0 ..< http.methlen]
 
 
 proc isMethod*(amethod: string): bool {.raises: [].} =
-  ## Compares method uri without making a string copy
+  ## Compares method without making a string copy
   assert(server.parserequestline)
   if http.methlen != amethod.len: return false
   for i in 0 ..< http.methlen:
@@ -223,7 +223,7 @@ proc readHeader*(): bool {.gcsafe, raises:[].} =
 
 iterator receiveStream*(): (SocketState , string) {.gcsafe, raises: [].} =
   ## Receives a http request in chunks, yielding the state of operation and a possibly received new chuck on every iteration.
-  ## With this, you can receive POST data without worries about main memory usage.
+  ## With this, you can receive data incrementally without worries about main memory usage.
   ## See examples/streamingposttest.nim for a concrete working example of how to use this iterator.
   if http.contentlength == 0: yield (Complete , "")
   else:

@@ -1,57 +1,7 @@
 ## Websocket server
 ## 
-## Example
-## =======
+## see examples/websockettest.nim for a concrete example.
 ##
-## .. code-block:: Nim
-##
-##  import locks
-##  import guildenstern/[dispatcher, websocketserver]
-##  
-##  var lock: Lock
-##  initLock(lock)
-##  var sockets = newSeq[SocketHandle]()
-##  
-##  proc onUpgrade(): bool =
-##    {.gcsafe.}:
-##      withLock(lock):
-##        sockets.add(ws.socketdata.socket)
-##    true
-##    
-##  proc afterUpgrade() =
-##    wsserver.send(ws.socketdata.socket, "websocket connected!")
-##  
-##  proc onMessage() =
-##    {.gcsafe.}:
-##      withLock(lock):
-##        let reply = getMessage()
-##        discard wsserver.send(sockets, reply)
-##  
-##  proc onClose(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string) =
-##    {.gcsafe.}:
-##      withLock(lock):
-##        let index = sockets.find(socketdata.socket)
-##        sockets.del(index)
-##         
-##  proc onRequest() =
-##    let html = """<!doctype html><title>Web socket chat</title>
-##    <script>
-##      let websocket = new WebSocket("ws://" + location.host.slice(0, -1) + '1')
-##      websocket.onmessage = function(evt) {
-##      document.getElementById("ul").appendChild(document.createElement("li")).innerHTML = evt.data }
-##    </script>
-##    <body><form action="" onsubmit="return false"><input id="input">
-##    <button type=submit onclick="websocket.send(getElementById('input').value+'.')">Send</button>
-##    </form><ul id="ul"></ul></body>"""
-##    reply(Http200, html)
-##  
-##  let server = newWebsocketServer(onUpgrade, afterUpgrade, onMessage, onClose)
-##  server.start(5051)
-##  let httpserver = newHttpServer(onRequest)
-##  httpserver.start(5050)
-##  joinThreads(server.thread, httpserver.thread)
-##  deinitLock(lock)
-##  
 
 import nativesockets, net, posix, os, base64, times, std/monotimes, sets, locks
 when not defined(nimdoc):
@@ -79,9 +29,9 @@ type
   WsMessageCallback* = proc() {.gcsafe, nimcall, raises: [].}
 
   WebsocketServer* = ref object of HttpServer
-    upgradeCallback*: WsUpgradeCallback
-    afterUpgradeCallback*: WsAfterUpgradeCallback
-    messageCallback*: WsMessageCallback
+    upgradeCallback*: WsUpgradeCallback ## Return true to accept, false to decline
+    afterUpgradeCallback*: WsAfterUpgradeCallback ## Optional, good for initialization purposes
+    messageCallback*: WsMessageCallback ## Triggered when a message is received. Streaming reads are not supported: message length must be shorter than buffersize.
     sendingsockets: HashSet[posix.Sockethandle]
     sendlock: Lock
 
@@ -93,7 +43,7 @@ type
   WsDelivery* = tuple[sockets: seq[posix.SocketHandle], message: ptr string, binary: bool, states: seq[State]]
     ## `send` takes pointer to this as parameter.
     ## | `sockets`: the websockets that should receive this message
-    ## | `message`: the message to send
+    ## | `message`: the message to send (empty message sends a Pong)
     ## | `binary`: whether the message contains bytes or chars
   
 
@@ -304,8 +254,8 @@ proc handleWsUpgradehandshake() =
     closeSocket(state, errormessage)
     return
   ws.socketdata.flags = 1
-  if wsserver.afterupgradeCallback != nil:
-    wsserver.afterupgradeCallback()
+  if wsserver.afterUpgradeCallback != nil:
+    wsserver.afterUpgradeCallback()
 
 
 proc prepareWebsocketContext*(socketdata: ptr SocketData) {.inline.} =
@@ -363,7 +313,7 @@ proc send*(server: GuildenServer, delivery: ptr WsDelivery, timeoutsecs = 10, sl
   ## Sends message to multiple websockets at once. Uses non-blocking I/O so that slow receivers do not slow down fast receivers.
   ## | Can be called from multiple threads in parallel.
   ## | `timeoutsecs`: a timeout after which sending is given up and all sockets with messages in-flight are closed
-  ## | `sleepmillisecs`: if all in-flight receivers are blocking, will sleep for (sleepmillisecs * in-flight receiver count) milliseconds
+  ## | `sleepmillisecs`: if all in-flight receivers are blocking, will suspend for (sleepmillisecs * in-flight receiver count) milliseconds
   ## Returns amount of websockets that had to be closed
   if delivery.sockets.len == 0: return
   let timeout = initDuration(seconds = timeoutsecs)
@@ -433,7 +383,7 @@ proc send*(server: GuildenServer, delivery: ptr WsDelivery, timeoutsecs = 10, sl
   server.log(TRACE, "websocket send finished")
 
 
-proc send*(server: GuildenServer, sockets: seq[posix.SocketHandle], message: string, timeoutsecs = 20, sleepmillisecs = 100): bool {.discardable.} =
+proc send*(server: GuildenServer, sockets: seq[posix.SocketHandle], message: string, timeoutsecs = 10, sleepmillisecs = 10): bool {.discardable.} =
   when compiles(unsafeAddr message):
     when not defined(nimdoc) and not defined(gcDestructors): {.fatal: "mm:arc or mm:orc required".}
     delivery.sockets = sockets
@@ -443,7 +393,7 @@ proc send*(server: GuildenServer, sockets: seq[posix.SocketHandle], message: str
   else:  {.fatal: "posix.send requires taking pointer to message, but message has no address".}
 
 
-proc send*(server: GuildenServer, socket: posix.SocketHandle, message: string, timeoutsecs = 20, sleepmillisecs = 100): bool {.discardable.} =
+proc send*(server: GuildenServer, socket: posix.SocketHandle, message: string, timeoutsecs = 2, sleepmillisecs = 10): bool {.discardable.} =
   when compiles(unsafeAddr message):
     when not defined(nimdoc) and not defined(gcDestructors): {.fatal: "mm:arc or mm:orc required".}
     delivery.sockets.setLen(1)
@@ -474,7 +424,7 @@ proc newWebsocketServer*(upgradecallback: WsUpgradeCallback, afterupgradecallbac
   initHttpServer(result, loglevel, true, Compact, ["sec-websocket-key"])
   result.handlerCallback = handleWsRequest
   result.upgradeCallback = upgradecallback
-  result.afterupgradeCallback = afterupgradecallback
+  result.afterUpgradeCallback = afterupgradecallback
   result.messageCallback = onwsmessagecallback
   result.onCloseSocketCallback = onclosesocketcallback
   initLock(result.sendlock)

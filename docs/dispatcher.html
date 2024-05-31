@@ -74,7 +74,7 @@
     
     <p class="module-desc"><p>This is the default dispatcher that ships with GuildenStern. Use it by importing guildenstern/dispatcher and then starting a server's dispatcher thread by calling <a class="reference internal nimdoc" title="proc start(server: GuildenServer; port: int; threadpoolsize: uint = 0;
       maxactivethreadcount: uint = 0)" href="#start,GuildenServer,int,uint,uint">start</a>.</p>
-<p>This dispatcher spawns a thread from a server-specific threadpool for every incoming read request. The threadpool size can be set in the start procedure. Dispatcher avoids excessive thread swapping by not spawning a thread when activethreadcount has reached maxactivethreadcount. However, if a thread reports itself as inactive (by calling server's suspend procedure), another thread is allowed to run. This keeps the server serving even when there are more threads waiting for I/O than the maxactivethreadcount. This design seems to deliver decent performance without leaning to more complex asynchronous concurrency techniques.    </p>
+<p>This dispatcher spawns a thread from a server-specific threadpool for every incoming read request. The threadpool size can be set in the start procedure. Dispatcher avoids excessive thread swapping by not spawning a thread when activethreadcount has reached maxactivethreadcount. However, if a thread reports itself as inactive (by calling server's suspend procedure), another thread is allowed to run. This keeps the server serving when there are more threads suspended than the maxactivethreadcount. This design seems to deliver decent performance without leaning to more complex asynchronous concurrency techniques.    </p>
 </p>
     <div class="section" id="6">
   <h1><a class="toc-backref" href="#6">Imports</a></h1>
@@ -108,7 +108,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-30 15:07:13 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-31 11:17:53 UTC</small>
       </div>
     </div>
   </div>

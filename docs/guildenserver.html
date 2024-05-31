@@ -47,8 +47,7 @@
       </select>
     </div>
     <ul class="simple simple-toc" id="toc-list">
-  <li><a class="reference" id="example_toc" href="#example">Example</a></li>
-<li>
+  <li>
   <details open>
     <summary><a class="reference reference-toplevel" href="#7" id="57">Types</a></summary>
     <ul class="simple simple-toc-section">
@@ -185,34 +184,10 @@
     <div id="tocRoot"></div>
     
     <p class="module-desc"><p><a class="reference internal nimdoc" title="type GuildenServer" href="#GuildenServer">GuildenServer</a> is the abstract base class for web servers. The three concrete server implementations that currently ship with GuildenStern are <a class="reference external" href="./httpserver.html">guildenstern/httpserver</a>, <a class="reference external" href="./websocketserver.html">guildenstern/websocketserver</a> and <a class="reference external" href="./multipartserver.html">guildenstern/multipartserver</a>. One server is associated with one TCP port.</p>
-<p>GuildenServer mainly acts as a connection between everything else, offering set of callback hooks for others to fill in. In addition to GuildenServer, this module also introduces SocketContext, which is a container for data of one request in flight. SocketContext is inheritable, so concrete servers may add properties to it.</p>
-<p>So, the overall architecture may be something like this: A reverse proxy (like <a class="reference external" href="https://caddyserver.com/">https://caddyserver.com/</a>) routes requests to multiple ports. Each of these ports is served by one concrete GuildenServer instance. To each server is attached one dispatcher, which listens to the port and triggers handlerCallbacks. The default <a class="reference external" href="./dispatcher.html">guildenstern/dispatcher</a> uses multithreading so that even requests arriving to the same port are served in parallel. During request handling, the default servers offer an inherited thread local SocketContext variable from which everything else is accessible, most notably the SocketData.server itself, and the SocketData.socket being serviced.</p>
-<p>Guides for writing your very own servers and dispathers may appear later. For now, just study the source codes... (And if you invent something useful, please share it with us.)</p>
-
-<h1><a class="toc-backref" id="example" href="#example">Example</a></h1><p>(In this example, port number is hardcoded into html just for demonstration purposes. In reality, use your reverse proxy to route requests to different ports.)</p>
-<pre class="listing"><span class="Comment"># nim r --d:threadsafe thisexample</span>
-
-<span class="Keyword">import</span> <span class="Identifier">cgi</span><span class="Punctuation">,</span> <span class="Identifier">guildenstern</span><span class="Operator">/</span><span class="Punctuation">[</span><span class="Identifier">dispatcher</span><span class="Punctuation">,</span> <span class="Identifier">httpserver</span><span class="Punctuation">]</span>
-
-<span class="Keyword">proc</span> <span class="Identifier">handleGet</span><span class="Punctuation">(</span><span class="Punctuation">)</span> <span class="Operator">=</span>
-  <span class="Keyword">let</span> <span class="Identifier">html</span> <span class="Operator">=</span> <span class="LongStringLit">&quot;&quot;&quot;
-    &lt;!doctype html&gt;&lt;title&gt;GuildenStern Example&lt;/title&gt;&lt;body&gt;
-    &lt;form action=&quot;http://localhost:5051&quot; method=&quot;post&quot;&gt;
-    &lt;input name=&quot;say&quot; id=&quot;say&quot; value=&quot;Hi&quot;&gt;&lt;button&gt;Send&quot;&quot;&quot;</span>
-  <span class="Identifier">reply</span><span class="Punctuation">(</span><span class="Identifier">Http200</span><span class="Punctuation">,</span> <span class="Identifier">html</span><span class="Punctuation">)</span>
-
-<span class="Keyword">proc</span> <span class="Identifier">handlePost</span><span class="Punctuation">(</span><span class="Punctuation">)</span> <span class="Operator">=</span>
-  <span class="Keyword">try</span><span class="Punctuation">:</span>
-    <span class="Identifier">echo</span> <span class="Identifier">readData</span><span class="Punctuation">(</span><span class="Identifier">getBody</span><span class="Punctuation">(</span><span class="Punctuation">)</span><span class="Punctuation">)</span><span class="Operator">.</span><span class="Identifier">getOrDefault</span><span class="Punctuation">(</span><span class="StringLit">&quot;say&quot;</span><span class="Punctuation">)</span>
-    <span class="Identifier">reply</span><span class="Punctuation">(</span><span class="Identifier">Http303</span><span class="Punctuation">,</span> <span class="Punctuation">[</span><span class="StringLit">&quot;location: &quot;</span> <span class="Operator">&amp;</span> <span class="Identifier">http</span><span class="Operator">.</span><span class="Identifier">headers</span><span class="Operator">.</span><span class="Identifier">getOrDefault</span><span class="Punctuation">(</span><span class="StringLit">&quot;origin&quot;</span><span class="Punctuation">)</span><span class="Punctuation">]</span><span class="Punctuation">)</span>
-  <span class="Keyword">except</span><span class="Punctuation">:</span> <span class="Identifier">reply</span><span class="Punctuation">(</span><span class="Identifier">Http500</span><span class="Punctuation">)</span>
-
-<span class="Keyword">let</span> <span class="Identifier">getServer</span> <span class="Operator">=</span> <span class="Identifier">newHttpServer</span><span class="Punctuation">(</span><span class="Identifier">handleGet</span><span class="Punctuation">)</span>
-<span class="Keyword">let</span> <span class="Identifier">postServer</span> <span class="Operator">=</span> <span class="Identifier">newHttpServer</span><span class="Punctuation">(</span><span class="Identifier">handlePost</span><span class="Punctuation">)</span>
-<span class="Identifier">getServer</span><span class="Operator">.</span><span class="Identifier">start</span><span class="Punctuation">(</span><span class="DecNumber">5050</span><span class="Punctuation">)</span>
-<span class="Identifier">postServer</span><span class="Operator">.</span><span class="Identifier">start</span><span class="Punctuation">(</span><span class="DecNumber">5051</span><span class="Punctuation">)</span>
-<span class="Identifier">echo</span> <span class="StringLit">&quot;getServer serving at localhost:5050&quot;</span>
-<span class="Identifier">joinThreads</span><span class="Punctuation">(</span><span class="Identifier">getServer</span><span class="Operator">.</span><span class="Identifier">thread</span><span class="Punctuation">,</span> <span class="Identifier">postServer</span><span class="Operator">.</span><span class="Identifier">thread</span><span class="Punctuation">)</span></pre></p>
+<p>GuildenServer mainly acts as the glue between everything else, offering set of callback hooks for others to fill in. In addition to GuildenServer, this module also introduces SocketContext, which is a container for data of one request in flight. SocketContext is inheritable, so concrete servers may add properties to it.</p>
+<p>So, the overall architecture may be something like this: A reverse proxy (like <a class="reference external" href="https://caddyserver.com/">https://caddyserver.com/</a>) routes requests to multiple ports. Each of these ports is served by one concrete GuildenServer instance. To each server is attached one dispatcher, which listens to the port and triggers handlerCallbacks. The default <a class="reference external" href="./dispatcher.html">guildenstern/dispatcher</a> uses multithreading so that even requests arriving to the same port are served in parallel. During request handling, the default servers offer an inherited thread local SocketContext variable from which everything else is accessible, most notably the SocketData.server itself and the SocketData.socket that is being serviced.</p>
+<p>Guides for writing your very own servers and dispathers may appear later. For now, just study the source codes... (And if you invent something useful, please share it with us.) </p>
+</p>
     <div class="section" id="7">
   <h1><a class="toc-backref" href="#7">Types</a></h1>
   <dl class="item">
@@ -512,7 +487,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-30 15:10:16 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-31 11:31:24 UTC</small>
       </div>
     </div>
   </div>

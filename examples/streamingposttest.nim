@@ -4,13 +4,11 @@ from os import sleep
 var thisisyourdata: string
 
 proc onGet() =
-  if isUri("/favicon.ico"): reply(Http204)
-  else:
-    {.gcsafe.}:
-      let html = """<!doctype html><title></title><body>
-      <form action="http://localhost:5051" method="POST" accept-charset="utf-8">
-      <input type="submit" name="post" value="""" & thisisyourdata & """">"""
-    reply(html)
+  {.gcsafe.}:
+    let html = """<!doctype html><title></title><body>
+    <form action="http://localhost:5051" method="POST" accept-charset="utf-8">
+    <input type="submit" name="post" value="""" & thisisyourdata & """">"""
+  reply(html)
 
 proc onPost() =
   var body: string

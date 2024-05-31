@@ -11,22 +11,24 @@ Modular multithreading Linux HTTP + WebSocket server
 import cgi, guildenstern/[dispatcher, httpserver]
      
 proc handleGet() =
-  echo "method: ", getMethod() 
+  echo "method: ", getMethod()
   echo "uri: ", getUri()
-  let html = """
-    <!doctype html><title>GuildenStern Example</title><body>
-    <form action="http://localhost:5051" method="post" accept-charset="utf-8">
-    <input name="say" value="Hi"><button>Send"""
-  reply(html)
+  if isUri("/favicon.ico"): reply(Http204)
+  else:
+    let html = """
+      <!doctype html><title>GuildenStern Example</title><body>
+      <form action="http://localhost:5051" method="post" accept-charset="utf-8">
+      <input name="say" value="Hi"><button>Send"""
+    reply(html)
 
 proc handlePost() =
   echo "client said: ", readData(getBody()).getOrDefault("say")
   reply(Http303, ["location: " & http.headers.getOrDefault("origin")])
   
 let getserver = newHttpServer(handleGet, contenttype = NoBody)
-let postserver = newHttpServer(handlePost, loglevel = INFO, headerfields = ["origin"])
+let postserver = newHttpServer(handlePost, loglevel = INFO,headerfields = ["origin"])
 getserver.start(5050)
-postserver.start(5051, threadpoolsize = 200, maxactivethreadcount = 20)
+postserver.start(5051, threadpoolsize = 200,maxactivethreadcount = 20)
 joinThreads(getserver.thread, postserver.thread)
 ```
 
@@ -59,10 +61,10 @@ atlas use GuildenStern
 - handles *multipart/form-data* for you as neatly parsed
 - operates in streaming manner, allowing huge uploads without blowing up RAM
 
-### Improvements to websocket
+### Improvements to websockets
 - If you do not accept a connection (reply *false* in *upgradeCallback*), a HTTP 400 reply is now automatically sent before the socket is closed
 - PONG is now automatically replied to PINGs, *sendPong* proc is removed
 - default reply values changed, now *timeoutsecs* = 10, *sleepmillisecs* = 10
-- if all in-flight receivers are blocking, now sleeps for (*sleepmillisecs* * in-flight receiver count) milliseconds
+- if all in-flight receivers are blocking, now suspends for (*sleepmillisecs* * in-flight receiver count) milliseconds
 - fixed *isMessage* bug
 

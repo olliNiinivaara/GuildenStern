@@ -21,6 +21,7 @@ let
 
 
 proc replyFinish*(): SocketState {.discardable, inline, gcsafe, raises: [].} =
+  # Informs that everything is replied.
   let ret =
     try: send(http.socketdata.socket, nil, 0, lastflags)
     except CatchableError: Excepted.int
@@ -94,6 +95,7 @@ proc reply*(code: HttpCode): SocketState {.discardable, inline, gcsafe, raises: 
 
 
 proc reply*(code: HttpCode, body: ptr string, lengthstring: string, length: int, headers: ptr string, moretocome: bool): SocketState {.gcsafe, raises: [].} =
+  ## One-shot reply to a request
   if unlikely(http.socketdata.socket.int in [0, INVALID_SOCKET.int]):
     http.socketdata.server.log(INFO, "cannot reply to closed socket " & $http.socketdata.socket.int)
     return
@@ -120,6 +122,8 @@ proc reply*(code: HttpCode, body: ptr string, lengthstring: string, length: int,
 
 
 proc replyStart*(code: HttpCode, contentlength: int, headers: ptr string = nil): SocketState {.inline, gcsafe, raises: [].} =
+  ## Start replying to a request (continue with [replyMore] and [replyFinish]).
+  ## If you do not know the content-length yet, use [replyStartChunked] instead.
   if unlikely(http.socketdata.socket.int in [0, INVALID_SOCKET.int]):
     http.socketdata.server.log(INFO, "cannot replystart to closed socket " & $http.socketdata.socket.int)
     return
@@ -155,6 +159,7 @@ proc replyStart*(code: HttpCode, contentlength: int, headers: openArray[string])
   replyStart(code, contentlength, unsafeAddr joinedheaders)
 
 proc replyMore*(bodypart: ptr string, start: int, partlength: int = -1): (SocketState , int) {.inline, gcsafe, raises: [].} =
+  ## Continuation to [replyStart].
   let length = if partlength != -1: partlength else: bodypart[].len
   return tryWriteToSocket(bodypart, start, length)
 

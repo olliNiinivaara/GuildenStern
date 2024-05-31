@@ -25,12 +25,6 @@
 <dl><dt><a name="%60%24%60" href="#%60%24%60"><span>`$`:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: proc `$`(x: SocketHandle): string" href="guildenserver.html#%24%2CSocketHandle">guildenserver: proc `$`(x: SocketHandle): string</a></li>
-          <li><a class="reference external"
-          data-doc-search-tag="sha: proc `$`(self: SecureHash): string" href="sha.html#%24%2CSecureHash">sha: proc `$`(self: SecureHash): string</a></li>
-          </ul></dd>
-<dt><a name="%60%3D%3D%60" href="#%60%3D%3D%60"><span>`==`:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="sha: proc `==`(a, b: SecureHash): bool" href="sha.html#%3D%3D%2CSecureHash%2CSecureHash">sha: proc `==`(a, b: SecureHash): bool</a></li>
           </ul></dd>
 <dt><a name="AlreadyClosed" href="#AlreadyClosed"><span>AlreadyClosed:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -82,6 +76,10 @@
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: type CloseSocketCallback" href="guildenserver.html#CloseSocketCallback">guildenserver: type CloseSocketCallback</a></li>
           </ul></dd>
+<dt><a name="Compact" href="#Compact"><span>Compact:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="httpserver: ContentType.Compact" href="httpserver.html#Compact">httpserver: ContentType.Compact</a></li>
+          </ul></dd>
 <dt><a name="Complete" href="#Complete"><span>Complete:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="httpserver: SocketState.Complete" href="httpserver.html#Complete">httpserver: SocketState.Complete</a></li>
@@ -129,10 +127,6 @@
 <dt><a name="FATAL" href="#FATAL"><span>FATAL:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: LogLevel.FATAL" href="guildenserver.html#FATAL">guildenserver: LogLevel.FATAL</a></li>
-          </ul></dd>
-<dt><a name="finalize" href="#finalize"><span>finalize:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="sha: proc finalize(ctx: var Sha1State): Sha1Digest" href="sha.html#finalize%2CSha1State">sha: proc finalize(ctx: var Sha1State): Sha1Digest</a></li>
           </ul></dd>
 <dt><a name="getBody" href="#getBody"><span>getBody:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -228,17 +222,9 @@
 <li><a class="reference external"
           data-doc-search-tag="httpserver: proc isMethod(amethod: string): bool" href="httpserver.html#isMethod%2Cstring">httpserver: proc isMethod(amethod: string): bool</a></li>
           </ul></dd>
-<dt><a name="isMultipartContext" href="#isMultipartContext"><span>isMultipartContext:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="multipartserver: proc isMultipartContext(): bool" href="multipartserver.html#isMultipartContext">multipartserver: proc isMultipartContext(): bool</a></li>
-          </ul></dd>
 <dt><a name="isUri" href="#isUri"><span>isUri:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="httpserver: proc isUri(uri: string): bool" href="httpserver.html#isUri%2Cstring">httpserver: proc isUri(uri: string): bool</a></li>
-          </ul></dd>
-<dt><a name="isValidSha1Hash" href="#isValidSha1Hash"><span>isValidSha1Hash:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="sha: proc isValidSha1Hash(s: string): bool" href="sha.html#isValidSha1Hash%2Cstring">sha: proc isValidSha1Hash(s: string): bool</a></li>
           </ul></dd>
 <dt><a name="isWebsocketContext" href="#isWebsocketContext"><span>isWebsocketContext:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -268,14 +254,6 @@
 <li><a class="reference external"
           data-doc-search-tag="httpserver: const MSG_MORE" href="httpserver.html#MSG_MORE">httpserver: const MSG_MORE</a></li>
           </ul></dd>
-<dt><a name="multipart" href="#multipart"><span>multipart:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="multipartserver: template multipart(): untyped" href="multipartserver.html#multipart.t">multipartserver: template multipart(): untyped</a></li>
-          </ul></dd>
-<dt><a name="MultipartContext" href="#MultipartContext"><span>MultipartContext:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="multipartserver: type MultipartContext" href="multipartserver.html#MultipartContext">multipartserver: type MultipartContext</a></li>
-          </ul></dd>
 <dt><a name="NetErrored" href="#NetErrored"><span>NetErrored:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: SocketCloseCause.NetErrored" href="guildenserver.html#NetErrored">guildenserver: SocketCloseCause.NetErrored</a></li>
@@ -295,10 +273,6 @@
                    headerfields: openArray[string] = []): HttpServer" href="multipartserver.html#newMultipartServer%2Cproc%29%2CopenArray%5Bstring%5D">multipartserver: proc newMultipartServer(onrequestcallback: proc () {.gcsafe, nimcall, raises: [].};
                    loglevel = LogLevel.WARN;
                    headerfields: openArray[string] = []): HttpServer</a></li>
-          </ul></dd>
-<dt><a name="newSha1State" href="#newSha1State"><span>newSha1State:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="sha: proc newSha1State(): Sha1State" href="sha.html#newSha1State">sha: proc newSha1State(): Sha1State</a></li>
           </ul></dd>
 <dt><a name="newWebsocketServer" href="#newWebsocketServer"><span>newWebsocketServer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -343,10 +317,6 @@
 <dt><a name="parseRequestLine" href="#parseRequestLine"><span>parseRequestLine:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="httpserver: proc parseRequestLine(): bool" href="httpserver.html#parseRequestLine">httpserver: proc parseRequestLine(): bool</a></li>
-          </ul></dd>
-<dt><a name="parseSecureHash" href="#parseSecureHash"><span>parseSecureHash:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="sha: proc parseSecureHash(hash: string): SecureHash" href="sha.html#parseSecureHash%2Cstring">sha: proc parseSecureHash(hash: string): SecureHash</a></li>
           </ul></dd>
 <dt><a name="PartState" href="#PartState"><span>PartState:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -440,18 +410,6 @@
 <li><a class="reference external"
           data-doc-search-tag="httpserver: proc replyStartChunked(code: HttpCode = Http200; headers: openArray[string] = []): bool" href="httpserver.html#replyStartChunked%2CHttpCode%2CopenArray%5Bstring%5D">httpserver: proc replyStartChunked(code: HttpCode = Http200; headers: openArray[string] = []): bool</a></li>
           </ul></dd>
-<dt><a name="SecureHash" href="#SecureHash"><span>SecureHash:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="sha: type SecureHash" href="sha.html#SecureHash">sha: type SecureHash</a></li>
-          </ul></dd>
-<dt><a name="secureHash" href="#secureHash"><span>secureHash:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="sha: proc secureHash(str: openArray[char]): SecureHash" href="sha.html#secureHash%2CopenArray%5Bchar%5D">sha: proc secureHash(str: openArray[char]): SecureHash</a></li>
-          </ul></dd>
-<dt><a name="secureHashFile" href="#secureHashFile"><span>secureHashFile:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="sha: proc secureHashFile(filename: string): SecureHash" href="sha.html#secureHashFile%2Cstring">sha: proc secureHashFile(filename: string): SecureHash</a></li>
-          </ul></dd>
 <dt><a name="SecurityThreatened" href="#SecurityThreatened"><span>SecurityThreatened:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: SocketCloseCause.SecurityThreatened" href="guildenserver.html#SecurityThreatened">guildenserver: SocketCloseCause.SecurityThreatened</a></li>
@@ -459,28 +417,20 @@
 <dt><a name="send" href="#send"><span>send:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="websocketserver: proc send(server: GuildenServer; socket: posix.SocketHandle; message: string;
-     timeoutsecs = 20; sleepmillisecs = 100): bool" href="websocketserver.html#send%2CGuildenServer%2C%2Cstring%2Cint%2Cint">websocketserver: proc send(server: GuildenServer; socket: posix.SocketHandle; message: string;
-     timeoutsecs = 20; sleepmillisecs = 100): bool</a></li>
+     timeoutsecs = 2; sleepmillisecs = 10): bool" href="websocketserver.html#send%2CGuildenServer%2C%2Cstring%2Cint%2Cint">websocketserver: proc send(server: GuildenServer; socket: posix.SocketHandle; message: string;
+     timeoutsecs = 2; sleepmillisecs = 10): bool</a></li>
           <li><a class="reference external"
           data-doc-search-tag="websocketserver: proc send(server: GuildenServer; delivery: ptr WsDelivery; timeoutsecs = 10;
      sleepmillisecs = 10): int" href="websocketserver.html#send%2CGuildenServer%2Cptr.WsDelivery%2Cint%2Cint">websocketserver: proc send(server: GuildenServer; delivery: ptr WsDelivery; timeoutsecs = 10;
      sleepmillisecs = 10): int</a></li>
           <li><a class="reference external"
           data-doc-search-tag="websocketserver: proc send(server: GuildenServer; sockets: seq[posix.SocketHandle]; message: string;
-     timeoutsecs = 20; sleepmillisecs = 100): bool" href="websocketserver.html#send%2CGuildenServer%2Cseq%5B%5D%2Cstring%2Cint%2Cint">websocketserver: proc send(server: GuildenServer; sockets: seq[posix.SocketHandle]; message: string;
-     timeoutsecs = 20; sleepmillisecs = 100): bool</a></li>
+     timeoutsecs = 10; sleepmillisecs = 10): bool" href="websocketserver.html#send%2CGuildenServer%2Cseq%5B%5D%2Cstring%2Cint%2Cint">websocketserver: proc send(server: GuildenServer; sockets: seq[posix.SocketHandle]; message: string;
+     timeoutsecs = 10; sleepmillisecs = 10): bool</a></li>
           </ul></dd>
 <dt><a name="server" href="#server"><span>server:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="httpserver: template server(): untyped" href="httpserver.html#server.t">httpserver: template server(): untyped</a></li>
-          </ul></dd>
-<dt><a name="Sha1Digest" href="#Sha1Digest"><span>Sha1Digest:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="sha: type Sha1Digest" href="sha.html#Sha1Digest">sha: type Sha1Digest</a></li>
-          </ul></dd>
-<dt><a name="Sha1State" href="#Sha1State"><span>Sha1State:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="sha: object Sha1State" href="sha.html#Sha1State">sha: object Sha1State</a></li>
           </ul></dd>
 <dt><a name="shortdivider" href="#shortdivider"><span>shortdivider:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -497,10 +447,6 @@
 <dt><a name="shuttingdown" href="#shuttingdown"><span>shuttingdown:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: var shuttingdown" href="guildenserver.html#shuttingdown">guildenserver: var shuttingdown</a></li>
-          </ul></dd>
-<dt><a name="Compact" href="#Compact"><span>Compact:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="httpserver: ContentType.Compact" href="httpserver.html#Compact">httpserver: ContentType.Compact</a></li>
           </ul></dd>
 <dt><a name="SocketCloseCause" href="#SocketCloseCause"><span>SocketCloseCause:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -564,10 +510,6 @@
 <li><a class="reference external"
           data-doc-search-tag="httpserver: SocketState.TryAgain" href="httpserver.html#TryAgain">httpserver: SocketState.TryAgain</a></li>
           </ul></dd>
-<dt><a name="update" href="#update"><span>update:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="sha: proc update(ctx: var Sha1State; data: openArray[char])" href="sha.html#update%2CSha1State%2CopenArray%5Bchar%5D">sha: proc update(ctx: var Sha1State; data: openArray[char])</a></li>
-          </ul></dd>
 <dt><a name="WARN" href="#WARN"><span>WARN:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: LogLevel.WARN" href="guildenserver.html#WARN">guildenserver: LogLevel.WARN</a></li>
@@ -612,7 +554,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-30 15:10:32 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-31 11:31:24 UTC</small>
       </div>
     </div>
   </div>

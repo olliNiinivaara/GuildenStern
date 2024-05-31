@@ -19,7 +19,7 @@ const GuildenSternVersion* = "7.0.0"
 ## with GuildenStern are [guildenstern/httpserver], [guildenstern/websocketserver] and [guildenstern/multipartserver].
 ## One server is associated with one TCP port.
 ## 
-## GuildenServer mainly acts as a connection between everything else, offering set of callback hooks for others to fill in.
+## GuildenServer mainly acts as the glue between everything else, offering set of callback hooks for others to fill in.
 ## In addition to GuildenServer, this module also introduces SocketContext, which is a container for data of
 ## one request in flight. SocketContext is inheritable, so concrete servers may add properties to it.
 ## 
@@ -27,44 +27,11 @@ const GuildenSternVersion* = "7.0.0"
 ## Each of these ports is served by one concrete GuildenServer instance. To each server is attached one dispatcher, which listens to the port and
 ## triggers handlerCallbacks. The default [guildenstern/dispatcher] uses multithreading so that even requests arriving to the same port are served in parallel.
 ## During request handling, the default servers offer an inherited thread local SocketContext variable from which everything else is accessible,
-## most notably the SocketData.server itself, and the SocketData.socket being serviced.
+## most notably the SocketData.server itself and the SocketData.socket that is being serviced.
 ## 
 ## Guides for writing your very own servers and dispathers may appear later. For now, just study the source codes...
 ## (And if you invent something useful, please share it with us.)
 ## 
-## 
-## Example
-## =======
-## 
-## (In this example, port number is hardcoded into html just for demonstration purposes. In reality, use your
-## reverse proxy to route requests to different ports.)
-## 
-## .. code-block:: Nim
-##
-##  # nim r --d:threadsafe thisexample
-##  
-##  import cgi, guildenstern/[dispatcher, httpserver]
-##  
-##  proc handleGet() =
-##    let html = """
-##      <!doctype html><title>GuildenStern Example</title><body>
-##      <form action="http://localhost:5051" method="post">
-##      <input name="say" id="say" value="Hi"><button>Send"""
-##    reply(Http200, html)
-##      
-##  proc handlePost() =
-##    try:
-##      echo readData(getBody()).getOrDefault("say")
-##      reply(Http303, ["location: " & http.headers.getOrDefault("origin")])
-##    except: reply(Http500)
-##         
-##  let getServer = newHttpServer(handleGet)
-##  let postServer = newHttpServer(handlePost)
-##  getServer.start(5050)
-##  postServer.start(5051)
-##  echo "getServer serving at localhost:5050"
-##  joinThreads(getServer.thread, postServer.thread)
-
 
 from std/selectors import newSelectEvent, trigger
 from std/posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onSignal, `==`

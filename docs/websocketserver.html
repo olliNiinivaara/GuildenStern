@@ -47,8 +47,7 @@
       </select>
     </div>
     <ul class="simple simple-toc" id="toc-list">
-  <li><a class="reference" id="example_toc" href="#example">Example</a></li>
-<li>
+  <li>
   <a class="reference reference-toplevel" href="#6" id="56">Imports</a>
 </li>
 <li>
@@ -66,9 +65,9 @@
 <li><a class="reference" href="#WebsocketContext" title="WebsocketContext = ref object of HttpContext
   opcode*: Opcode">WebsocketContext</a></li>
 <li><a class="reference" href="#WebsocketServer" title="WebsocketServer = ref object of HttpServer
-  upgradeCallback*: WsUpgradeCallback
-  afterUpgradeCallback*: WsAfterUpgradeCallback
-  messageCallback*: WsMessageCallback">WebsocketServer</a></li>
+  upgradeCallback*: WsUpgradeCallback ## Return true to accept, false to decline
+  afterUpgradeCallback*: WsAfterUpgradeCallback ## Optional, good for initialization purposes
+  messageCallback*: WsMessageCallback ## Triggered when a message is received. Streaming reads are not supported: message length must be shorter than buffersize.">WebsocketServer</a></li>
 <li><a class="reference" href="#WsAfterUpgradeCallback" title="WsAfterUpgradeCallback = proc () {.gcsafe, nimcall, raises: [].}">WsAfterUpgradeCallback</a></li>
 <li><a class="reference" href="#WsDelivery" title="WsDelivery = tuple[sockets: seq[posix.SocketHandle], message: ptr string,
                    binary: bool, states: seq[State]]">WsDelivery</a></li>
@@ -115,11 +114,11 @@
      sleepmillisecs = 10): int">send(server: GuildenServer; delivery: ptr WsDelivery; timeoutsecs = 10;
      sleepmillisecs = 10): int</a></li>
 <li><a class="reference" href="#send%2CGuildenServer%2C%2Cstring%2Cint%2Cint" title="send(server: GuildenServer; socket: posix.SocketHandle; message: string;
-     timeoutsecs = 20; sleepmillisecs = 100): bool">send(server: GuildenServer; socket: posix.SocketHandle; message: string;
-     timeoutsecs = 20; sleepmillisecs = 100): bool</a></li>
+     timeoutsecs = 2; sleepmillisecs = 10): bool">send(server: GuildenServer; socket: posix.SocketHandle; message: string;
+     timeoutsecs = 2; sleepmillisecs = 10): bool</a></li>
 <li><a class="reference" href="#send%2CGuildenServer%2Cseq%5B%5D%2Cstring%2Cint%2Cint" title="send(server: GuildenServer; sockets: seq[posix.SocketHandle]; message: string;
-     timeoutsecs = 20; sleepmillisecs = 100): bool">send(server: GuildenServer; sockets: seq[posix.SocketHandle]; message: string;
-     timeoutsecs = 20; sleepmillisecs = 100): bool</a></li>
+     timeoutsecs = 10; sleepmillisecs = 10): bool">send(server: GuildenServer; sockets: seq[posix.SocketHandle]; message: string;
+     timeoutsecs = 10; sleepmillisecs = 10): bool</a></li>
 
 </ul>
 
@@ -153,53 +152,9 @@
     
     <div id="tocRoot"></div>
     
-    <p class="module-desc">Websocket server
-<h1><a class="toc-backref" id="example" href="#example">Example</a></h1><pre class="listing"><span class="Keyword">import</span> <span class="Identifier">locks</span>
-<span class="Keyword">import</span> <span class="Identifier">guildenstern</span><span class="Operator">/</span><span class="Punctuation">[</span><span class="Identifier">dispatcher</span><span class="Punctuation">,</span> <span class="Identifier">websocketserver</span><span class="Punctuation">]</span>
-
-<span class="Keyword">var</span> <span class="Identifier">lock</span><span class="Punctuation">:</span> <span class="Identifier">Lock</span>
-<span class="Identifier">initLock</span><span class="Punctuation">(</span><span class="Identifier">lock</span><span class="Punctuation">)</span>
-<span class="Keyword">var</span> <span class="Identifier">sockets</span> <span class="Operator">=</span> <span class="Identifier">newSeq</span><span class="Punctuation">[</span><span class="Identifier">SocketHandle</span><span class="Punctuation">]</span><span class="Punctuation">(</span><span class="Punctuation">)</span>
-
-<span class="Keyword">proc</span> <span class="Identifier">onUpgrade</span><span class="Punctuation">(</span><span class="Punctuation">)</span><span class="Punctuation">:</span> <span class="Identifier">bool</span> <span class="Operator">=</span>
-  <span class="Punctuation">{</span><span class="Operator">.</span><span class="Identifier">gcsafe</span><span class="Operator">.</span><span class="Punctuation">}</span><span class="Punctuation">:</span>
-    <span class="Identifier">withLock</span><span class="Punctuation">(</span><span class="Identifier">lock</span><span class="Punctuation">)</span><span class="Punctuation">:</span>
-      <span class="Identifier">sockets</span><span class="Operator">.</span><span class="Identifier">add</span><span class="Punctuation">(</span><span class="Identifier">ws</span><span class="Operator">.</span><span class="Identifier">socketdata</span><span class="Operator">.</span><span class="Identifier">socket</span><span class="Punctuation">)</span>
-  <span class="Identifier">true</span>
-
-<span class="Keyword">proc</span> <span class="Identifier">afterUpgrade</span><span class="Punctuation">(</span><span class="Punctuation">)</span> <span class="Operator">=</span>
-  <span class="Identifier">wsserver</span><span class="Operator">.</span><span class="Identifier">send</span><span class="Punctuation">(</span><span class="Identifier">ws</span><span class="Operator">.</span><span class="Identifier">socketdata</span><span class="Operator">.</span><span class="Identifier">socket</span><span class="Punctuation">,</span> <span class="StringLit">&quot;websocket connected!&quot;</span><span class="Punctuation">)</span>
-
-<span class="Keyword">proc</span> <span class="Identifier">onMessage</span><span class="Punctuation">(</span><span class="Punctuation">)</span> <span class="Operator">=</span>
-  <span class="Punctuation">{</span><span class="Operator">.</span><span class="Identifier">gcsafe</span><span class="Operator">.</span><span class="Punctuation">}</span><span class="Punctuation">:</span>
-    <span class="Identifier">withLock</span><span class="Punctuation">(</span><span class="Identifier">lock</span><span class="Punctuation">)</span><span class="Punctuation">:</span>
-      <span class="Keyword">let</span> <span class="Identifier">reply</span> <span class="Operator">=</span> <span class="Identifier">getMessage</span><span class="Punctuation">(</span><span class="Punctuation">)</span>
-      <span class="Keyword">discard</span> <span class="Identifier">wsserver</span><span class="Operator">.</span><span class="Identifier">send</span><span class="Punctuation">(</span><span class="Identifier">sockets</span><span class="Punctuation">,</span> <span class="Identifier">reply</span><span class="Punctuation">)</span>
-
-<span class="Keyword">proc</span> <span class="Identifier">onClose</span><span class="Punctuation">(</span><span class="Identifier">socketdata</span><span class="Punctuation">:</span> <span class="Keyword">ptr</span> <span class="Identifier">SocketData</span><span class="Punctuation">,</span> <span class="Identifier">cause</span><span class="Punctuation">:</span> <span class="Identifier">SocketCloseCause</span><span class="Punctuation">,</span> <span class="Identifier">msg</span><span class="Punctuation">:</span> <span class="Identifier">string</span><span class="Punctuation">)</span> <span class="Operator">=</span>
-  <span class="Punctuation">{</span><span class="Operator">.</span><span class="Identifier">gcsafe</span><span class="Operator">.</span><span class="Punctuation">}</span><span class="Punctuation">:</span>
-    <span class="Identifier">withLock</span><span class="Punctuation">(</span><span class="Identifier">lock</span><span class="Punctuation">)</span><span class="Punctuation">:</span>
-      <span class="Keyword">let</span> <span class="Identifier">index</span> <span class="Operator">=</span> <span class="Identifier">sockets</span><span class="Operator">.</span><span class="Identifier">find</span><span class="Punctuation">(</span><span class="Identifier">socketdata</span><span class="Operator">.</span><span class="Identifier">socket</span><span class="Punctuation">)</span>
-      <span class="Identifier">sockets</span><span class="Operator">.</span><span class="Identifier">del</span><span class="Punctuation">(</span><span class="Identifier">index</span><span class="Punctuation">)</span>
-
-<span class="Keyword">proc</span> <span class="Identifier">onRequest</span><span class="Punctuation">(</span><span class="Punctuation">)</span> <span class="Operator">=</span>
-  <span class="Keyword">let</span> <span class="Identifier">html</span> <span class="Operator">=</span> <span class="LongStringLit">&quot;&quot;&quot;&lt;!doctype html&gt;&lt;title&gt;Web socket chat&lt;/title&gt;
-  &lt;script&gt;
-    let websocket = new WebSocket(&quot;ws://&quot; + location.host.slice(0, -1) + '1')
-    websocket.onmessage = function(evt) {
-    document.getElementById(&quot;ul&quot;).appendChild(document.createElement(&quot;li&quot;)).innerHTML = evt.data }
-  &lt;/script&gt;
-  &lt;body&gt;&lt;form action=&quot;&quot; onsubmit=&quot;return false&quot;&gt;&lt;input id=&quot;input&quot;&gt;
-  &lt;button type=submit onclick=&quot;websocket.send(getElementById('input').value+'.')&quot;&gt;Send&lt;/button&gt;
-  &lt;/form&gt;&lt;ul id=&quot;ul&quot;&gt;&lt;/ul&gt;&lt;/body&gt;&quot;&quot;&quot;</span>
-  <span class="Identifier">reply</span><span class="Punctuation">(</span><span class="Identifier">Http200</span><span class="Punctuation">,</span> <span class="Identifier">html</span><span class="Punctuation">)</span>
-
-<span class="Keyword">let</span> <span class="Identifier">server</span> <span class="Operator">=</span> <span class="Identifier">newWebsocketServer</span><span class="Punctuation">(</span><span class="Identifier">onUpgrade</span><span class="Punctuation">,</span> <span class="Identifier">afterUpgrade</span><span class="Punctuation">,</span> <span class="Identifier">onMessage</span><span class="Punctuation">,</span> <span class="Identifier">onClose</span><span class="Punctuation">)</span>
-<span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">start</span><span class="Punctuation">(</span><span class="DecNumber">5051</span><span class="Punctuation">)</span>
-<span class="Keyword">let</span> <span class="Identifier">httpserver</span> <span class="Operator">=</span> <span class="Identifier">newHttpServer</span><span class="Punctuation">(</span><span class="Identifier">onRequest</span><span class="Punctuation">)</span>
-<span class="Identifier">httpserver</span><span class="Operator">.</span><span class="Identifier">start</span><span class="Punctuation">(</span><span class="DecNumber">5050</span><span class="Punctuation">)</span>
-<span class="Identifier">joinThreads</span><span class="Punctuation">(</span><span class="Identifier">server</span><span class="Operator">.</span><span class="Identifier">thread</span><span class="Punctuation">,</span> <span class="Identifier">httpserver</span><span class="Operator">.</span><span class="Identifier">thread</span><span class="Punctuation">)</span>
-<span class="Identifier">deinitLock</span><span class="Punctuation">(</span><span class="Identifier">lock</span><span class="Punctuation">)</span></pre></p>
+    <p class="module-desc"><p>Websocket server</p>
+<p>see examples/websockettest.nim for a concrete example. </p>
+</p>
     <div class="section" id="6">
   <h1><a class="toc-backref" href="#6">Imports</a></h1>
   <dl class="item">
@@ -236,9 +191,9 @@
 </div>
 <div id="WebsocketServer">
   <dt><pre><a href="websocketserver.html#WebsocketServer"><span class="Identifier">WebsocketServer</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="httpserver.html#HttpServer"><span class="Identifier">HttpServer</span></a>
-  <span class="Identifier">upgradeCallback</span><span class="Operator">*</span><span class="Other">:</span> <a href="websocketserver.html#WsUpgradeCallback"><span class="Identifier">WsUpgradeCallback</span></a>
-  <span class="Identifier">afterUpgradeCallback</span><span class="Operator">*</span><span class="Other">:</span> <a href="websocketserver.html#WsAfterUpgradeCallback"><span class="Identifier">WsAfterUpgradeCallback</span></a>
-  <span class="Identifier">messageCallback</span><span class="Operator">*</span><span class="Other">:</span> <a href="websocketserver.html#WsMessageCallback"><span class="Identifier">WsMessageCallback</span></a>
+  <span class="Identifier">upgradeCallback</span><span class="Operator">*</span><span class="Other">:</span> <a href="websocketserver.html#WsUpgradeCallback"><span class="Identifier">WsUpgradeCallback</span></a> <span class="Comment">## Return true to accept, false to decline</span>
+  <span class="Identifier">afterUpgradeCallback</span><span class="Operator">*</span><span class="Other">:</span> <a href="websocketserver.html#WsAfterUpgradeCallback"><span class="Identifier">WsAfterUpgradeCallback</span></a> <span class="Comment">## Optional, good for initialization purposes</span>
+  <span class="Identifier">messageCallback</span><span class="Operator">*</span><span class="Other">:</span> <a href="websocketserver.html#WsMessageCallback"><span class="Identifier">WsMessageCallback</span></a> <span class="Comment">## Triggered when a message is received. Streaming reads are not supported: message length must be shorter than buffersize.</span>
   </pre></dt>
   <dd>
     
@@ -259,7 +214,7 @@
                    <span class="Identifier">binary</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">,</span> <span class="Identifier">states</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">State</span><span class="Other">]</span><span class="Other">]</span></pre></dt>
   <dd>
     
-    <tt class="docutils literal"><span class="pre"><span class="Identifier">send</span></span></tt> takes pointer to this as parameter.<p><tt class="docutils literal"><span class="pre"><span class="Identifier">sockets</span></span></tt>: the websockets that should receive this message<br/><tt class="docutils literal"><span class="pre"><span class="Identifier">message</span></span></tt>: the message to send<br/><tt class="docutils literal"><span class="pre"><span class="Identifier">binary</span></span></tt>: whether the message contains bytes or chars<br/></p>
+    <tt class="docutils literal"><span class="pre"><span class="Identifier">send</span></span></tt> takes pointer to this as parameter.<p><tt class="docutils literal"><span class="pre"><span class="Identifier">sockets</span></span></tt>: the websockets that should receive this message<br/><tt class="docutils literal"><span class="pre"><span class="Identifier">message</span></span></tt>: the message to send (empty message sends a Pong)<br/><tt class="docutils literal"><span class="pre"><span class="Identifier">binary</span></span></tt>: whether the message contains bytes or chars<br/></p>
     
   </dd>
 </div>
@@ -354,14 +309,14 @@
                                       <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
-    Sends message to multiple websockets at once. Uses non-blocking I/O so that slow receivers do not slow down fast receivers.<p>Can be called from multiple threads in parallel.<br/><tt class="docutils literal"><span class="pre"><span class="Identifier">timeoutsecs</span></span></tt>: a timeout after which sending is given up and all sockets with messages in-flight are closed<br/><tt class="docutils literal"><span class="pre"><span class="Identifier">sleepmillisecs</span></span></tt>: if all in-flight receivers are blocking, will sleep for (sleepmillisecs * in-flight receiver count) milliseconds<br/></p> Returns amount of websockets that had to be closed
+    Sends message to multiple websockets at once. Uses non-blocking I/O so that slow receivers do not slow down fast receivers.<p>Can be called from multiple threads in parallel.<br/><tt class="docutils literal"><span class="pre"><span class="Identifier">timeoutsecs</span></span></tt>: a timeout after which sending is given up and all sockets with messages in-flight are closed<br/><tt class="docutils literal"><span class="pre"><span class="Identifier">sleepmillisecs</span></span></tt>: if all in-flight receivers are blocking, will suspend for (sleepmillisecs * in-flight receiver count) milliseconds<br/></p> Returns amount of websockets that had to be closed
     
   </dd>
 </div>
 <div id="send,GuildenServer,,string,int,int">
   <dt><pre><span class="Keyword">proc</span> <a href="#send%2CGuildenServer%2C%2Cstring%2Cint%2Cint"><span class="Identifier">send</span></a><span class="Other">(</span><span class="Identifier">server</span><span class="Other">:</span> <a href="guildenserver.html#GuildenServer"><span class="Identifier">GuildenServer</span></a><span class="Other">;</span> <span class="Identifier">socket</span><span class="Other">:</span> <span class="Identifier">posix</span><span class="Other">.</span><span class="Identifier">SocketHandle</span><span class="Other">;</span> <span class="Identifier">message</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span>
-          <span class="Identifier">timeoutsecs</span> <span class="Other">=</span> <span class="DecNumber">20</span><span class="Other">;</span> <span class="Identifier">sleepmillisecs</span> <span class="Other">=</span> <span class="DecNumber">100</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span class="Identifier">discardable</span><span class="Other">,</span>
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">TimeEffect</span><span class="Other">,</span> <span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+          <span class="Identifier">timeoutsecs</span> <span class="Other">=</span> <span class="DecNumber">2</span><span class="Other">;</span> <span class="Identifier">sleepmillisecs</span> <span class="Other">=</span> <span class="DecNumber">10</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span class="Identifier">discardable</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">TimeEffect</span><span class="Other">,</span> <span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     
@@ -370,7 +325,7 @@
 </div>
 <div id="send,GuildenServer,seq[],string,int,int">
   <dt><pre><span class="Keyword">proc</span> <a href="#send%2CGuildenServer%2Cseq%5B%5D%2Cstring%2Cint%2Cint"><span class="Identifier">send</span></a><span class="Other">(</span><span class="Identifier">server</span><span class="Other">:</span> <a href="guildenserver.html#GuildenServer"><span class="Identifier">GuildenServer</span></a><span class="Other">;</span> <span class="Identifier">sockets</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">posix</span><span class="Other">.</span><span class="Identifier">SocketHandle</span><span class="Other">]</span><span class="Other">;</span>
-          <span class="Identifier">message</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">timeoutsecs</span> <span class="Other">=</span> <span class="DecNumber">20</span><span class="Other">;</span> <span class="Identifier">sleepmillisecs</span> <span class="Other">=</span> <span class="DecNumber">100</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.
+          <span class="Identifier">message</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">timeoutsecs</span> <span class="Other">=</span> <span class="DecNumber">10</span><span class="Other">;</span> <span class="Identifier">sleepmillisecs</span> <span class="Other">=</span> <span class="DecNumber">10</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.
     <span class="Identifier">discardable</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">TimeEffect</span><span class="Other">,</span> <span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
@@ -424,7 +379,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-30 15:10:16 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-31 11:16:36 UTC</small>
       </div>
     </div>
   </div>

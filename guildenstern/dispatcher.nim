@@ -6,8 +6,8 @@
 ## Dispatcher avoids excessive thread swapping by not spawning a thread when
 ## activethreadcount has reached maxactivethreadcount.
 ## However, if a thread reports itself as inactive (by calling server's suspend procedure),
-## another thread is allowed to run. This keeps the server serving even when there are
-## more threads waiting for I/O than the maxactivethreadcount. This design seems to deliver decent
+## another thread is allowed to run. This keeps the server serving when there are
+## more threads suspended than the maxactivethreadcount. This design seems to deliver decent
 ## performance without leaning to more complex asynchronous concurrency techniques.    
 
 import selectors, net, os, posix, locks
