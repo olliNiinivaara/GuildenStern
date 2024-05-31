@@ -38,7 +38,7 @@ joinThreads(getserver.thread, postserver.thread)
 https://olliniinivaara.github.io/GuildenStern/6.1.0/index.html
 
 ### 7.0.0 (forthcoming):
-https://olliniinivaara.github.io/GuildenStern/7.0.0/index.html
+https://olliniinivaara.github.io/GuildenStern/7.0.0/theindex.html
 
 ## Installation
 
