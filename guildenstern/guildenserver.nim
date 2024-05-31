@@ -29,7 +29,7 @@ const GuildenSternVersion* = "7.0.0"
 ## During request handling, the default servers offer an inherited thread local SocketContext variable from which everything else is accessible,
 ## most notably the SocketData.server itself and the SocketData.socket that is being serviced.
 ## 
-## Guides for writing your very own servers and dispathers may appear later. For now, just study the source codes...
+## Guides for writing your very own servers and dispatchers may appear later. For now, just study the source codes...
 ## (And if you invent something useful, please share it with us.)
 ## 
 
