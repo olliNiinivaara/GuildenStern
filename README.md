@@ -26,19 +26,27 @@ proc handlePost() =
   reply(Http303, ["location: " & http.headers.getOrDefault("origin")])
   
 let getserver = newHttpServer(handleGet, contenttype = NoBody)
-let postserver = newHttpServer(handlePost, loglevel = INFO,headerfields = ["origin"])
+let postserver = newHttpServer(handlePost, loglevel = INFO, headerfields = ["origin"])
 getserver.start(5050)
-postserver.start(5051, threadpoolsize = 200,maxactivethreadcount = 20)
+postserver.start(5051, threadpoolsize = 200, maxactivethreadcount = 20)
 joinThreads(getserver.thread, postserver.thread)
 ```
 
 ## Documentation
 
-https://olliniinivaara.github.io/GuildenStern/index.html
+### 6.1.0 (latest official):
+https://olliniinivaara.github.io/GuildenStern/6.1.0/index.html
+
+### 7.0.0 (forthcoming):
+https://olliniinivaara.github.io/GuildenStern/7.0.0/index.html
 
 ## Installation
 
+### 6.1.0 (latest official):
 atlas use GuildenStern
+
+### 7.0.0 (forthcoming):
+git clone https://github.com/olliNiinivaara/GuildenStern.git
 
 ## Release notes, 7.0.0 (2024-06-??)
 
