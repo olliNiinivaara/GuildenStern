@@ -1,7 +1,6 @@
-# <span style="color:red">VERSION 7, In progress</span>
-
 # GuildenStern
-Modular multithreading Linux HTTP + WebSocket server
+
+Modular multithreading HTTP/1.1 + WebSocket server
 
 ## Example
 
@@ -34,21 +33,26 @@ joinThreads(getserver.thread, postserver.thread)
 
 ## Documentation
 
-### 6.1.0 (latest official):
+### 7.0.0:
+https://olliniinivaara.github.io/GuildenStern/7.0.0/theindex.html
+
+### 6.1.0:
 https://olliniinivaara.github.io/GuildenStern/6.1.0/index.html
 
-### 7.0.0 (forthcoming):
-https://olliniinivaara.github.io/GuildenStern/7.0.0/theindex.html
+
 
 ## Installation
 
-### 6.1.0 (latest official):
+### POSIXy OSs (Linux, BSD, MacOS):
 atlas use GuildenStern
 
-### 7.0.0 (forthcoming):
-git clone https://github.com/olliNiinivaara/GuildenStern.git
+### Windows™:
 
-## Release notes, 7.0.0 (2024-06-??)
+- step 1: Install [WSL](https://learn.microsoft.com/en-us/windows/wsl/install)
+- step 2: atlas use GuildenStern
+
+
+## Release notes, 7.0.0 (2024-06-01)
 
 ### StreamingServer has been merged to HttpServer
 - *receiveInChunks* iterator renamed to *receiveStream*
@@ -75,4 +79,3 @@ git clone https://github.com/olliNiinivaara/GuildenStern.git
 - default reply values changed, now *timeoutsecs* = 10, *sleepmillisecs* = 10
 - if all in-flight receivers are blocking, now suspends for (*sleepmillisecs* * in-flight receiver count) milliseconds
 - fixed *isMessage* bug
-
