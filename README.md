@@ -1,6 +1,6 @@
 # GuildenStern
 
-Modular multithreading HTTP/1.1 + WebSocket server
+Modular multithreading HTTP/1.1 + WebSocket server framework
 
 ## Example
 

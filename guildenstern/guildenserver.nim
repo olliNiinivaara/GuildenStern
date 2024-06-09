@@ -2,7 +2,7 @@ const GuildenSternVersion* = "7.1.0"
 
 #   Guildenstern
 #
-#  Modular multithreading Linux HTTP + WebSocket server
+#  Modular multithreading HTTP/1.1 + WebSocket server framework
 #
 #  (c) Copyright 2020-2024 Olli Niinivaara
 #
