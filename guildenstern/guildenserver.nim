@@ -88,6 +88,7 @@ type
     logCallback*: LogCallback
     loglevel*: LogLevel
     started*: bool
+    internalThreadInitializationCallback*: ThreadInitializerCallback
     threadInitializerCallback*: ThreadInitializerCallback
     handlerCallback*: HandlerCallback
     suspendCallback*: SuspendCallback
@@ -143,6 +144,10 @@ proc initialize*(server: GuildenServer, loglevel: LogLevel) =
         echo LogColors[loglevel.int], loglevel, "\e[0m ", excerpt.replace("\n", "\\n ")
   )
 
+
+template initializeThread*(server: ptr GuildenServer) =
+  {.gcsafe.}: server.internalThreadInitializationCallback(server[])
+  
 
 template handleRead*(socketdata: ptr SocketData) =
   {.gcsafe.}: socketdata.server.handlerCallback(socketdata) 

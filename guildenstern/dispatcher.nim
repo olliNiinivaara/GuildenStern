@@ -42,11 +42,6 @@ type
 var workerdatas: array[MaxServerCount, WorkerData]
 
 
-#[proc getLoad*(server: GuildenServer): int =
-  ## returns number of currently running worker threads of this server.
-  return workerdatas[server.id].activethreadcount]#
-
-
 proc suspend(server: GuildenServer, sleepmillisecs: int) {.gcsafe, nimcall, raises: [].} =
   {.gcsafe.}:
     discard workerdatas[server.id].activethreadcount.atomicdec()
@@ -73,6 +68,7 @@ proc restoreRead(server: ptr GuildenServer, selector: Selector[SocketData], sock
 
 
 proc workerthreadLoop(server: ptr GuildenServer) {.thread.} =
+  initializeThread(server)
   var wd: WorkerData
   {.gcsafe.}:
     wd = workerdatas[server.id]
@@ -297,7 +293,8 @@ proc dispatchloop(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raise
   {.gcsafe.}:
     var workerthreads = newSeq[Thread[ptr GuildenServer]](workerdatas[server.id].threadpoolsize)
     try:
-      for i in 0 ..< workerdatas[server.id].threadpoolsize: createThread(workerthreads[i], workerthreadLoop, addr server)
+      for i in 0 ..< workerdatas[server.id].threadpoolsize:
+        createThread(workerthreads[i], workerthreadLoop, addr server)
     except ResourceExhaustedError:
       server.log(FATAL, "Could not create worker threads")
       server.started = true

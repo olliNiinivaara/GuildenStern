@@ -27,14 +27,14 @@ proc handlePost() =
 let getserver = newHttpServer(handleGet, contenttype = NoBody)
 let postserver = newHttpServer(handlePost, loglevel = INFO, headerfields = ["origin"])
 getserver.start(5050)
-postserver.start(5051, threadpoolsize = 200, maxactivethreadcount = 20)
+postserver.start(5051, threadpoolsize = 20, maxactivethreadcount = 10)
 joinThreads(getserver.thread, postserver.thread)
 ```
 
 ## Documentation
 
-### 7.0.0:
-https://olliniinivaara.github.io/GuildenStern/7.0.0/theindex.html
+### 7.x.x series:
+https://olliniinivaara.github.io/GuildenStern/7/theindex.html
 
 ### 6.1.0:
 https://olliniinivaara.github.io/GuildenStern/6.1.0/index.html

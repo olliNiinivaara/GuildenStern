@@ -126,15 +126,17 @@ when compiles((var x = 1; var vx: var int = x)):
 proc getBody*(): string =
   ## Returns the body as a string copy.  When --experimental:views compiler switch is used, there is also getBodyview proc that does not take a copy.
   if unlikely(server.contenttype != Compact):
-    echo "getBody is available only when server.contenttype == Compact"
-    quit()
+    server.log(ERROR, "getBody is available only when server.contenttype == Compact")
+    return
   if http.bodystart < 1: return ""
   return http.request[http.bodystart ..< http.requestlen]
 
 
 proc isBody*(body: string): bool =
   ## Compares the body without making a string copy
-  assert(server.contenttype == Compact)
+  if unlikely(server.contenttype != Compact):
+    server.log(ERROR, "isBody is available only when server.contenttype == Compact")
+    return
   let len = http.requestlen - http.bodystart
   if  len != body.len: return false
   for i in http.bodystart ..< http.bodystart + len:
