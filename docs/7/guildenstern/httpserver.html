@@ -12,10 +12,10 @@
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAA3XAAAN1wFCKJt4AAAAB3RJTUUH4QQQEwksSS9ZWwAAAk1JREFUWMPtll2ITVEUx39nn/O7Y5qR8f05wtCUUr6ZIS++8pEnkZInPImneaCQ5METNdOkeFBKUhMPRIkHKfEuUZSUlGlKPN2TrgfncpvmnntnmlEyq1Z7t89/rf9a6+y99oZxGZf/XeIq61EdtgKXgdXA0xrYAvBjOIF1AI9zvjcC74BSpndrJPkBWDScTF8Aa4E3wDlgHbASaANmVqlcCnwHvgDvgVfAJ+AikAAvgfVZwLnSVZHZaOuKoQi3ZOMi4NkYkpe1p4J7A8BpYAD49hfIy/oqG0+hLomiKP2L5L+1ubn5115S+3OAn4EnwBlgMzCjyt6ZAnQCJ4A7wOs88iRJHvw50HoujuPBoCKwHWiosy8MdfZnAdcHk8dxXFJ3VQbQlCTJvRBCGdRbD4M6uc5glpY3eAihpN5S5w12diSEcCCEcKUO4ljdr15T76ur1FDDLIQQ3qv71EdDOe3Kxj3leRXyk+pxdWnFWod6Wt2bY3de3aSuUHcPBVimHs7mK9WrmeOF6lR1o9qnzskh2ar2qm1qizpfXaPeVGdlmGN5pb09qMxz1Xb1kLqgzn1RyH7JUXW52lr5e/Kqi9qpto7V1atuUzfnARrV7jEib1T76gG2qxdGmXyiekkt1GswPTtek0aBfJp6YySGBfWg2tPQ0FAYgf1stUfdmdcjarbYJEniKIq6gY/Aw+zWHAC+p2labGpqiorFYgGYCEzN7oQdQClN07O1/EfDyGgC0ALMBdYAi4FyK+4H3gLPsxfR1zRNi+NP7nH5J+QntnXe5B5mpfQAAAAASUVORK5CYII=">
 
 <!-- CSS -->
-<link rel="stylesheet" type="text/css" href="nimdoc.out.css?v=2.0.4">
+<link rel="stylesheet" type="text/css" href="../nimdoc.out.css?v=2.0.4">
 
 <!-- JS -->
-<script type="text/javascript" src="dochack.js?v=2.0.4"></script>
+<script type="text/javascript" src="../dochack.js?v=2.0.4"></script>
 </head>
 <body>
   <div class="document" id="documentId">
@@ -33,7 +33,7 @@
     </div>
     <div id="global-links">
       <ul class="simple">
-        <li><a id="indexLink" href="theindex.html">Index</a></li>
+        <li><a id="indexLink" href="../theindex.html">Index</a></li>
       </ul>
     </div>
     <div id="searchInputDiv">
@@ -133,6 +133,10 @@
 </ul>
 <ul class="simple nested-toc-section">getUri
   <li><a class="reference" href="#getUri" title="getUri(): string">getUri(): string</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">handleHttpThreadInitialization
+  <li><a class="reference" href="#handleHttpThreadInitialization%2CGuildenServer" title="handleHttpThreadInitialization(gserver: GuildenServer)">handleHttpThreadInitialization(gserver: GuildenServer)</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">initHttpServer
@@ -411,7 +415,7 @@
 </div>
 <div id="getBody-procs-all">
   <div id="getBody">
-  <dt><pre><span class="Keyword">proc</span> <a href="#getBody"><span class="Identifier">getBody</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dt><pre><span class="Keyword">proc</span> <a href="#getBody"><span class="Identifier">getBody</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     Returns the body as a string copy.  When --experimental:views compiler switch is used, there is also getBodyview proc that does not take a copy.
@@ -475,6 +479,18 @@
 </div>
 
 </div>
+<div id="handleHttpThreadInitialization-procs-all">
+  <div id="handleHttpThreadInitialization,GuildenServer">
+  <dt><pre><span class="Keyword">proc</span> <a href="#handleHttpThreadInitialization%2CGuildenServer"><span class="Identifier">handleHttpThreadInitialization</span></a><span class="Other">(</span><span class="Identifier">gserver</span><span class="Other">:</span> <a href="guildenserver.html#GuildenServer"><span class="Identifier">GuildenServer</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+
+</div>
 <div id="initHttpServer-procs-all">
   <div id="initHttpServer,HttpServer,LogLevel,bool,ContentType,openArray[string]">
   <dt><pre><span class="Keyword">proc</span> <a href="#initHttpServer%2CHttpServer%2CLogLevel%2Cbool%2CContentType%2CopenArray%5Bstring%5D"><span class="Identifier">initHttpServer</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="httpserver.html#HttpServer"><span class="Identifier">HttpServer</span></a><span class="Other">;</span> <span class="Identifier">loglevel</span><span class="Other">:</span> <a href="guildenserver.html#LogLevel"><span class="Identifier">LogLevel</span></a><span class="Other">;</span> <span class="Identifier">parserequestline</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">;</span>
@@ -490,7 +506,7 @@
 </div>
 <div id="isBody-procs-all">
   <div id="isBody,string">
-  <dt><pre><span class="Keyword">proc</span> <a href="#isBody%2Cstring"><span class="Identifier">isBody</span></a><span class="Other">(</span><span class="Identifier">body</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dt><pre><span class="Keyword">proc</span> <a href="#isBody%2Cstring"><span class="Identifier">isBody</span></a><span class="Other">(</span><span class="Identifier">body</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     Compares the body without making a string copy
@@ -549,7 +565,7 @@
   <dt><pre><span class="Keyword">proc</span> <a href="#newHttpServer%2Cproc%29%2CopenArray%5Bstring%5D"><span class="Identifier">newHttpServer</span></a><span class="Other">(</span><span class="Identifier">onrequestcallback</span><span class="Other">:</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> </span><span class="Identifier">nimcall</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}<span class="Other">;</span>
                    <span class="Identifier">loglevel</span> <span class="Other">=</span> <a href="guildenserver.html#LogLevel"><span class="Identifier">LogLevel</span></a><span class="Other">.</span><span class="Identifier">WARN</span><span class="Other">;</span> <span class="Identifier">parserequestline</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">;</span>
                    <span class="Identifier">contenttype</span> <span class="Other">=</span> <span class="Identifier">Compact</span><span class="Other">;</span> <span class="Identifier">headerfields</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span> <span class="Other">=</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="httpserver.html#HttpServer"><span class="Identifier">HttpServer</span></a> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     <p>Constructs a new http server. The essential thing here is to set the onrequestcallback proc. When it is triggered, the <a class="reference internal nimdoc" title="template http(): untyped" href="#http.t">http</a> thread-local socket context is accessible.</p>
@@ -586,7 +602,7 @@
 <div id="prepareHttpContext-procs-all">
   <div id="prepareHttpContext,ptr.SocketData">
   <dt><pre><span class="Keyword">proc</span> <a href="#prepareHttpContext%2Cptr.SocketData"><span class="Identifier">prepareHttpContext</span></a><span class="Other">(</span><span class="Identifier">socketdata</span><span class="Other">:</span> <span class="Keyword">ptr</span> <a href="guildenserver.html#SocketData"><span class="Identifier">SocketData</span></a><span class="Other">)</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     
@@ -850,7 +866,7 @@
 <div class="section" id="19">
   <h1><a class="toc-backref" href="#19">Exports</a></h1>
   <dl class="item">
-    <a href="guildenserver.html#SocketData"><span class="Identifier">SocketData</span></a>, <a href="guildenserver.html#closeSocket,string"><span class="Identifier">closeSocket</span></a>, <a href="guildenserver.html#shutdown"><span class="Identifier">shutdown</span></a>, <a href="guildenserver.html#$,SocketHandle"><span class="Identifier">$</span></a>, <a href="guildenserver.html#CloseSocketCallback"><span class="Identifier">CloseSocketCallback</span></a>, <a href="guildenserver.html#initialize,GuildenServer,LogLevel"><span class="Identifier">initialize</span></a>, <a href="guildenserver.html#shutdownevent"><span class="Identifier">shutdownevent</span></a>, <a href="guildenserver.html#closeOtherSocket,GuildenServer,,SocketCloseCause,string"><span class="Identifier">closeOtherSocket</span></a>, <a href="guildenserver.html#ThreadInitializerCallback"><span class="Identifier">ThreadInitializerCallback</span></a>, <a href="guildenserver.html#handleRead.t,ptr.SocketData"><span class="Identifier">handleRead</span></a>, <a href="guildenserver.html#LogLevel"><span class="Identifier">LogLevel</span></a>, <a href="guildenserver.html#GuildenSternVersion"><span class="Identifier">GuildenSternVersion</span></a>, <a href="guildenserver.html#OnCloseSocketCallback"><span class="Identifier">OnCloseSocketCallback</span></a>, <a href="guildenserver.html#CloseOtherSocketCallback"><span class="Identifier">CloseOtherSocketCallback</span></a>, <a href="guildenserver.html#GuildenServer"><span class="Identifier">GuildenServer</span></a>, <a href="guildenserver.html#SocketContext"><span class="Identifier">SocketContext</span></a>, <a href="guildenserver.html#suspend,int"><span class="Identifier">suspend</span></a>, <a href="guildenserver.html#log.t,GuildenServer,LogLevel,string"><span class="Identifier">log</span></a>, <a href="guildenserver.html#HandlerCallback"><span class="Identifier">HandlerCallback</span></a>, <a href="guildenserver.html#SocketCloseCause"><span class="Identifier">SocketCloseCause</span></a>, <a href="guildenserver.html#SuspendCallback"><span class="Identifier">SuspendCallback</span></a>, <a href="guildenserver.html#LogCallback"><span class="Identifier">LogCallback</span></a>, <a href="guildenserver.html#shuttingdown"><span class="Identifier">shuttingdown</span></a>, <a href="guildenserver.html#socketcontext_2"><span class="Identifier">socketcontext</span></a>
+    <a href="guildenserver.html#SocketData"><span class="Identifier">SocketData</span></a>, <a href="guildenserver.html#closeSocket,string"><span class="Identifier">closeSocket</span></a>, <a href="guildenserver.html#shutdown"><span class="Identifier">shutdown</span></a>, <a href="guildenserver.html#$,SocketHandle"><span class="Identifier">$</span></a>, <a href="guildenserver.html#CloseSocketCallback"><span class="Identifier">CloseSocketCallback</span></a>, <a href="guildenserver.html#initialize,GuildenServer,LogLevel"><span class="Identifier">initialize</span></a>, <a href="guildenserver.html#shutdownevent"><span class="Identifier">shutdownevent</span></a>, <a href="guildenserver.html#closeOtherSocket,GuildenServer,,SocketCloseCause,string"><span class="Identifier">closeOtherSocket</span></a>, <a href="guildenserver.html#ThreadInitializerCallback"><span class="Identifier">ThreadInitializerCallback</span></a>, <a href="guildenserver.html#initializeThread.t,ptr.GuildenServer"><span class="Identifier">initializeThread</span></a>, <a href="guildenserver.html#handleRead.t,ptr.SocketData"><span class="Identifier">handleRead</span></a>, <a href="guildenserver.html#LogLevel"><span class="Identifier">LogLevel</span></a>, <a href="guildenserver.html#GuildenSternVersion"><span class="Identifier">GuildenSternVersion</span></a>, <a href="guildenserver.html#OnCloseSocketCallback"><span class="Identifier">OnCloseSocketCallback</span></a>, <a href="guildenserver.html#CloseOtherSocketCallback"><span class="Identifier">CloseOtherSocketCallback</span></a>, <a href="guildenserver.html#GuildenServer"><span class="Identifier">GuildenServer</span></a>, <a href="guildenserver.html#SocketContext"><span class="Identifier">SocketContext</span></a>, <a href="guildenserver.html#suspend,int"><span class="Identifier">suspend</span></a>, <a href="guildenserver.html#log.t,GuildenServer,LogLevel,string"><span class="Identifier">log</span></a>, <a href="guildenserver.html#HandlerCallback"><span class="Identifier">HandlerCallback</span></a>, <a href="guildenserver.html#SocketCloseCause"><span class="Identifier">SocketCloseCause</span></a>, <a href="guildenserver.html#SuspendCallback"><span class="Identifier">SuspendCallback</span></a>, <a href="guildenserver.html#LogCallback"><span class="Identifier">LogCallback</span></a>, <a href="guildenserver.html#shuttingdown"><span class="Identifier">shuttingdown</span></a>, <a href="guildenserver.html#socketcontext_2"><span class="Identifier">socketcontext</span></a>
   </dl>
 </div>
 
@@ -860,7 +876,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-31 11:31:24 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-06-10 18:22:28 UTC</small>
       </div>
     </div>
   </div>

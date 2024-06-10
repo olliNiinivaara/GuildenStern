@@ -13,7 +13,7 @@ export httpserver
 
 
 type
-  Opcode* = enum
+  Opcode = enum
     Cont = 0x0                ## continuation frame
     Text = 0x1                ## text frame
     Binary = 0x2              ## binary frame
@@ -35,9 +35,6 @@ type
     sendingsockets: HashSet[posix.Sockethandle]
     sendlock: Lock
 
-  WebsocketContext* = ref object of HttpContext
-    opcode*: OpCode
-
   State = tuple[sent: int, sendstate: SendState]
   
   WsDelivery* = tuple[sockets: seq[posix.SocketHandle], message: ptr string, binary: bool, states: seq[State]]
@@ -49,19 +46,18 @@ type
 
 const MaxParallelSendingSockets {.intdefine.} = 500
 
-var
-  wsresponseheader {.threadvar.}: string
-  maskkey {.threadvar.}: array[4, char]
-  delivery {.threadvar.}: WsDelivery
 
-  
+var
+  opcode {.threadvar.} : OpCode
+  wsresponseheader {.threadvar.} : string
+  maskkey {.threadvar.} : array[4, char]
+  deli {.threadvar.} : WsDelivery
+
 {.push checks: off.}
 
-proc isWebsocketContext*(): bool = return socketcontext is WebsocketContext
-
 template ws*(): untyped =
-  ## Casts the socketcontext thread local variable into a WebsocketContext
-  WebsocketContext(socketcontext)
+  ## Alias for http socketcontext
+  HttpContext(socketcontext)
 
 
 template wsserver*(): untyped =
@@ -98,7 +94,7 @@ template `[]`(value: uint8, index: int): bool =
 
 template error(msg: string) =
   closeSocket(ProtocolViolated, msg)
-  ws.opcode = WsFail
+  opcode = WsFail
   return -1
 
 
@@ -110,7 +106,7 @@ proc recvHeader(): int =
   if ws.socketdata.socket.bytesRecv(ws.request[0].addr, 2) != 2: error("no data")
   let b0 = ws.request[0].uint8
   let b1 = ws.request[1].uint8
-  ws.opcode = (b0 and 0x0f).Opcode
+  opcode = (b0 and 0x0f).Opcode
   if b0[1] or b0[2] or b0[3]: error("protocol")
   var expectedLen: int = 0
 
@@ -135,17 +131,17 @@ proc recvHeader(): int =
 proc recvFrame() =
   var expectedlen: int  
   expectedlen = recvHeader()
-  if ws.opcode in [WsFail, Close]:
-    if ws.opcode == Close: closeSocket(ClosedbyClient, "")
+  if opcode in [WsFail, Close]:
+    if opcode == Close: closeSocket(ClosedbyClient, "")
     return
   while true:
-    if shuttingdown: (ws.opcode = WsFail; return)
+    if shuttingdown: (opcode = WsFail; return)
     let ret =
       if ws.requestlen == 0: recv(ws.socketdata.socket, addr ws.request[0], expectedLen.cint, 0x40)
       else: recv(ws.socketdata.socket, addr ws.request[ws.requestlen], (expectedLen - ws.requestlen).cint, 0)
-    if shuttingdown: (ws.opcode = WsFail; return)
+    if shuttingdown: (opcode = WsFail; return)
 
-    if ret == 0: (closeSocket(ClosedbyClient, ""); ws.opcode = WsFail; return)
+    if ret == 0: (closeSocket(ClosedbyClient, ""); opcode = WsFail; return)
     if ret == -1:
       let lastError = osLastError().int
       let cause =
@@ -154,7 +150,7 @@ proc recvFrame() =
         elif lasterror == 104: ClosedbyClient
         else: NetErrored
       wsserver.log(WARN, "websocket " & $ws.socketdata.socket & " receive error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
-      ws.opcode = WsFail
+      opcode = WsFail
       closeSocket(cause, "ws receive error")
       return
 
@@ -166,13 +162,13 @@ proc receiveWs() =
   ws.requestlen = 0
   try:
     recvFrame()
-    if ws.opcode in [WsFail, Close]: return
-    while ws.opcode == Cont: recvFrame()
+    if opcode in [WsFail, Close]: return
+    while opcode == Cont: recvFrame()
     for i in 0 ..< ws.requestlen: ws.request[i] = (ws.request[i].uint8 xor maskkey[i mod 4].uint8).char
   except:
     wsserver.log(WARN, "websocket " & $ws.socketdata.socket & " receive exception")
     closeSocket(Excepted, "ws receive exception")
-    ws.opcode = WsFail
+    opcode = WsFail
 
 
 proc nibbleFromChar(c: char): int =
@@ -193,12 +189,13 @@ proc decodeBase16(str: string): string =
 
 func swapBytesBuiltin(x: uint64): uint64 {.importc: "__builtin_bswap64", nodecl.}
 
+# tämä threadi voi olla websocketin ulkopuolinen, jolloin ws ei ole alustettu??
 
-proc createWsHeader(len: int, opcode: OpCode) =
+proc createWsHeader(len: int, code: OpCode) =
   wsresponseheader.setLen(0)
 
   # var b0 = if binary: (Opcode.Binary.uint8 and 0x0f) else: (Opcode.Text.uint8 and 0x0f)
-  var b0 = opcode.uint8
+  var b0 = code.uint8
   b0 = b0 or 128u8
   wsresponseheader.add(b0.char)
 
@@ -225,7 +222,7 @@ proc createWsHeader(len: int, opcode: OpCode) =
     var len64 = swapBytesBuiltin(len.uint64) # AMD64 is little endian, Internet is big endian
     for i in 0..<sizeof(len64):
       wsresponseheader.add char((len64 shr (i * 8)) and 0xff)
-
+  
 
 proc replyHandshake(): (SocketCloseCause , string) =
   if not readHeader(): return (ProtocolViolated , "ws header failure")
@@ -256,13 +253,6 @@ proc handleWsUpgradehandshake() =
   ws.socketdata.flags = 1
   if wsserver.afterUpgradeCallback != nil:
     wsserver.afterUpgradeCallback()
-
-
-proc prepareWebsocketContext*(socketdata: ptr SocketData) {.inline.} =
-  if (unlikely)socketcontext == nil:
-    socketcontext = new WebsocketContext
-    delivery = (sockets: newSeq[posix.SocketHandle](), message: nil, binary: false, states: newSeq[State]())
-  prepareHttpContext(socketdata)
 
 
 proc getMessage*(): string =
@@ -339,6 +329,7 @@ proc send*(server: GuildenServer, delivery: ptr WsDelivery, timeoutsecs = 10, sl
     if s == delivery.sockets.len:
       s = -1
       continue
+
     if delivery.states[s].sendstate in [Delivered, Err]: continue
     var ret: int
 
@@ -384,34 +375,32 @@ proc send*(server: GuildenServer, delivery: ptr WsDelivery, timeoutsecs = 10, sl
 
 
 proc send*(server: GuildenServer, sockets: seq[posix.SocketHandle], message: string, timeoutsecs = 10, sleepmillisecs = 10): bool {.discardable.} =
-  when compiles(unsafeAddr message):
-    when not defined(nimdoc) and not defined(gcDestructors): {.fatal: "mm:arc or mm:orc required".}
-    delivery.sockets = sockets
-    delivery.message = unsafeAddr(message)
-    delivery.binary = false
-    return send(WebsocketServer(server), unsafeAddr delivery, timeoutsecs, sleepmillisecs) == 0
-  else:  {.fatal: "posix.send requires taking pointer to message, but message has no address".}
+  when not compiles(unsafeAddr message): {.fatal: "posix.send requires taking pointer to message, but message has no address".}
+  when not defined(nimdoc) and not defined(gcDestructors): {.fatal: "mm:arc or mm:orc required".}
+  deli.sockets = sockets
+  deli.message = unsafeAddr(message)
+  deli.binary = false
+  return send(WebsocketServer(server), unsafeAddr deli, timeoutsecs, sleepmillisecs) == 0
 
 
 proc send*(server: GuildenServer, socket: posix.SocketHandle, message: string, timeoutsecs = 2, sleepmillisecs = 10): bool {.discardable.} =
-  when compiles(unsafeAddr message):
-    when not defined(nimdoc) and not defined(gcDestructors): {.fatal: "mm:arc or mm:orc required".}
-    delivery.sockets.setLen(1)
-    delivery.sockets[0] = socket
-    delivery.message = unsafeAddr(message)
-    delivery.binary = false
-    return send(WebsocketServer(server), unsafeAddr delivery, timeoutsecs, sleepmillisecs) == 0
-  else: {.fatal: "posix.send requires taking pointer to message, but message has no address".}
+  when not compiles(unsafeAddr message): {.fatal: "posix.send requires taking pointer to message, but message has no address".}
+  when not defined(nimdoc) and not defined(gcDestructors): {.fatal: "mm:arc or mm:orc required".}
+  deli.sockets.setLen(1)
+  deli.sockets[0] = socket
+  deli.message = unsafeAddr(message)
+  deli.binary = false
+  return send(WebsocketServer(server), unsafeAddr deli, timeoutsecs, sleepmillisecs) == 0
 
 
 proc handleWsRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
-    prepareWebsocketContext(data)
+    prepareHttpContext(data)
     if (unlikely)ws.socketdata.flags == 0:
       handleWsUpgradehandshake()
       return
     receiveWs()
-    if unlikely(ws.opcode in [WsFail, Close]): return
-    if ws.opcode != Ping: {.gcsafe.}: wsserver.messageCallback()
+    if unlikely(opcode in [WsFail, Close]): return
+    if opcode != Ping: {.gcsafe.}: wsserver.messageCallback()
     else:
       let pingmsg = ""
       if not server.send(ws.socketdata.socket, pingmsg, 5):

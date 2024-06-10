@@ -52,6 +52,13 @@ atlas use GuildenStern
 - step 2: atlas use GuildenStern
 
 
+## Release notes, 7.1.0 (2024-06-10)
+
+- All threads are initialized when their server is started (instead of when they are first used), making the system more [fail-fast](https://en.wikipedia.org/wiki/Fail-fast_system)
+- \- is an accepted char in header field names
+- WebSocketServer code clean-up: WebSocketContext removed; opcode not anymore visible to end users
+- Minor fixes and improvements
+
 ## Release notes, 7.0.0 (2024-06-01)
 
 ### StreamingServer has been merged to HttpServer

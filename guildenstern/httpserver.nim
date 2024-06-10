@@ -90,13 +90,26 @@ include httprequest
 include httpresponse
 
 
-proc handleHttpInitialization*(gserver: GuildenServer) =
+#[proc handleHttpThreadInitialization*(gserver: GuildenServer) =
   if socketcontext == nil: socketcontext = new HttpContext
   http.request = newString(HttpServer(gserver).bufferlength + 1)
   if HttpServer(gserver).headerfields.len > 0:
+    echo "header juttui"
     http.headers = newStringTable()
     for field in HttpServer(gserver).headerfields: http.headers[field] = ""
-  if HttpServer(gserver).contenttype != NoBody and not http.headers.contains("content-length"): http.headers["content-length"] = ""
+  if HttpServer(gserver).contenttype != NoBody and not http.headers.contains("content-length"):
+    if HttpServer(gserver).headerfields.len == 0: echo "tähän kosahtaa"
+    else: http.headers["content-length"] = ""
+  if gserver.threadInitializerCallback != nil: gserver.threadInitializerCallback(gserver)]#
+
+
+proc handleHttpThreadInitialization*(gserver: GuildenServer) =
+  if socketcontext == nil: socketcontext = new HttpContext
+  http.request = newString(HttpServer(gserver).bufferlength + 1)
+  if HttpServer(gserver).contenttype != NoBody or HttpServer(gserver).headerfields.len > 0:
+    http.headers = newStringTable()
+    for field in HttpServer(gserver).headerfields: http.headers[field] = ""
+    if not http.headers.contains("content-length"): http.headers["content-length"] = ""
   if gserver.threadInitializerCallback != nil: gserver.threadInitializerCallback(gserver)
 
 
@@ -120,7 +133,7 @@ proc initHttpServer*(s: HttpServer, loglevel: LogLevel, parserequestline: bool, 
   s.contenttype = contenttype
   s.parserequestline = parserequestline
   s.headerfields.add(headerfields)
-  if s.internalThreadInitializationCallback == nil: s.internalThreadInitializationCallback = handleHttpInitialization
+  if s.internalThreadInitializationCallback == nil: s.internalThreadInitializationCallback = handleHttpThreadInitialization
 
 
 proc handleRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =

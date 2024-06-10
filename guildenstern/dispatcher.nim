@@ -293,8 +293,7 @@ proc dispatchloop(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raise
   {.gcsafe.}:
     var workerthreads = newSeq[Thread[ptr GuildenServer]](workerdatas[server.id].threadpoolsize)
     try:
-      for i in 0 ..< workerdatas[server.id].threadpoolsize:
-        createThread(workerthreads[i], workerthreadLoop, addr server)
+      for i in 0 ..< workerdatas[server.id].threadpoolsize: createThread(workerthreads[i], workerthreadLoop, addr server)
     except ResourceExhaustedError:
       server.log(FATAL, "Could not create worker threads")
       server.started = true

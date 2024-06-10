@@ -188,7 +188,7 @@ proc parseContentDisposition*(): (string , string) {.raises:[].} =
 
 proc handleMultipartInitialization(gserver: GuildenServer) =
   socketcontext = new MultipartContext
-  handleHttpInitialization(gserver)
+  handleHttpThreadInitialization(gserver)
   multipart.headercache = newString(HttpServer(gserver).maxheaderlength + 1)
   multipart.partcache = newString(HttpServer(gserver).bufferlength + 1)
 
