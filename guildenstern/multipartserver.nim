@@ -186,16 +186,18 @@ proc parseContentDisposition*(): (string , string) {.raises:[].} =
   result[1] = value[filenamestart .. value.len - 2]
 
 
+proc handleMultipartInitialization(gserver: GuildenServer) =
+  socketcontext = new MultipartContext
+  handleHttpThreadInitialization(gserver)
+  multipart.headercache = newString(HttpServer(gserver).maxheaderlength + 1)
+  multipart.partcache = newString(HttpServer(gserver).bufferlength + 1)
+
+
 proc handleMultipartRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
   let socketdata = data[]
   let socketint = socketdata.socket.int
   if unlikely(socketint == -1): return
-  if (unlikely)socketcontext == nil:
-    socketcontext = new MultipartContext 
   prepareHttpContext(addr socketdata)
-  if unlikely(multipart.headercache.len != server.maxheaderlength + 1):
-    multipart.headercache = newString(server.maxheaderlength + 1)
-    multipart.partcache = newString(server.bufferlength + 1)
   if not readHeader(): return        
   if not parseRequestLine(): return
   let contenttype = http.headers.getOrDefault("content-type")
@@ -211,6 +213,7 @@ proc handleMultipartRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].
 proc newMultipartServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, loglevel = LogLevel.WARN, headerfields: openArray[string] = []): HttpServer =
   ## Note: headerfields concern only the whole request, not part headers
   result = new HttpServer
+  result.internalThreadInitializationCallback = handleMultiPartInitialization
   var fields = newSeq[string](headerfields.len + 1)
   fields.add(headerfields)
   if not fields.contains("content-type"): fields.add("content-type")

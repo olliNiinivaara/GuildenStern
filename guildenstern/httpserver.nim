@@ -90,16 +90,31 @@ include httprequest
 include httpresponse
 
 
+#[proc handleHttpThreadInitialization*(gserver: GuildenServer) =
+  if socketcontext == nil: socketcontext = new HttpContext
+  http.request = newString(HttpServer(gserver).bufferlength + 1)
+  if HttpServer(gserver).headerfields.len > 0:
+    echo "header juttui"
+    http.headers = newStringTable()
+    for field in HttpServer(gserver).headerfields: http.headers[field] = ""
+  if HttpServer(gserver).contenttype != NoBody and not http.headers.contains("content-length"):
+    if HttpServer(gserver).headerfields.len == 0: echo "tähän kosahtaa"
+    else: http.headers["content-length"] = ""
+  if gserver.threadInitializerCallback != nil: gserver.threadInitializerCallback(gserver)]#
+
+
+proc handleHttpThreadInitialization*(gserver: GuildenServer) =
+  if socketcontext == nil: socketcontext = new HttpContext
+  http.request = newString(HttpServer(gserver).bufferlength + 1)
+  if HttpServer(gserver).contenttype != NoBody or HttpServer(gserver).headerfields.len > 0:
+    http.headers = newStringTable()
+    for field in HttpServer(gserver).headerfields: http.headers[field] = ""
+    if not http.headers.contains("content-length"): http.headers["content-length"] = ""
+  if gserver.threadInitializerCallback != nil: gserver.threadInitializerCallback(gserver)
+
+
 proc prepareHttpContext*(socketdata: ptr SocketData) {.inline.} =
-  if unlikely(socketcontext == nil): socketcontext = new HttpContext
   http.socketdata = socketdata
-  if unlikely(http.request.len != server.bufferlength + 1):
-    http.request = newString(server.bufferlength + 1)
-    if server.headerfields.len > 0:
-      http.headers = newStringTable()
-      for field in server.headerfields: http.headers[field] = ""
-      if server.contenttype != NoBody and not http.headers.contains("content-length"): http.headers["content-length"] = ""
-    if server.threadInitializerCallback != nil: server.threadInitializerCallback(server)
   http.requestlen = 0
   http.contentlength = 0
   http.uristart = 0
@@ -118,6 +133,7 @@ proc initHttpServer*(s: HttpServer, loglevel: LogLevel, parserequestline: bool, 
   s.contenttype = contenttype
   s.parserequestline = parserequestline
   s.headerfields.add(headerfields)
+  if s.internalThreadInitializationCallback == nil: s.internalThreadInitializationCallback = handleHttpThreadInitialization
 
 
 proc handleRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
@@ -152,9 +168,8 @@ proc newHttpServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, lo
   ## after the server is constructed but before it is started.
   for field in headerfields:
     for c in field:
-      if not isLowerAscii(c):
-        echo "Header field not in lower case: ", field
-        quit()
+      if c != '-' and not isLowerAscii(c):
+        server.log(ERROR, "Header field not in lower case: " & field)
   result = new HttpServer
   result.initHttpServer(loglevel, parserequestline, contenttype, headerfields)
   result.handlerCallback = handleRequest

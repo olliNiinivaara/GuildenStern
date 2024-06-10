@@ -12,10 +12,10 @@
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAA3XAAAN1wFCKJt4AAAAB3RJTUUH4QQQEwksSS9ZWwAAAk1JREFUWMPtll2ITVEUx39nn/O7Y5qR8f05wtCUUr6ZIS++8pEnkZInPImneaCQ5METNdOkeFBKUhMPRIkHKfEuUZSUlGlKPN2TrgfncpvmnntnmlEyq1Z7t89/rf9a6+y99oZxGZf/XeIq61EdtgKXgdXA0xrYAvBjOIF1AI9zvjcC74BSpndrJPkBWDScTF8Aa4E3wDlgHbASaANmVqlcCnwHvgDvgVfAJ+AikAAvgfVZwLnSVZHZaOuKoQi3ZOMi4NkYkpe1p4J7A8BpYAD49hfIy/oqG0+hLomiKP2L5L+1ubn5115S+3OAn4EnwBlgMzCjyt6ZAnQCJ4A7wOs88iRJHvw50HoujuPBoCKwHWiosy8MdfZnAdcHk8dxXFJ3VQbQlCTJvRBCGdRbD4M6uc5glpY3eAihpN5S5w12diSEcCCEcKUO4ljdr15T76ur1FDDLIQQ3qv71EdDOe3Kxj3leRXyk+pxdWnFWod6Wt2bY3de3aSuUHcPBVimHs7mK9WrmeOF6lR1o9qnzskh2ar2qm1qizpfXaPeVGdlmGN5pb09qMxz1Xb1kLqgzn1RyH7JUXW52lr5e/Kqi9qpto7V1atuUzfnARrV7jEib1T76gG2qxdGmXyiekkt1GswPTtek0aBfJp6YySGBfWg2tPQ0FAYgf1stUfdmdcjarbYJEniKIq6gY/Aw+zWHAC+p2labGpqiorFYgGYCEzN7oQdQClN07O1/EfDyGgC0ALMBdYAi4FyK+4H3gLPsxfR1zRNi+NP7nH5J+QntnXe5B5mpfQAAAAASUVORK5CYII=">
 
 <!-- CSS -->
-<link rel="stylesheet" type="text/css" href="nimdoc.out.css?v=2.0.4">
+<link rel="stylesheet" type="text/css" href="../nimdoc.out.css?v=2.0.4">
 
 <!-- JS -->
-<script type="text/javascript" src="dochack.js?v=2.0.4"></script>
+<script type="text/javascript" src="../dochack.js?v=2.0.4"></script>
 </head>
 <body>
   <div class="document" id="documentId">
@@ -33,7 +33,7 @@
     </div>
     <div id="global-links">
       <ul class="simple">
-        <li><a id="indexLink" href="theindex.html">Index</a></li>
+        <li><a id="indexLink" href="../theindex.html">Index</a></li>
       </ul>
     </div>
     <div id="searchInputDiv">
@@ -54,17 +54,7 @@
   <details open>
     <summary><a class="reference reference-toplevel" href="#7" id="57">Types</a></summary>
     <ul class="simple simple-toc-section">
-      <li><a class="reference" href="#Opcode" title="Opcode = enum
-  Cont = 0,                 ## continuation frame
-  Text = 1,                 ## text frame
-  Binary = 2,               ## binary frame
-  Close = 8,                ## connection close
-  Ping = 9,                 ## ping
-  Pong = 10,                ## pong
-  WsFail = 14                ## protocol failure / connection lost in flight">Opcode</a></li>
-<li><a class="reference" href="#WebsocketContext" title="WebsocketContext = ref object of HttpContext
-  opcode*: Opcode">WebsocketContext</a></li>
-<li><a class="reference" href="#WebsocketServer" title="WebsocketServer = ref object of HttpServer
+      <li><a class="reference" href="#WebsocketServer" title="WebsocketServer = ref object of HttpServer
   upgradeCallback*: WsUpgradeCallback ## Return true to accept, false to decline
   afterUpgradeCallback*: WsAfterUpgradeCallback ## Optional, good for initialization purposes
   messageCallback*: WsMessageCallback ## Triggered when a message is received. Streaming reads are not supported: message length must be shorter than buffersize.">WebsocketServer</a></li>
@@ -89,10 +79,6 @@
   <li><a class="reference" href="#isMessage%2Cstring" title="isMessage(message: string): bool">isMessage(message: string): bool</a></li>
 
 </ul>
-<ul class="simple nested-toc-section">isWebsocketContext
-  <li><a class="reference" href="#isWebsocketContext" title="isWebsocketContext(): bool">isWebsocketContext(): bool</a></li>
-
-</ul>
 <ul class="simple nested-toc-section">newWebsocketServer
   <li><a class="reference" href="#newWebsocketServer%2CWsUpgradeCallback%2CWsAfterUpgradeCallback%2CWsMessageCallback%2COnCloseSocketCallback" title="newWebsocketServer(upgradecallback: WsUpgradeCallback;
                    afterupgradecallback: WsAfterUpgradeCallback;
@@ -103,10 +89,6 @@
                    onwsmessagecallback: WsMessageCallback;
                    onclosesocketcallback: OnCloseSocketCallback;
                    loglevel = LogLevel.WARN): WebsocketServer</a></li>
-
-</ul>
-<ul class="simple nested-toc-section">prepareWebsocketContext
-  <li><a class="reference" href="#prepareWebsocketContext%2Cptr.SocketData" title="prepareWebsocketContext(socketdata: ptr SocketData)">prepareWebsocketContext(socketdata: ptr SocketData)</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">send
@@ -164,32 +146,7 @@
 <div class="section" id="7">
   <h1><a class="toc-backref" href="#7">Types</a></h1>
   <dl class="item">
-    <div id="Opcode">
-  <dt><pre><a href="websocketserver.html#Opcode"><span class="Identifier">Opcode</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
-  <span class="Identifier">Cont</span> <span class="Other">=</span> <span class="DecNumber">0</span><span class="Other">,</span>                 <span class="Comment">## continuation frame</span>
-  <span class="Identifier">Text</span> <span class="Other">=</span> <span class="DecNumber">1</span><span class="Other">,</span>                 <span class="Comment">## text frame</span>
-  <span class="Identifier">Binary</span> <span class="Other">=</span> <span class="DecNumber">2</span><span class="Other">,</span>               <span class="Comment">## binary frame</span>
-  <span class="Identifier">Close</span> <span class="Other">=</span> <span class="DecNumber">8</span><span class="Other">,</span>                <span class="Comment">## connection close</span>
-  <span class="Identifier">Ping</span> <span class="Other">=</span> <span class="DecNumber">9</span><span class="Other">,</span>                 <span class="Comment">## ping</span>
-  <span class="Identifier">Pong</span> <span class="Other">=</span> <span class="DecNumber">10</span><span class="Other">,</span>                <span class="Comment">## pong</span>
-  <span class="Identifier">WsFail</span> <span class="Other">=</span> <span class="DecNumber">14</span>                <span class="Comment">## protocol failure / connection lost in flight</span></pre></dt>
-  <dd>
-    
-    
-    
-  </dd>
-</div>
-<div id="WebsocketContext">
-  <dt><pre><a href="websocketserver.html#WebsocketContext"><span class="Identifier">WebsocketContext</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="httpserver.html#HttpContext"><span class="Identifier">HttpContext</span></a>
-  <span class="Identifier">opcode</span><span class="Operator">*</span><span class="Other">:</span> <a href="websocketserver.html#Opcode"><span class="Identifier">Opcode</span></a>
-</pre></dt>
-  <dd>
-    
-    
-    
-  </dd>
-</div>
-<div id="WebsocketServer">
+    <div id="WebsocketServer">
   <dt><pre><a href="websocketserver.html#WebsocketServer"><span class="Identifier">WebsocketServer</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="httpserver.html#HttpServer"><span class="Identifier">HttpServer</span></a>
   <span class="Identifier">upgradeCallback</span><span class="Operator">*</span><span class="Other">:</span> <a href="websocketserver.html#WsUpgradeCallback"><span class="Identifier">WsUpgradeCallback</span></a> <span class="Comment">## Return true to accept, false to decline</span>
   <span class="Identifier">afterUpgradeCallback</span><span class="Operator">*</span><span class="Other">:</span> <a href="websocketserver.html#WsAfterUpgradeCallback"><span class="Identifier">WsAfterUpgradeCallback</span></a> <span class="Comment">## Optional, good for initialization purposes</span>
@@ -262,17 +219,6 @@
 </div>
 
 </div>
-<div id="isWebsocketContext-procs-all">
-  <div id="isWebsocketContext">
-  <dt><pre><span class="Keyword">proc</span> <a href="#isWebsocketContext"><span class="Identifier">isWebsocketContext</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-  <dd>
-    
-    
-    
-  </dd>
-</div>
-
-</div>
 <div id="newWebsocketServer-procs-all">
   <div id="newWebsocketServer,WsUpgradeCallback,WsAfterUpgradeCallback,WsMessageCallback,OnCloseSocketCallback">
   <dt><pre><span class="Keyword">proc</span> <a href="#newWebsocketServer%2CWsUpgradeCallback%2CWsAfterUpgradeCallback%2CWsMessageCallback%2COnCloseSocketCallback"><span class="Identifier">newWebsocketServer</span></a><span class="Other">(</span><span class="Identifier">upgradecallback</span><span class="Other">:</span> <a href="websocketserver.html#WsUpgradeCallback"><span class="Identifier">WsUpgradeCallback</span></a><span class="Other">;</span>
@@ -281,18 +227,6 @@
                         <span class="Identifier">onclosesocketcallback</span><span class="Other">:</span> <a href="guildenserver.html#OnCloseSocketCallback"><span class="Identifier">OnCloseSocketCallback</span></a><span class="Other">;</span>
                         <span class="Identifier">loglevel</span> <span class="Other">=</span> <a href="guildenserver.html#LogLevel"><span class="Identifier">LogLevel</span></a><span class="Other">.</span><span class="Identifier">WARN</span><span class="Other">)</span><span class="Other">:</span> <a href="websocketserver.html#WebsocketServer"><span class="Identifier">WebsocketServer</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-  <dd>
-    
-    
-    
-  </dd>
-</div>
-
-</div>
-<div id="prepareWebsocketContext-procs-all">
-  <div id="prepareWebsocketContext,ptr.SocketData">
-  <dt><pre><span class="Keyword">proc</span> <a href="#prepareWebsocketContext%2Cptr.SocketData"><span class="Identifier">prepareWebsocketContext</span></a><span class="Other">(</span><span class="Identifier">socketdata</span><span class="Other">:</span> <span class="Keyword">ptr</span> <a href="guildenserver.html#SocketData"><span class="Identifier">SocketData</span></a><span class="Other">)</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     
@@ -346,7 +280,7 @@
   <dt><pre><span class="Keyword">template</span> <a href="#ws.t"><span class="Identifier">ws</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">untyped</span></pre></dt>
   <dd>
     
-    Casts the socketcontext thread local variable into a WebsocketContext
+    Alias for http socketcontext
     
   </dd>
 </div>
@@ -369,7 +303,7 @@
 <div class="section" id="19">
   <h1><a class="toc-backref" href="#19">Exports</a></h1>
   <dl class="item">
-    <a href="httpserver.html#shortdivider"><span class="Identifier">shortdivider</span></a>, <a href="httpserver.html#prepareHttpContext,ptr.SocketData"><span class="Identifier">prepareHttpContext</span></a>, <a href="httpserver.html#checkSocketState,int"><span class="Identifier">checkSocketState</span></a>, <a href="guildenserver.html#closeSocket,string"><span class="Identifier">closeSocket</span></a>, <a href="httpserver.html#reply,HttpCode,ptr.string,string,int,ptr.string,bool"><span class="Identifier">reply</span></a>, <a href="guildenserver.html#shutdown"><span class="Identifier">shutdown</span></a>, <a href="httpserver.html#reply.t,HttpCode,string"><span class="Identifier">reply</span></a>, <a href="httpserver.html#server.t"><span class="Identifier">server</span></a>, <a href="httpserver.html#isUri,string"><span class="Identifier">isUri</span></a>, <a href="httpserver.html#replyStartChunked,HttpCode,openArray[string]"><span class="Identifier">replyStartChunked</span></a>, <a href="httpserver.html#parseMethod"><span class="Identifier">parseMethod</span></a>, <a href="httpserver.html#MSG_DONTWAIT"><span class="Identifier">MSG_DONTWAIT</span></a>, <a href="httpserver.html#parseRequestLine"><span class="Identifier">parseRequestLine</span></a>, <a href="httpserver.html#replyFinish"><span class="Identifier">replyFinish</span></a>, <a href="httpserver.html#MSG_MORE"><span class="Identifier">MSG_MORE</span></a>, <a href="httpserver.html#reply,HttpCode,ptr.string,ptr.string"><span class="Identifier">reply</span></a>, <a href="guildenserver.html#CloseOtherSocketCallback"><span class="Identifier">CloseOtherSocketCallback</span></a>, <a href="httpserver.html#readHeader"><span class="Identifier">readHeader</span></a>, <a href="httpserver.html#replyFinishChunked"><span class="Identifier">replyFinishChunked</span></a>, <a href="httpserver.html#replyContinueChunked,string"><span class="Identifier">replyContinueChunked</span></a>, <a href="guildenserver.html#SocketCloseCause"><span class="Identifier">SocketCloseCause</span></a>, <a href="httpserver.html#receiveStream.i"><span class="Identifier">receiveStream</span></a>, <a href="httpserver.html#reply.t,HttpCode,string,openArray[string]"><span class="Identifier">reply</span></a>, <a href="guildenserver.html#handleRead.t,ptr.SocketData"><span class="Identifier">handleRead</span></a>, <a href="httpserver.html#isHttpContext"><span class="Identifier">isHttpContext</span></a>, <a href="httpserver.html#getRequest"><span class="Identifier">getRequest</span></a>, <a href="guildenserver.html#$,SocketHandle"><span class="Identifier">$</span></a>, <a href="guildenserver.html#LogLevel"><span class="Identifier">LogLevel</span></a>, <a href="guildenserver.html#GuildenSternVersion"><span class="Identifier">GuildenSternVersion</span></a>, <a href="httpserver.html#getBodylen"><span class="Identifier">getBodylen</span></a>, <a href="httpserver.html#SocketState"><span class="Identifier">SocketState</span></a>, <a href="httpserver.html#getMethod"><span class="Identifier">getMethod</span></a>, <a href="guildenserver.html#OnCloseSocketCallback"><span class="Identifier">OnCloseSocketCallback</span></a>, <a href="guildenserver.html#SocketContext"><span class="Identifier">SocketContext</span></a>, <a href="httpserver.html#newHttpServer,proc),openArray[string]"><span class="Identifier">newHttpServer</span></a>, <a href="guildenserver.html#shuttingdown"><span class="Identifier">shuttingdown</span></a>, <a href="httpserver.html#replyMore,ptr.string,int,int"><span class="Identifier">replyMore</span></a>, <a href="httpserver.html#reply.t,string,openArray[string]"><span class="Identifier">reply</span></a>, <a href="httpserver.html#startsUri,string"><span class="Identifier">startsUri</span></a>, <a href="guildenserver.html#initialize,GuildenServer,LogLevel"><span class="Identifier">initialize</span></a>, <a href="guildenserver.html#socketcontext_2"><span class="Identifier">socketcontext</span></a>, <a href="httpserver.html#getContentLength"><span class="Identifier">getContentLength</span></a>, <a href="httpserver.html#replyStart,HttpCode,int,openArray[string]"><span class="Identifier">replyStart</span></a>, <a href="httpserver.html#reply,HttpCode"><span class="Identifier">reply</span></a>, <a href="httpserver.html#reply.t,string"><span class="Identifier">reply</span></a>, <a href="httpserver.html#http.t"><span class="Identifier">http</span></a>, <a href="httpserver.html#longdivider"><span class="Identifier">longdivider</span></a>, <a href="guildenserver.html#HandlerCallback"><span class="Identifier">HandlerCallback</span></a>, <a href="httpserver.html#reply.t,HttpCode,openArray[string]"><span class="Identifier">reply</span></a>, <a href="guildenserver.html#LogCallback"><span class="Identifier">LogCallback</span></a>, <a href="httpserver.html#HttpServer"><span class="Identifier">HttpServer</span></a>, <a href="httpserver.html#reply,HttpCode,ptr.string,openArray[string]"><span class="Identifier">reply</span></a>, <a href="guildenserver.html#SocketData"><span class="Identifier">SocketData</span></a>, <a href="httpserver.html#initHttpServer,HttpServer,LogLevel,bool,ContentType,openArray[string]"><span class="Identifier">initHttpServer</span></a>, <a href="httpserver.html#getUri"><span class="Identifier">getUri</span></a>, <a href="httpserver.html#replyMore.t,string"><span class="Identifier">replyMore</span></a>, <a href="httpserver.html#getBody"><span class="Identifier">getBody</span></a>, <a href="guildenserver.html#shutdownevent"><span class="Identifier">shutdownevent</span></a>, <a href="guildenserver.html#suspend,int"><span class="Identifier">suspend</span></a>, <a href="httpserver.html#isMethod,string"><span class="Identifier">isMethod</span></a>, <a href="httpserver.html#HttpContext"><span class="Identifier">HttpContext</span></a>, <a href="guildenserver.html#closeOtherSocket,GuildenServer,,SocketCloseCause,string"><span class="Identifier">closeOtherSocket</span></a>, <a href="guildenserver.html#ThreadInitializerCallback"><span class="Identifier">ThreadInitializerCallback</span></a>, <a href="guildenserver.html#GuildenServer"><span class="Identifier">GuildenServer</span></a>, <a href="guildenserver.html#CloseSocketCallback"><span class="Identifier">CloseSocketCallback</span></a>, <a href="httpserver.html#ContentType"><span class="Identifier">ContentType</span></a>, <a href="guildenserver.html#SuspendCallback"><span class="Identifier">SuspendCallback</span></a>, <a href="httpserver.html#replyStart,HttpCode,int,ptr.string"><span class="Identifier">replyStart</span></a>, <a href="guildenserver.html#log.t,GuildenServer,LogLevel,string"><span class="Identifier">log</span></a>, <a href="httpserver.html#isBody,string"><span class="Identifier">isBody</span></a>, <a href="httpserver.html#isHeaderreceived,int,int"><span class="Identifier">isHeaderreceived</span></a>
+    <a href="httpserver.html#shortdivider"><span class="Identifier">shortdivider</span></a>, <a href="httpserver.html#prepareHttpContext,ptr.SocketData"><span class="Identifier">prepareHttpContext</span></a>, <a href="httpserver.html#checkSocketState,int"><span class="Identifier">checkSocketState</span></a>, <a href="guildenserver.html#closeSocket,string"><span class="Identifier">closeSocket</span></a>, <a href="httpserver.html#reply,HttpCode,ptr.string,string,int,ptr.string,bool"><span class="Identifier">reply</span></a>, <a href="guildenserver.html#shutdown"><span class="Identifier">shutdown</span></a>, <a href="httpserver.html#reply.t,HttpCode,string"><span class="Identifier">reply</span></a>, <a href="httpserver.html#server.t"><span class="Identifier">server</span></a>, <a href="httpserver.html#isUri,string"><span class="Identifier">isUri</span></a>, <a href="httpserver.html#replyStartChunked,HttpCode,openArray[string]"><span class="Identifier">replyStartChunked</span></a>, <a href="httpserver.html#parseMethod"><span class="Identifier">parseMethod</span></a>, <a href="httpserver.html#MSG_DONTWAIT"><span class="Identifier">MSG_DONTWAIT</span></a>, <a href="httpserver.html#parseRequestLine"><span class="Identifier">parseRequestLine</span></a>, <a href="httpserver.html#replyFinish"><span class="Identifier">replyFinish</span></a>, <a href="httpserver.html#MSG_MORE"><span class="Identifier">MSG_MORE</span></a>, <a href="httpserver.html#reply,HttpCode,ptr.string,ptr.string"><span class="Identifier">reply</span></a>, <a href="guildenserver.html#CloseOtherSocketCallback"><span class="Identifier">CloseOtherSocketCallback</span></a>, <a href="httpserver.html#readHeader"><span class="Identifier">readHeader</span></a>, <a href="httpserver.html#replyFinishChunked"><span class="Identifier">replyFinishChunked</span></a>, <a href="httpserver.html#replyContinueChunked,string"><span class="Identifier">replyContinueChunked</span></a>, <a href="guildenserver.html#SocketCloseCause"><span class="Identifier">SocketCloseCause</span></a>, <a href="httpserver.html#receiveStream.i"><span class="Identifier">receiveStream</span></a>, <a href="httpserver.html#reply.t,HttpCode,string,openArray[string]"><span class="Identifier">reply</span></a>, <a href="guildenserver.html#handleRead.t,ptr.SocketData"><span class="Identifier">handleRead</span></a>, <a href="httpserver.html#isHttpContext"><span class="Identifier">isHttpContext</span></a>, <a href="httpserver.html#getRequest"><span class="Identifier">getRequest</span></a>, <a href="guildenserver.html#initializeThread.t,ptr.GuildenServer"><span class="Identifier">initializeThread</span></a>, <a href="guildenserver.html#$,SocketHandle"><span class="Identifier">$</span></a>, <a href="guildenserver.html#LogLevel"><span class="Identifier">LogLevel</span></a>, <a href="guildenserver.html#GuildenSternVersion"><span class="Identifier">GuildenSternVersion</span></a>, <a href="httpserver.html#getBodylen"><span class="Identifier">getBodylen</span></a>, <a href="httpserver.html#SocketState"><span class="Identifier">SocketState</span></a>, <a href="httpserver.html#getMethod"><span class="Identifier">getMethod</span></a>, <a href="guildenserver.html#OnCloseSocketCallback"><span class="Identifier">OnCloseSocketCallback</span></a>, <a href="guildenserver.html#SocketContext"><span class="Identifier">SocketContext</span></a>, <a href="httpserver.html#newHttpServer,proc),openArray[string]"><span class="Identifier">newHttpServer</span></a>, <a href="guildenserver.html#shuttingdown"><span class="Identifier">shuttingdown</span></a>, <a href="httpserver.html#replyMore,ptr.string,int,int"><span class="Identifier">replyMore</span></a>, <a href="httpserver.html#reply.t,string,openArray[string]"><span class="Identifier">reply</span></a>, <a href="httpserver.html#startsUri,string"><span class="Identifier">startsUri</span></a>, <a href="guildenserver.html#initialize,GuildenServer,LogLevel"><span class="Identifier">initialize</span></a>, <a href="httpserver.html#handleHttpThreadInitialization,GuildenServer"><span class="Identifier">handleHttpThreadInitialization</span></a>, <a href="guildenserver.html#socketcontext_2"><span class="Identifier">socketcontext</span></a>, <a href="httpserver.html#getContentLength"><span class="Identifier">getContentLength</span></a>, <a href="httpserver.html#replyStart,HttpCode,int,openArray[string]"><span class="Identifier">replyStart</span></a>, <a href="httpserver.html#reply,HttpCode"><span class="Identifier">reply</span></a>, <a href="httpserver.html#reply.t,string"><span class="Identifier">reply</span></a>, <a href="httpserver.html#http.t"><span class="Identifier">http</span></a>, <a href="httpserver.html#longdivider"><span class="Identifier">longdivider</span></a>, <a href="guildenserver.html#HandlerCallback"><span class="Identifier">HandlerCallback</span></a>, <a href="httpserver.html#reply.t,HttpCode,openArray[string]"><span class="Identifier">reply</span></a>, <a href="guildenserver.html#LogCallback"><span class="Identifier">LogCallback</span></a>, <a href="httpserver.html#HttpServer"><span class="Identifier">HttpServer</span></a>, <a href="httpserver.html#reply,HttpCode,ptr.string,openArray[string]"><span class="Identifier">reply</span></a>, <a href="guildenserver.html#SocketData"><span class="Identifier">SocketData</span></a>, <a href="httpserver.html#initHttpServer,HttpServer,LogLevel,bool,ContentType,openArray[string]"><span class="Identifier">initHttpServer</span></a>, <a href="httpserver.html#getUri"><span class="Identifier">getUri</span></a>, <a href="httpserver.html#replyMore.t,string"><span class="Identifier">replyMore</span></a>, <a href="httpserver.html#getBody"><span class="Identifier">getBody</span></a>, <a href="guildenserver.html#shutdownevent"><span class="Identifier">shutdownevent</span></a>, <a href="guildenserver.html#suspend,int"><span class="Identifier">suspend</span></a>, <a href="httpserver.html#isMethod,string"><span class="Identifier">isMethod</span></a>, <a href="httpserver.html#HttpContext"><span class="Identifier">HttpContext</span></a>, <a href="guildenserver.html#closeOtherSocket,GuildenServer,,SocketCloseCause,string"><span class="Identifier">closeOtherSocket</span></a>, <a href="guildenserver.html#ThreadInitializerCallback"><span class="Identifier">ThreadInitializerCallback</span></a>, <a href="guildenserver.html#GuildenServer"><span class="Identifier">GuildenServer</span></a>, <a href="guildenserver.html#CloseSocketCallback"><span class="Identifier">CloseSocketCallback</span></a>, <a href="httpserver.html#ContentType"><span class="Identifier">ContentType</span></a>, <a href="guildenserver.html#SuspendCallback"><span class="Identifier">SuspendCallback</span></a>, <a href="httpserver.html#replyStart,HttpCode,int,ptr.string"><span class="Identifier">replyStart</span></a>, <a href="guildenserver.html#log.t,GuildenServer,LogLevel,string"><span class="Identifier">log</span></a>, <a href="httpserver.html#isBody,string"><span class="Identifier">isBody</span></a>, <a href="httpserver.html#isHeaderreceived,int,int"><span class="Identifier">isHeaderreceived</span></a>
   </dl>
 </div>
 
@@ -379,7 +313,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-31 11:16:36 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-06-10 18:22:28 UTC</small>
       </div>
     </div>
   </div>

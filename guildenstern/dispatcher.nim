@@ -42,11 +42,6 @@ type
 var workerdatas: array[MaxServerCount, WorkerData]
 
 
-#[proc getLoad*(server: GuildenServer): int =
-  ## returns number of currently running worker threads of this server.
-  return workerdatas[server.id].activethreadcount]#
-
-
 proc suspend(server: GuildenServer, sleepmillisecs: int) {.gcsafe, nimcall, raises: [].} =
   {.gcsafe.}:
     discard workerdatas[server.id].activethreadcount.atomicdec()
@@ -73,6 +68,7 @@ proc restoreRead(server: ptr GuildenServer, selector: Selector[SocketData], sock
 
 
 proc workerthreadLoop(server: ptr GuildenServer) {.thread.} =
+  initializeThread(server)
   var wd: WorkerData
   {.gcsafe.}:
     wd = workerdatas[server.id]
