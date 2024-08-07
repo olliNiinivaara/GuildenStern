@@ -3,9 +3,8 @@ from std/strutils import join
 from std/strformat import fmt
 {.pop.}
 
-const
-  intermediateflags = MSG_NOSIGNAL + MSG_DONTWAIT + MSG_MORE
-  lastflags = MSG_NOSIGNAL + MSG_DONTWAIT
+template intermediateflags(): cint = MSG_NOSIGNAL + MSG_DONTWAIT + MSG_MORE
+template lastflags(): cint = MSG_NOSIGNAL + MSG_DONTWAIT
 
 let
   version = "HTTP/1.1 "
