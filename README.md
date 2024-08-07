@@ -52,37 +52,8 @@ atlas use GuildenStern
 - step 2: atlas use GuildenStern
 
 
-## Release notes, 7.1.0 (2024-06-10)
+## Release notes, 7.2.0 (2024-08-07)
 
-- All threads are initialized when their server is started (instead of when they are first used), making the system more [fail-fast](https://en.wikipedia.org/wiki/Fail-fast_system)
-- \- is an accepted char in header field names
-- WebSocketServer code clean-up: WebSocketContext removed; opcode not anymore visible to end users
-- Minor fixes and improvements
-
-## Release notes, 7.0.0 (2024-06-01)
-
-### StreamingServer has been merged to HttpServer
-- *receiveInChunks* iterator renamed to *receiveStream*
-- *maxrequestlength* renamed to *bufferlength*
-- newHttpServer does not anymore take *hascontent* parameter, but instead:
-- newHttpServer takes *contenttype* parameter:
-  - *Compact* (the default mode): Equivalent to previous hasContent=true mode, where whole request body must fit into the buffer
-  - *NoBody*: Equivalent to previous hasContent=false mode, for optimized handling of requests like GET that do not have a body
-  - *Streaming*: Equivalent to previous StreamingServer, where you have to read the body yourself using the *receiveStream* iterator 
-- *startDownload-continueDownload-finishDownload* combo renamed to *replyStartChunked-replyContinueChunked-replyFinishChunked*
-
-### Header processing streamlined
-- *parseHeaders* and *parseAllHeaders* obsoleted
-- newHttpServer takes *headerfields* parameter, listing header fields that you need
-- in request handlers *http.headers* StringTableRef is automatically populated with needed header key-value pairs
-
-### New MultipartServer
-- handles *multipart/form-data* for you as neatly parsed
-- operates in streaming manner, allowing huge uploads without blowing up RAM
-
-### Improvements to websockets
-- If you do not accept a connection (reply *false* in *upgradeCallback*), a HTTP 400 reply is now automatically sent before the socket is closed
-- PONG is now automatically replied to PINGs, *sendPong* proc is removed
-- default reply values changed, now *timeoutsecs* = 10, *sleepmillisecs* = 10
-- if all in-flight receivers are blocking, now suspends for (*sleepmillisecs* * in-flight receiver count) milliseconds
-- fixed *isMessage* bug
+- Compatibility with ARM architecture
+- Bug fix: getUri etc. in the new compact http server mode
+- Bug fix: failed read in the new compact http server mode
