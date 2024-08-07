@@ -245,22 +245,22 @@ iterator receiveStream*(): (SocketState , string) {.gcsafe, raises: [].} =
             else: http.contentlength - http.contentreceived
           let position =
             if server.contenttype == Streaming: 0
-            else: http.contentreceived
+            else: http.bodystart + http.contentreceived
           let ret = recv(http.socketdata.socket, addr http.request[position], recvsize, MSG_DONTWAIT)
           let state = checkSocketState(ret)
-          http.contentreceived += ret
+          if ret > 0: http.contentreceived += ret
           http.requestlen =
             if server.contenttype == Streaming: ret
-            else: http.contentreceived
+            else: http.bodystart + http.contentreceived
           if state == Fail:
             yield (Fail , "")
             continues = false
-          elif state == TryAgain:
-            yield (TryAgain , "")
           elif state == Complete or http.contentlength == http.contentreceived:
             if server.contenttype == Streaming: yield(Progress , http.request[0 ..< ret])
             yield(Complete , "")
             continues = false
+          elif state == TryAgain:
+            yield (TryAgain , "")
           else:
             if server.contenttype == Streaming:
               yield(Progress , http.request[0 ..< ret])
