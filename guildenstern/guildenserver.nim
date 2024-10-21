@@ -1,8 +1,8 @@
-const GuildenSternVersion* = "7.2.0"
+const GuildenSternVersion* = "7.2.1"
 
 #   Guildenstern
 #
-#  Modular multithreading HTTP/1.1 + WebSocket server framework
+#  Modular multithreading HTTP/1.1 + WebSocket upstream server framework
 #
 #  (c) Copyright 2020-2024 Olli Niinivaara
 #
@@ -15,7 +15,7 @@ const GuildenSternVersion* = "7.2.0"
 
 ## .. importdoc:: dispatcher.nim, httpserver.nim, websocketserver.nim, multipartserver.nim
 
-## [GuildenServer] is the abstract base class for web servers. The three concrete server implementations that currently ship
+## [GuildenServer] is the abstract base class for upstream (app-facing) web servers. The three concrete server implementations that currently ship
 ## with GuildenStern are [guildenstern/httpserver], [guildenstern/websocketserver] and [guildenstern/multipartserver].
 ## One server is associated with one TCP port.
 ## 
@@ -23,7 +23,7 @@ const GuildenSternVersion* = "7.2.0"
 ## In addition to GuildenServer, this module also introduces SocketContext, which is a container for data of
 ## one request in flight. SocketContext is inheritable, so concrete servers may add properties to it.
 ## 
-## So, the overall architecture may be something like this: A reverse proxy (like https://caddyserver.com/) routes requests to multiple ports.
+## The overall architecture may be something like this: A reverse proxy (like https://caddyserver.com/) routes requests upsteam to multiple ports.
 ## Each of these ports is served by one concrete GuildenServer instance. To each server is attached one dispatcher, which listens to the port and
 ## triggers handlerCallbacks. The default [guildenstern/dispatcher] uses multithreading so that even requests arriving to the same port are served in parallel.
 ## During request handling, the default servers offer an inherited thread local SocketContext variable from which everything else is accessible,

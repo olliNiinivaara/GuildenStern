@@ -246,7 +246,7 @@ iterator receiveStream*(): (SocketState , string) {.gcsafe, raises: [].} =
           let position =
             if server.contenttype == Streaming: 0
             else: http.bodystart + http.contentreceived
-          let ret = recv(http.socketdata.socket, addr http.request[position], recvsize, MSG_DONTWAIT)
+          let ret: int64 = recv(http.socketdata.socket, addr http.request[position], recvsize, MSG_DONTWAIT)
           let state = checkSocketState(ret)
           if ret > 0: http.contentreceived += ret
           http.requestlen =

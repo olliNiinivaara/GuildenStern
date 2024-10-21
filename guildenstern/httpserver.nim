@@ -22,11 +22,11 @@ type
 
   HttpContext* = ref object of SocketContext
     request*: string
-    requestlen*: int
-    uristart*: int
-    urilen*: int
-    methlen*: int
-    bodystart*: int
+    requestlen*: int64
+    uristart*: int64
+    urilen*: int64
+    methlen*: int64
+    bodystart*: int64
     contentlength*: int64
     contentreceived*: int64
     contentdelivered*: int64
@@ -40,8 +40,8 @@ type
 
   HttpServer* = ref object of GuildenServer
     contenttype*: ContentType
-    maxheaderlength* = 10000 ## Maximum allowed size for http header part.
-    bufferlength* = 100000 ## Every thread will reserve this much memory, for buffering the incoming request. Must be larger than maxheaderlength.
+    maxheaderlength* = 10000.int64 ## Maximum allowed size for http header part.
+    bufferlength* = 100000.int64 ## Every thread will reserve this much memory, for buffering the incoming request. Must be larger than maxheaderlength.
     sockettimeoutms* = 5000 ## If socket is unresponsive for longer, it will be closed.
     requestCallback*: proc(){.gcsafe, nimcall, raises: [].}
     parserequestline*: bool ## If you don't need uri or method, but need max perf, set this to false
