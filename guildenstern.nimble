@@ -1,6 +1,6 @@
-version       = "7.2.0"
+version       = "7.2.1"
 author        = "Olli"
-description   = "Modular multithreading HTTP/1.1 + WebSocket server framework"
+description   = "Modular multithreading HTTP/1.1 + WebSocket upstream server framework"
 license       = "MIT"
 
 skipDirs = @["docs", "examples"]

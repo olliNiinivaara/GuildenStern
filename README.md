@@ -1,6 +1,6 @@
 # GuildenStern
 
-Modular multithreading HTTP/1.1 + WebSocket server framework
+Modular multithreading HTTP/1.1 + WebSocket upstream server framework
 
 ## Example
 
@@ -33,12 +33,7 @@ joinThreads(getserver.thread, postserver.thread)
 
 ## Documentation
 
-### 7.x.x series:
 https://olliniinivaara.github.io/GuildenStern/7/theindex.html
-
-### 6.1.0:
-https://olliniinivaara.github.io/GuildenStern/6.1.0/index.html
-
 
 
 ## Installation
@@ -52,8 +47,8 @@ atlas use GuildenStern
 - step 2: atlas use GuildenStern
 
 
-## Release notes, 7.2.0 (2024-08-07)
+## Release notes, 7.2.1 (2024-10-21)
 
-- Compatibility with ARM architecture
-- Bug fix: getUri etc. in the new compact http server mode
-- Bug fix: failed read in the new compact http server mode
+- Compatibility with Nim version 2.2.0
+- Support removed for 6.x series, please upgrade now
+- Fixed "Compile error: type mismatch: got 'int64' for [...]"
