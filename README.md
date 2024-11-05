@@ -47,7 +47,7 @@ atlas use GuildenStern
 - step 2: atlas use GuildenStern
 
 
-## Release notes, 7.2.1 (2024-10-21)
+## Release notes, 7.2.1 (2024-11-05)
 
 - Compatibility with Nim version 2.2.0
 - Support removed for 6.x series, please upgrade now
