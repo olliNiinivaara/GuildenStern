@@ -33,7 +33,7 @@ joinThreads(getserver.thread, postserver.thread)
 
 ## Documentation
 
-https://olliniinivaara.github.io/GuildenStern/7/theindex.html
+https://olliniinivaara.github.io/GuildenStern/theindex.html
 
 
 ## Installation
@@ -52,4 +52,5 @@ atlas use GuildenStern
 ### Improved websocket close handshaking:
 - New proc *sendClose* for sending a close frame to a client with a statuscode
 - When a close frame from a client is received and before the socket is closed, an acknowledging close frame is now always automatically replied using the statuscode set by the client
-- When websocket is closed by client, the statuscode is now available in *onCloseSocketCallback* via the *msg* parameter 
+- When websocket is closed by client, the statuscode is now available in *onCloseSocketCallback* via the *msg* parameter
+- updated example `websockettest` demonstrating these improvements

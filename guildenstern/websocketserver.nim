@@ -4,7 +4,7 @@
 ##
 
 import net, posix, os, base64, times, std/monotimes, sets, locks
-when not defined(nimdoc): from nativesockets import htons
+from nativesockets import htons
 from std/strutils import startsWith
 when not defined(nimdoc):
   from sha import secureHash, `$`
@@ -119,7 +119,7 @@ proc recvHeader(): int =
   if headerLen == 0x7e:
     var lenstrlen = ws.socketdata.socket.bytesRecv(ws.request[0].addr, 2)
     if lenstrlen != 2: error("length")    
-    when not defined(nimdoc): expectedLen = nativesockets.htons(cast[ptr uint16](ws.request[0].addr)[]).int
+    expectedLen = nativesockets.htons(cast[ptr uint16](ws.request[0].addr)[]).int
   elif headerLen == 0x7f:
     var lenstrlen = ws.socketdata.socket.bytesRecv(ws.request[0].addr, 8)
     if lenstrlen != 8: error("length")
@@ -136,7 +136,7 @@ proc recvHeader(): int =
 proc recvFrame() =
   var expectedlen: int
   expectedlen = recvHeader()
-  if opcode == WsFail: return
+  if opcode == WsFail or expectedlen == 0: return
   while true:
     if shuttingdown: (opcode = WsFail; return)
     let ret =
@@ -434,7 +434,8 @@ proc handleWsRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
         let message = MagicClose & statuscode
         if not server.send(ws.socketdata.socket, message, 5):
           server.log(NOTICE, "websocket " & $ws.socketdata.socket & " blocking, could not autoacknowledge close")
-        closeSocket(ClosedbyClient, $(byte(statuscode[1]) + 256*byte(statuscode[0])))
+        if statuscode == "": closeSocket(ClosedbyClient, "1005")
+        else: closeSocket(ClosedbyClient, $(byte(statuscode[1]) + 256*byte(statuscode[0])))
     of WsFail: closeSocket(NetErrored, "Websocket failed")
     else: {.gcsafe.}: wsserver.messageCallback()
 

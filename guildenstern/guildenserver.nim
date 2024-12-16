@@ -36,7 +36,7 @@ const GuildenSternVersion* = "7.3.0"
 from std/selectors import newSelectEvent, trigger
 from std/posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onSignal, `==`
 from std/net import Socket, newSocket
-when not defined(nimdoc): from std/nativesockets import close
+from std/nativesockets import close
 from std/strutils import replace
 export SocketHandle, INVALID_SOCKET, posix.`==`
 

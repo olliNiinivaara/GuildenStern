@@ -11,7 +11,7 @@
 ## performance without leaning to more complex asynchronous concurrency techniques.    
 
 import selectors, net, os, posix, locks
-when not defined(nimdoc): from nativesockets import accept, setBlocking
+from nativesockets import accept, setBlocking
 from std/osproc import countProcessors
 import guildenserver
 
