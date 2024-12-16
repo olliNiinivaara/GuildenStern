@@ -3,7 +3,9 @@
 ## see examples/websockettest.nim for a concrete example.
 ##
 
-import nativesockets, net, posix, os, base64, times, std/monotimes, sets, locks
+import net, posix, os, base64, times, std/monotimes, sets, locks
+from nativesockets import htons
+from std/strutils import startsWith
 when not defined(nimdoc):
   from sha import secureHash, `$`
 export posix.SocketHandle
@@ -46,6 +48,9 @@ type
 
 const MaxParallelSendingSockets {.intdefine.} = 500
 
+let
+  MagicString = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+  MagicClose = "close-258EAFA5-E914:"
 
 var
   opcode {.threadvar.} : OpCode
@@ -129,11 +134,9 @@ proc recvHeader(): int =
 {.pop.}
 
 proc recvFrame() =
-  var expectedlen: int  
+  var expectedlen: int
   expectedlen = recvHeader()
-  if opcode in [WsFail, Close]:
-    if opcode == Close: closeSocket(ClosedbyClient, "")
-    return
+  if opcode == WsFail or expectedlen == 0: return
   while true:
     if shuttingdown: (opcode = WsFail; return)
     let ret =
@@ -162,7 +165,7 @@ proc receiveWs() =
   ws.requestlen = 0
   try:
     recvFrame()
-    if opcode in [WsFail, Close]: return
+    if opcode == WsFail: return
     while opcode == Cont: recvFrame()
     for i in 0 ..< ws.requestlen: ws.request[i] = (ws.request[i].uint8 xor maskkey[i mod 4].uint8).char
   except:
@@ -235,10 +238,11 @@ proc replyHandshake(): (SocketCloseCause , string) =
     reply(Http400)
     sleep(200)
     return (CloseCalled , "not accepted")
-  when not defined(nimdoc):  
-    let 
-      sh = secureHash(key & "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
-      acceptKey = base64.encode(decodeBase16($sh))
+  when not defined(nimdoc):
+    {.gcsafe.}:  
+      let 
+        sh = secureHash(key & MagicString)
+        acceptKey = base64.encode(decodeBase16($sh))
     reply(Http101, ["Sec-WebSocket-Accept: " & acceptKey, "Connection: Upgrade", "Upgrade: webSocket"])
   (DontClose , "")
 
@@ -305,15 +309,19 @@ proc send*(server: GuildenServer, delivery: ptr WsDelivery, timeoutsecs = 10, sl
   ## | `timeoutsecs`: a timeout after which sending is given up and all sockets with messages in-flight are closed
   ## | `sleepmillisecs`: if all in-flight receivers are blocking, will suspend for (sleepmillisecs * in-flight receiver count) milliseconds
   ## Returns amount of websockets that had to be closed
-  if delivery.sockets.len == 0: return
+  if server == nil or delivery.sockets.len == 0: return
   let timeout = initDuration(seconds = timeoutsecs)
   let start = getMonoTime()
   server.log(TRACE, "starts sending websockets")
-  if delivery.message[].len == 0:
-    delivery.message[] = "PING"
-    createWsHeader(4, Opcode.Pong)
-  else:
-    if delivery.binary: createWsHeader(delivery.message[].len, OpCode.Binary) else: createWsHeader(delivery.message[].len, Opcode.Text)
+  {.gcsafe.}:
+    if delivery.message[].len == 0:
+      delivery.message[] = "PING"
+      createWsHeader(4, Opcode.Pong)
+    elif delivery.message[].startsWith(MagicClose):
+      delivery.message[] = delivery.message[MagicClose.len .. ^1]
+      createWsHeader(delivery.message[].len, Opcode.Close) 
+    else:
+      if delivery.binary: createWsHeader(delivery.message[].len, OpCode.Binary) else: createWsHeader(delivery.message[].len, Opcode.Text)
   var handled = 0
   delivery.states.setLen(delivery.sockets.len)
   for i in 0 ..< delivery.states.len: delivery.states[i] = (0, NotStarted)
@@ -393,18 +401,43 @@ proc send*(server: GuildenServer, socket: posix.SocketHandle, message: string, t
   return send(WebsocketServer(server), unsafeAddr deli, timeoutsecs, sleepmillisecs) == 0
 
 
+proc sendClose*(server: GuildenServer, socket: posix.SocketHandle, statuscode: int16 = 1000.int16, timeoutsecs = 2, sleepmillisecs = 10): bool {.discardable.} =
+  ## Sends a close frame to the client, in sync with other possible deliveries going to the same socket from other threads.
+  ## | `statuscode`: Available for the client. For semantics, see `https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1 <https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1>`_ 
+  ## Returns whether the sending was succesful (and if not, you may want to just call `closeOtherSocket`)
+  var message = MagicClose
+  let bytes = cast[array[0..1, char]](statuscode)
+  message.add(bytes[1])
+  message.add(bytes[0])
+  deli.sockets.setLen(1)
+  deli.sockets[0] = socket
+  deli.message = unsafeAddr(message)
+  deli.binary = true
+  return send(WebsocketServer(server), unsafeAddr deli, timeoutsecs, sleepmillisecs) == 0
+
+
 proc handleWsRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
-    prepareHttpContext(data)
-    if (unlikely)ws.socketdata.flags == 0:
-      handleWsUpgradehandshake()
-      return
-    receiveWs()
-    if unlikely(opcode in [WsFail, Close]): return
-    if opcode != Ping: {.gcsafe.}: wsserver.messageCallback()
-    else:
+  prepareHttpContext(data)
+  if (unlikely)ws.socketdata.flags == 0:
+    handleWsUpgradehandshake()
+    return
+  receiveWs()
+  if ws.socketdata.socket == INVALID_SOCKET: return # socket failed in flight
+  case opcode:
+    of Ping:
       let pingmsg = ""
       if not server.send(ws.socketdata.socket, pingmsg, 5):
         server.log(NOTICE, "websocket " & $ws.socketdata.socket & " blocking, could not autoreply to Ping")
+    of Close:
+      {.gcsafe.}:
+        let statuscode = getMessage()
+        let message = MagicClose & statuscode
+        if not server.send(ws.socketdata.socket, message, 5):
+          server.log(NOTICE, "websocket " & $ws.socketdata.socket & " blocking, could not autoacknowledge close")
+        if statuscode == "": closeSocket(ClosedbyClient, "1005")
+        else: closeSocket(ClosedbyClient, $(byte(statuscode[1]) + 256*byte(statuscode[0])))
+    of WsFail: closeSocket(NetErrored, "Websocket failed")
+    else: {.gcsafe.}: wsserver.messageCallback()
 
 
 proc newWebsocketServer*(upgradecallback: WsUpgradeCallback, afterupgradecallback: WsAfterUpgradeCallback,

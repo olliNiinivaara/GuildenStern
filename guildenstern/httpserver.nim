@@ -90,19 +90,6 @@ include httprequest
 include httpresponse
 
 
-#[proc handleHttpThreadInitialization*(gserver: GuildenServer) =
-  if socketcontext == nil: socketcontext = new HttpContext
-  http.request = newString(HttpServer(gserver).bufferlength + 1)
-  if HttpServer(gserver).headerfields.len > 0:
-    echo "header juttui"
-    http.headers = newStringTable()
-    for field in HttpServer(gserver).headerfields: http.headers[field] = ""
-  if HttpServer(gserver).contenttype != NoBody and not http.headers.contains("content-length"):
-    if HttpServer(gserver).headerfields.len == 0: echo "tähän kosahtaa"
-    else: http.headers["content-length"] = ""
-  if gserver.threadInitializerCallback != nil: gserver.threadInitializerCallback(gserver)]#
-
-
 proc handleHttpThreadInitialization*(gserver: GuildenServer) =
   if socketcontext == nil: socketcontext = new HttpContext
   http.request = newString(HttpServer(gserver).bufferlength + 1)
