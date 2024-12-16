@@ -47,8 +47,9 @@ atlas use GuildenStern
 - step 2: atlas use GuildenStern
 
 
-## Release notes, 7.2.1 (2024-11-05)
+## Release notes, 7.3.0 (2024-12-16)
 
-- Compatibility with Nim version 2.2.0
-- Support removed for 6.x series, please upgrade now
-- Fixed "Compile error: type mismatch: got 'int64' for [...]"
+### Improved websocket close handshaking:
+- New proc *sendClose* for sending a close frame to a client with a statuscode
+- When a close frame from a client is received and before the socket is closed, an acknowledging close frame is now always automatically replied using the statuscode set by the client
+- When websocket is closed by client, the statuscode is now available in *onCloseSocketCallback* via the *msg* parameter 

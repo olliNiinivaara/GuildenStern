@@ -11,7 +11,7 @@
 ## performance without leaning to more complex asynchronous concurrency techniques.    
 
 import selectors, net, os, posix, locks
-from nativesockets import accept, setBlocking #, close
+when not defined(nimdoc): from nativesockets import accept, setBlocking
 from std/osproc import countProcessors
 import guildenserver
 
@@ -118,14 +118,14 @@ proc closeSocketImpl(socketdata: ptr SocketData, cause: SocketCloseCause, msg: s
     socketdata.socket = INVALID_SOCKET
 
 
-proc closeOtherSocketInOtherThreadImpl(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause, msg: string = "") {.gcsafe, nimcall, raises: [].} =
+proc closeOtherSocketImpl(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause, msg: string = "") {.gcsafe, nimcall, raises: [].} =
   if socket.int in [0, INVALID_SOCKET.int]: return
-  server.log(DEBUG, "closeOtherSocketInOtherThread " & $cause & ": " & $socket & "  " & msg)
+  server.log(DEBUG, "closeOtherSocket " & $cause & ": " & $socket & "  " & msg)
 
   var gs = SocketData()
   gs.socket = socket
+  gs.server = server
   if server.onclosesocketcallback != nil:
-    gs.server = server
     server.onCloseSocketCallback(addr gs, cause, msg) 
   
   if gs.socket.int notin [0, INVALID_SOCKET.int]:
@@ -282,7 +282,7 @@ proc dispatchloop(serverptr: ptr GuildenServer) {.thread, gcsafe, nimcall, raise
   try:
     {.gcsafe.}:
       workerdatas[server.id].gsselector.registerHandle(portserver.getFd().int, {Event.Read}, SocketData(server: server, isserversocket: true))
-    portserver.getFd().setBlocking(false)
+    when not defined(nimdoc): portserver.getFd().setBlocking(false)
     portserver.setSockOpt(OptNoDelay, true, level = cint(Protocol.IPPROTO_TCP))
   except CatchableError, Defect:
     server.log(FATAL, "Could not listen to port " & $server.port)
@@ -330,7 +330,7 @@ proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0, maxactiv
   server.port = port.uint16
   server.suspendCallback = suspend
   server.closeSocketCallback = closeSocketImpl
-  server.closeOtherSocketCallback = closeOtherSocketInOtherThreadImpl
+  server.closeOtherSocketCallback = closeOtherSocketImpl
   createThread(server.thread, dispatchloop, addr server)
   while not server.started:
     sleep(50)

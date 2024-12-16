@@ -1,4 +1,4 @@
-const GuildenSternVersion* = "7.2.1"
+const GuildenSternVersion* = "7.3.0"
 
 #   Guildenstern
 #
@@ -36,7 +36,7 @@ const GuildenSternVersion* = "7.2.1"
 from std/selectors import newSelectEvent, trigger
 from std/posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onSignal, `==`
 from std/net import Socket, newSocket
-from std/nativesockets import close
+when not defined(nimdoc): from std/nativesockets import close
 from std/strutils import replace
 export SocketHandle, INVALID_SOCKET, posix.`==`
 
@@ -79,7 +79,8 @@ type
   SuspendCallback* = proc(server: GuildenServer, sleepmillisecs: int){.nimcall, gcsafe, raises: [].}
   CloseSocketCallback* = proc(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
   CloseOtherSocketCallback* = proc(server: GuildenServer, socket: SocketHandle, cause: SocketCloseCause, msg: string = ""){.gcsafe, nimcall, raises: [].}
-  OnCloseSocketCallback* = proc(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
+  OnCloseSocketCallback* = proc(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].} ## The `msg` parameter may contain furher info about the cause. For example, in case of websocket ClosedByClient, `msg` contains the status code. 
+
 
   GuildenServer* {.inheritable.} = ref object
     port*: uint16
