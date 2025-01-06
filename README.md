@@ -5,7 +5,7 @@ Modular multithreading HTTP/1.1 + WebSocket upstream server framework
 ## Example
 
 ```nim
-# nim r --d:release --d:threadsafe thisexample
+# nim r --d:release --d:threadsafe --mm:atomicArc thisexample
 
 import cgi, guildenstern/[dispatcher, httpserver]
      
@@ -47,10 +47,6 @@ atlas use GuildenStern
 - step 2: atlas use GuildenStern
 
 
-## Release notes, 7.3.0 (2024-12-16)
+## Release notes, 8.0.0 (2025-01-??)
 
-### Improved websocket close handshaking:
-- New proc *sendClose* for sending a close frame to a client with a statuscode
-- When a close frame from a client is received and before the socket is closed, an acknowledging close frame is now always automatically replied using the statuscode set by the client
-- When websocket is closed by client, the statuscode is now available in *onCloseSocketCallback* via the *msg* parameter
-- updated example `websockettest` demonstrating these improvements
+todo

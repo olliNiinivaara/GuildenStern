@@ -1,0 +1,22 @@
+import cgi, guildenstern/[dispatcher, httpserver]
+     
+proc handleGet() =
+  echo "method: ", getMethod()
+  echo "uri: ", getUri()
+  if isUri("/favicon.ico"): reply(Http204)
+  else:
+    let html = """
+      <!doctype html><title>GuildenStern Example</title><body>
+      <form action="http://localhost:5051" method="post" accept-charset="utf-8">
+      <input name="say" value="Hi"><button>Send"""
+    reply(html)
+
+proc handlePost() =
+  echo "client said: ", readData(getBody()).getOrDefault("say")
+  reply(Http303, ["location: " & http.headers.getOrDefault("origin")])
+  
+let getserver = newHttpServer(handleGet, contenttype = NoBody)
+let postserver = newHttpServer(handlePost, loglevel = INFO, headerfields = ["origin"])
+getserver.start(5050)
+postserver.start(5051, threadpoolsize = 20, maxactivethreadcount = 10)
+joinThreads(getserver.thread, postserver.thread)

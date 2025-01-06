@@ -22,8 +22,8 @@ let
 proc replyFinish*(): SocketState {.discardable, inline, gcsafe, raises: [].} =
   # Informs that everything is replied.
   let ret =
-    try: send(http.socketdata.socket, nil, 0, lastflags)
-    except CatchableError: Excepted.int
+    try: send(thesocket, nil, 0, lastflags)
+    except CatchableError: -1
   if likely(ret != -1): return Complete
   discard checkSocketState(-1)
   return Fail
@@ -35,11 +35,11 @@ proc writeToSocket(text: ptr string, length: int, flags = intermediateflags): So
   var backoff = 1
   var totalbackoff = 0
   while true:
-    let ret = send(http.socketdata.socket, unsafeAddr text[bytessent], (length - bytessent).cint, flags)
+    let ret = send(thesocket, unsafeAddr text[bytessent], (length - bytessent).cint, flags)
     if likely(ret > 0):
       bytessent.inc(ret)
       if bytessent == length:
-        server.log(DEBUG, "writeToSocket " & $http.socketdata.socket & ": " & text[0 ..< length])
+        server.log(DEBUG, "writeToSocket " & $thesocket & ": " & text[0 ..< length])
         return Complete
       continue
     result = checkSocketState(ret)
@@ -48,7 +48,7 @@ proc writeToSocket(text: ptr string, length: int, flags = intermediateflags): So
       totalbackoff += backoff
       backoff *= 2
       if totalbackoff > server.sockettimeoutms:
-        closeSocket(TimedOut, "didn't write to socket")
+        closeSocket(server, thesocket, TimedOut, "didn't write to thesocket")
         return Fail
       continue
     else: return result
@@ -67,9 +67,9 @@ proc writeCode(code: HttpCode): SocketState {.inline, gcsafe, raises: [].} =
 
 
 proc tryWriteToSocket(text: ptr string, start: int, length: int, flags = intermediateflags): (SocketState , int) {.inline, gcsafe, raises: [].} =
-  assert(text != nil and length > 0)
+  assert(not isNil(text) and length > 0)
   result[1] =
-    try: send(http.socketdata.socket, unsafeAddr text[start], length.cint, flags)
+    try: send(thesocket, unsafeAddr text[start], length.cint, flags)
     except CatchableError: Excepted.int
   if likely(result[1] > 0):
     if result[1] == length: result[0] = Complete
@@ -78,9 +78,6 @@ proc tryWriteToSocket(text: ptr string, start: int, length: int, flags = interme
 
 
 proc reply*(code: HttpCode): SocketState {.discardable, inline, gcsafe, raises: [].} =
-  if unlikely(http.socketdata.socket.int in [0, INVALID_SOCKET.int]):
-    http.socketdata.server.log(INFO, "cannot reply to closed socket " & $http.socketdata.socket.int)
-    return
   {.gcsafe.}:
     if code == Http200:
       return writeToSocket(unsafeAddr http200nocontent, http200nocontentlen, lastflags)
@@ -95,15 +92,12 @@ proc reply*(code: HttpCode): SocketState {.discardable, inline, gcsafe, raises: 
 
 proc reply*(code: HttpCode, body: ptr string, lengthstring: string, length: int, headers: ptr string, moretocome: bool): SocketState {.gcsafe, raises: [].} =
   ## One-shot reply to a request
-  if unlikely(http.socketdata.socket.int in [0, INVALID_SOCKET.int]):
-    http.socketdata.server.log(INFO, "cannot reply to closed socket " & $http.socketdata.socket.int)
-    return
   let finalflag = if moretocome: intermediateflags else: lastflags
   {.gcsafe.}: 
     if unlikely(writeVersion() != Complete): return Fail 
     if unlikely(writeCode(code) != Complete): return Fail
 
-    if headers != nil and headers[].len > 0:
+    if (not isNil(headers)) and headers[].len > 0:
       if writeToSocket(headers, headers[].len) != Complete: return Fail
       if writeToSocket(unsafeAddr shortdivider, shortdivider.len) != Complete: return Fail
 
@@ -121,21 +115,16 @@ proc reply*(code: HttpCode, body: ptr string, lengthstring: string, length: int,
 
 
 proc replyStart*(code: HttpCode, contentlength: int, headers: ptr string = nil): SocketState {.inline, gcsafe, raises: [].} =
-  ## Start replying to a request (continue with [replyMore] and [replyFinish]).
-  ## If you do not know the content-length yet, use [replyStartChunked] instead.
-  if unlikely(http.socketdata.socket.int in [0, INVALID_SOCKET.int]):
-    http.socketdata.server.log(INFO, "cannot replystart to closed socket " & $http.socketdata.socket.int)
-    return
   {.gcsafe.}: 
     if unlikely(writeVersion() != Complete): return Fail 
     if unlikely(writeCode(code) != Complete): return Fail
 
-    if headers != nil and headers[].len > 0:
+    if (not isNil(headers)) and headers[].len > 0:
       if writeToSocket(headers, headers[].len) != Complete: return Fail
 
     if contentlength < 1: return writeToSocket(unsafeAddr longdivider, longdivider.len)
 
-    if headers != nil and headers[].len > 0:
+    if (not isNil(headers)) and headers[].len > 0:
       if unlikely(writeToSocket(unsafeAddr shortdivider, shortdivider.len) != Complete): return Fail
     
     if unlikely(writeToSocket(unsafeAddr contentlen, contentlen.len) != Complete): return Fail
@@ -145,9 +134,9 @@ proc replyStart*(code: HttpCode, contentlength: int, headers: ptr string = nil):
 
 
 proc reply*(code: HttpCode, body: ptr string, headers: ptr string) {.inline, gcsafe, raises: [].} =
-  let length = if body == nil: 0 else: body[].len
+  let length = if isNil(body): 0 else: body[].len
   if likely(reply(code, body, $length, length, headers, false) == Complete): server.log(TRACE, "reply ok")
-  else: server.log(INFO, $http.socketdata.socket & ": reply failed")
+  else: server.log(INFO, $thesocket & ": reply failed")
 
 proc reply*(code: HttpCode, body: ptr string, headers: openArray[string]) {.inline, gcsafe, raises: [].} =
   let joinedheaders = headers.join("\c\L")
@@ -191,7 +180,7 @@ template replyMore*(bodypart: string): bool =
   else: {.fatal: "posix.send requires taking pointer to bodypart, but bodypart has no address".}
 
 
-proc replyStartChunked*(code: HttpCode = Http200, headers: openArray[string] = []): bool =
+proc replyStartChunked*(code: HttpCode = Http200, headers: openArray[string] = []): bool {.gcsafe.} =
   ## Starts replying http response as `Transfer-encoding: chunked`.
   ## Mainly for sending dynamic data, where Content-length header cannot be set.
   ## 
@@ -204,7 +193,7 @@ proc replyStartChunked*(code: HttpCode = Http200, headers: openArray[string] = [
   return replyStart(code, -1, ["Transfer-Encoding: chunked"]) != Fail
 
 
-proc replyContinueChunked*(chunk: string): bool =
+proc replyContinueChunked*(chunk: string): bool {.gcsafe.} =
   var backoff = 4
   var totalbackoff = 0
   var delivered = 0
@@ -215,7 +204,7 @@ proc replyContinueChunked*(chunk: string): bool =
   except: return false
   while true:
     if shuttingdown:
-      closeSocket()
+      closeSocket(server, thesocket)
       return false
     let (state , len) = tryWriteToSocket(addr chunk, delivered, chunk.len - delivered)
     delivered += len
@@ -224,7 +213,7 @@ proc replyContinueChunked*(chunk: string): bool =
       suspend(backoff)
       totalbackoff += backoff
       if totalbackoff > server.sockettimeoutms:
-        closeSocket(TimedOut, "didn't write a chunk in time")
+        closeSocket(server, thesocket, TimedOut, "didn't write a chunk in time")
         return false
       backoff *= 2
       continue
@@ -234,7 +223,7 @@ proc replyContinueChunked*(chunk: string): bool =
       return true
 
 
-proc replyFinishChunked*(): bool {.discardable.} =
+proc replyFinishChunked*(): bool {.gcsafe, discardable.} =
   {.gcsafe.}:
     let delimiter = "0" & longdivider
   if writeToSocket(addr delimiter, delimiter.len) == Fail: return false
