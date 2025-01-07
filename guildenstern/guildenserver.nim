@@ -33,7 +33,8 @@ const GuildenSternVersion* = "8.0.0"
 ## (And if you invent something useful, please share it with us.)
 ## 
 
-from std/selectors import newSelectEvent, trigger
+# from std/selectors import newSelectEvent, trigger
+from selector import newSelectEvent, trigger
 from std/posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onSignal, `==`
 from std/net import Socket, newSocket
 from std/nativesockets import close
@@ -74,7 +75,7 @@ type
   ThreadInitializerCallback* = proc(theserver: GuildenServer){.nimcall, gcsafe, raises: [].}
   ThreadFinalizerCallback* = proc(){.nimcall, gcsafe, raises: [].}
   HandlerCallback* = proc(){.nimcall, gcsafe, raises: [].}
-  SuspendCallback* = proc(serverid: int, sleepmillisecs: int){.nimcall, gcsafe, raises: [].}
+  SuspendCallback* = proc(server: GuildenServer, sleepmillisecs: int){.nimcall, gcsafe, raises: [].}
   CloseSocketCallback* = proc(server: GuildenServer, socket: SocketHandle, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
   OnCloseSocketCallback* = proc(server: GuildenServer, socket: SocketHandle, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].} ## The `msg` parameter may contain furher info about the cause. For example, in case of websocket ClosedByClient, `msg` contains the status code.]#
   DeprecatedOnCloseSocketCallback* {.deprecated:"use OnCloseSocketCallback".} = proc(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
@@ -165,7 +166,6 @@ proc handleRead*(theserver: GuildenServer, socket: SocketHandle, customdata: poi
     socketcontext.server = theserver
     socketcontext.socket = socket
     socketcontext.customdata = customdata
-    assert not isNil(theserver.handlerCallback)
     theserver.handlerCallback()
 
 
@@ -180,7 +180,7 @@ proc setFlags*(server: GuildenServer, socket: posix.SocketHandle, flags: int): b
 
 proc suspend*(sleepmillisecs: int) {.inline.} =
   if not isNil(server.suspendCallback):
-    server.suspendCallback(server.id, sleepmillisecs)
+    server.suspendCallback(server, sleepmillisecs)
 
 
 proc logClose(server: GuildenServer, socket: SocketHandle, cause = CloseCalled, msg: string) =

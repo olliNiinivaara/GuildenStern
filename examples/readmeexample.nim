@@ -5,11 +5,10 @@ proc handleGet() =
   echo "uri: ", getUri()
   if isUri("/favicon.ico"): reply(Http204)
   else:
-    let html = """
+    reply """
       <!doctype html><title>GuildenStern Example</title><body>
       <form action="http://localhost:5051" method="post" accept-charset="utf-8">
       <input name="say" value="Hi"><button>Send"""
-    reply(html)
 
 proc handlePost() =
   echo "client said: ", readData(getBody()).getOrDefault("say")

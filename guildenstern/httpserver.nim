@@ -31,6 +31,7 @@ type
     contentreceived*: int64
     contentdelivered*: int64
     headers*: StringTableRef
+    probebuffer: string
 
   SocketState* = enum
     Fail = -1
@@ -91,6 +92,7 @@ include httpresponse
 proc handleHttpThreadInitialization*(theserver: GuildenServer) =
   if socketcontext.isNil: socketcontext = new HttpContext
   http.request = newString(HttpServer(theserver).bufferlength + 1)
+  http.probebuffer = newString(1)
   if HttpServer(theserver).contenttype != NoBody or HttpServer(theserver).headerfields.len > 0:
     http.headers = newStringTable()
     for field in HttpServer(theserver).headerfields: http.headers[field] = ""

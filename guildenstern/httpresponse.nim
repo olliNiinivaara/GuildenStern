@@ -157,27 +157,37 @@ template reply*(code: HttpCode, headers: openArray[string]) =
 template reply*(body: string) =
   when compiles(unsafeAddr body):
     reply(Http200, unsafeAddr body, nil)
-  else: {.fatal: "posix.send requires taking pointer to body, but body has no address".}
+  else:
+    let copy = body
+    reply(Http200, unsafeAddr copy, nil)
 
 template reply*(code: HttpCode, body: string) =
   when compiles(unsafeAddr body):
     reply(code, unsafeAddr body, nil)
-  else: {.fatal: "posix.send requires taking pointer to body, but body has no address".} 
+  else:
+    let copy = body
+    reply(code, unsafeAddr copy, nil)
 
 template reply*(code: HttpCode, body: string, headers: openArray[string]) =
   when compiles(unsafeAddr body):
     reply(code, unsafeAddr body, headers)
-  else: {.fatal: "posix.send requires taking pointer to body, but body has no address".}
+  else:
+    let copy = body
+    reply(code, unsafeAddr copy, headers)
 
 template reply*(body: string, headers: openArray[string]) =
   when compiles(unsafeAddr body):
     reply(Http200, unsafeAddr body, headers)
-  else: {.fatal: "posix.send requires taking pointer to body, but body has no address".}
+  else:
+    let copy = body
+    reply(Http200, unsafeAddr copy, headers)
 
 template replyMore*(bodypart: string): bool =
   when compiles(unsafeAddr bodypart):
     replyMore(unsafeAddr bodypart, 0)
-  else: {.fatal: "posix.send requires taking pointer to bodypart, but bodypart has no address".}
+  else:
+    let copy = bodypart
+    replyMore(unsafeAddr copy, 0)
 
 
 proc replyStartChunked*(code: HttpCode = Http200, headers: openArray[string] = []): bool {.gcsafe.} =

@@ -1,8 +1,10 @@
 # nim r -d:threadsafe -mm:atomicArc -d:danger examples/wsmulticasttest 
 
+import segfaults
+
 from strutils import parseEnum
 from os import sleep
-import guildenstern/[dispatcher, websocketserver, websockettester]
+import guildenstern/[altdispatcher, websocketserver, websockettester]
 
 const
   ClientCount = 100
@@ -69,8 +71,8 @@ proc threadFunc(clientid: int) {.thread.} =
         break
 
 
-let wsServer = newWebSocketServer(nil, nil, serverHandler, nil)
-if not wsServer.start(5050): quit()
+let wsServer = newWebSocketServer(nil, nil, serverHandler, nil, TRACE)
+if not wsServer.start(5050, 1): quit()
 for i in 1 .. ClientCount:
   clients[i] = connect("http://127.0.0.1:5050", clientHandler)
   if not clients[i].connected: quit("could not connect to server")

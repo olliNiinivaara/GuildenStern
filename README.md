@@ -50,3 +50,5 @@ atlas use GuildenStern
 ## Release notes, 8.0.0 (2025-01-??)
 
 todo
+
+regression: status code replies are wrong

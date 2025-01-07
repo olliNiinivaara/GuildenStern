@@ -10,7 +10,8 @@
 ## more threads suspended than the maxactivethreadcount. This design seems to deliver decent
 ## performance without leaning to more complex asynchronous concurrency techniques.    
 
-import selectors, net, os, posix, locks
+import net, os, posix, locks
+import selector
 from nativesockets import accept, setBlocking
 from std/osproc import countProcessors
 import guildenserver
@@ -49,11 +50,11 @@ var workerdatas: array[MaxServerCount, WorkerData]
 template wd(): untyped = workerdatas[server.id]
 
 
-proc suspend(serverid: int, sleepmillisecs: int) {.gcsafe, nimcall, raises: [].} =
+proc suspend(server: GuildenServer, sleepmillisecs: int) {.gcsafe, nimcall, raises: [].} =
   {.gcsafe.}:
-    discard workerdatas[serverid].activethreadcount.atomicdec()
+    discard workerdatas[server.id].activethreadcount.atomicdec()
     sleep(sleepmillisecs)
-    discard workerdatas[serverid].activethreadcount.atomicinc()
+    discard workerdatas[server.id].activethreadcount.atomicinc()
 
 
 proc restoreRead(server: GuildenServer, selector: Selector[SocketData], socket: int) {.inline.} =
@@ -109,21 +110,21 @@ proc findSelectorForSocket(server: GuildenServer, socket: posix.SocketHandle): S
     return workerdatas[server.id].gsselector
 
 {.warning[Deprecated]:off.}
-proc newCloseSocketImpl(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause, msg: string = "") {.gcsafe, nimcall, raises: [].} =
+proc closeSocketImpl(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause, msg: string = "") {.gcsafe, nimcall, raises: [].} =
   if socket == INVALID_SOCKET:
     server.log(DEBUG, "cannot close invalid socket " & $cause & ": " & msg)
     return
-  if not isNil(server.deprecatedOnclosesocketcallback):
-    let socketdata = findSocketDataForSocket(server, socket)
-    if socketdata.socket == socket:
-      let fakesocketdata = guildenserver.SocketData(server: server, socket: socket)
-      server.deprecatedOnclosesocketcallback(addr fakesocketdata, cause, msg)
+  if not isNil(server.onclosesocketcallback):
+    server.onclosesocketcallback(server, socket, cause, msg)
+  elif not isNil(server.deprecatedOnclosesocketcallback):
+    let fakesocketdata = guildenserver.SocketData(server: server, socket: socket)
+    server.deprecatedOnclosesocketcallback(addr fakesocketdata, cause, msg)
   
   let theselector = findSelectorForSocket(server, socket)
   try:
     if not isNil(theselector): theselector.unregister(socket.int)
   except CatchableError, Defect:
-   server.log(ERROR, "error unregistering socket")
+    server.log(ERROR, "error unregistering socket")
   discard posix.close(socket)
 {.warning[Deprecated]:on.}
 
@@ -179,13 +180,13 @@ proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].}
         elif event.errorCode.cint == 32: ConnectionLost
         elif event.errorCode.cint == 104: ClosedbyClient
         else: NetErrored
-      newCloseSocketImpl(server, fd, cause, osErrorMsg(event.errorCode))
+      closeSocketImpl(server, fd, cause, osErrorMsg(event.errorCode))
     return
 
   if unlikely(Event.Read notin event.events):
     try:
       server.log(INFO, "dysunctional " & $fd & ": " & $event.events)
-      newCloseSocketImpl(server, fd, NetErrored, "non-read " & $fd & ": " & $event.events)
+      closeSocketImpl(server, fd, NetErrored, "non-read " & $fd & ": " & $event.events)
     except CatchableError, Defect: discard
     finally: return
 
@@ -342,7 +343,7 @@ proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0, maxactiv
   if workerdatas[server.id].threadpoolsize == 0: workerdatas[server.id].threadpoolsize = workerdatas[server.id].maxactivethreadcount * 2
   server.port = port.uint16
   server.suspendCallback = suspend
-  server.closeSocketCallback = newCloseSocketImpl
+  server.closeSocketCallback = closeSocketImpl
   server.getFlagsCallback = getFlags
   server.setFlagsCallback = setFlags
   createThread(server.thread, dispatchloop, server)

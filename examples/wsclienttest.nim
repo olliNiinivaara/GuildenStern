@@ -1,33 +1,38 @@
 # nim r -d:threadsafe --mm:atomicArc -d:danger wsclienttest 
 
+import segfaults
+
 import std/atomics
 from os import sleep
-import guildenstern/[websockettester, dispatcher]
+import guildenstern/[websockettester, altdispatcher]
 
 const ClientCount = 10000
 const MinRoundTrips = 100000
 
 var clients: array[1..ClientCount, WsClient]
 var roundtrips, done: Atomic[int]
+var closing: bool
 
 proc doShutdown(msg: string) =
   {.gcsafe.}:
-    if shuttingdown: return
-    shuttingdown = true
+    if closing: return
+    closing = true
     echo "Shutting down, because ", msg
+    sleep(2000)
     for client in clients:
       client.close()
       # echo "Client ", client.id, " closed"
     shutdown()
-    quit()
 
 proc serverHandler() =
   #echo "server got message: ", getMessage()
+  if closing: return
   if not wsserver.send(thesocket, "fromservertoclient"): doShutdown("Server could not reach client")
 
 proc clientHandler(client: WsClient) =
   let r = 1 + roundtrips.fetchAdd(1)
   if r mod 10000 == 0: echo "round trips: ", r
+  if closing: return
   if not client.send("fromclienttoserver"): doShutdown("Client could not reach server")
   if r >= MinRoundTrips: done.atomicInc()
 

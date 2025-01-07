@@ -5,10 +5,9 @@ var thisisyourdata: string
 
 proc onGet() =
   {.gcsafe.}:
-    let html = """<!doctype html><title></title><body>
+    reply """<!doctype html><title></title><body>
     <form action="http://localhost:5051" method="POST" accept-charset="utf-8">
     <input type="submit" name="post" value="""" & thisisyourdata & """">"""
-  reply(html)
 
 proc onPost() =
   var body: string

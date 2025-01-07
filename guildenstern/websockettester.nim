@@ -19,7 +19,7 @@ type
 
 proc setTheFlags(server: GuildenServer, socket: posix.SocketHandle, flags: int): bool = return true
 
-proc suspend(serverid: int, sleepmillisecs: int) {.gcsafe, nimcall, raises: [].} = sleep(sleepmillisecs)
+proc suspend(Server: GuildenServer, sleepmillisecs: int) {.gcsafe, nimcall, raises: [].} = sleep(sleepmillisecs)
 
 proc closeSocketImpl(server: GuildenServer, socket: SocketHandle, cause: SocketCloseCause, msg: string) {.gcsafe, nimcall, raises: [].} = discard
 

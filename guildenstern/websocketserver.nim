@@ -333,6 +333,10 @@ proc handleWsUpgradehandshake() =
 proc getMessage*(): string =
   return ws.request[0 ..< ws.requestlen]
 
+{.experimental: "views".}
+proc getMessageview*(ws: HttpContext): openArray[char] =
+  return ws.request.toOpenArray(0, ws.requestlen - 1)
+
 
 proc isMessage*(message: string): bool =
   if ws.requestlen != message.len: return false
@@ -475,7 +479,8 @@ proc send*(server: WebsocketServer, delivery: ptr WsDelivery, timeoutsecs = 10, 
 
 
 proc send*(server: WebsocketServer, sockets: seq[posix.SocketHandle], message: string, binary = false, timeoutsecs = 10, sleepmillisecs = 10): bool {.discardable.} =
-  when not compiles(unsafeAddr message): {.fatal: "posix.send requires taking pointer to message, but message has no address".}
+  when not compiles(unsafeAddr message):
+    let message = message
   when not defined(nimdoc) and not defined(gcDestructors): {.fatal: "mm:arc or mm:orc required".}
   deli.sockets = sockets
   deli.message = unsafeAddr(message)
@@ -484,7 +489,8 @@ proc send*(server: WebsocketServer, sockets: seq[posix.SocketHandle], message: s
 
 
 proc send*(server: WebsocketServer, socket: posix.SocketHandle, message: string, binary = false, timeoutsecs = 2, sleepmillisecs = 10): bool {.discardable.} =
-  when not compiles(unsafeAddr message): {.fatal: "posix.send requires taking pointer to message, but message has no address".}
+  when not compiles(unsafeAddr message):
+    let message = message
   when not defined(nimdoc) and not defined(gcDestructors): {.fatal: "mm:arc or mm:orc required".}
   deli.sockets.setLen(1)
   deli.sockets[0] = socket

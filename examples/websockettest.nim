@@ -1,8 +1,10 @@
 # nim r --d:threadsafe websockettest.nim 
 # and open couple of browsers at localhost:5050
 
+import segfaults
+
 import locks
-import guildenstern/[dispatcher, httpserver, websocketserver]
+import guildenstern/[altdispatcher, httpserver, websocketserver]
 
 var
   lock: Lock
@@ -42,7 +44,7 @@ proc onLost(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string) =
       if index != -1: wsconnections.del(index)
         
 proc onRequest() =
-  let html = """<!doctype html><title></title>
+  reply """<!doctype html><title></title>
   <script> let websocket = new WebSocket("ws://" + location.host.slice(0, -1) + '1')
   websocket.onmessage = function(evt) {
     let element = document.createElement("li")
@@ -58,12 +60,11 @@ proc onRequest() =
   <body><button style="position: fixed; left: 160px" onclick="websocket.send('shutdown')">shutdown</button>
   <ul id="ul"></ul>
   """
-  reply(html)
 
 initLock(lock)
 let server = newHttpServer(onRequest, NONE, false, NoBody)
 server.start(5050)
-let wsserver = newWebsocketServer(onUpgradeRequest, afterUpgradeRequest, onMessage, onLost)
-wsserver.start(5051)
+let wsserver = newWebsocketServer(onUpgradeRequest, afterUpgradeRequest, onMessage, onLost, TRACE)
+wsserver.start(5051, 2)
 joinThreads(server.thread, wsserver.thread)
 deinitLock(lock)
