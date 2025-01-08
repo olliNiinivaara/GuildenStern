@@ -1,10 +1,10 @@
-# nim r --d:threadsafe websockettest.nim 
+# nim r websockettest.nim 
 # and open couple of browsers at localhost:5050
 
 import segfaults
 
 import locks
-import guildenstern/[altdispatcher, httpserver, websocketserver]
+import guildenstern/[osdispatcher, httpserver, websocketserver]
 
 var
   lock: Lock

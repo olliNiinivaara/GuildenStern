@@ -1,24 +1,12 @@
-## This is the default dispatcher that ships with GuildenStern. Use it by importing guildenstern/dispatcher and
-## then starting a server's dispatcher thread by calling [start].
-## 
-## This dispatcher spawns a thread from a server-specific threadpool for 
-## every incoming read request. The threadpool size can be set in the start procedure.
-## Dispatcher avoids excessive thread swapping by not spawning a thread when
-## activethreadcount has reached maxactivethreadcount.
-## However, if a thread reports itself as inactive (by calling server's suspend procedure),
-## another thread is allowed to run. This keeps the server serving when there are
-## more threads suspended than the maxactivethreadcount. This design seems to deliver decent
-## performance without leaning to more complex asynchronous concurrency techniques.    
+## TODO: documentation
 
 import net, os, posix, locks, atomics
 from nativesockets import accept, setBlocking
 from std/osproc import countProcessors
-import guildenserver, selector
-
-static:
-  when not defined(nimdoc): doAssert(defined(threadsafe))
+import guildenserver, osselector
 
 const
+  MSG_DONTWAIT = when defined(macosx): 0x80.cint else: 0x40.cint
   MaxServerCount {.intdefine.} = 30
   ## Maximum number of servers
 
@@ -35,9 +23,17 @@ type
     flaglock: Lock 
     threadpoolsize: int
 
-var servers: array[MaxServerCount, Server]
-var emptyClient = Client(flags: -1)
+var
+  servers: array[MaxServerCount, Server]
+  emptyClient = Client(flags: -1)
+  shutdownevent = newSelectEvent()
 
+
+proc shutdownImpl() {.nimcall, gcsafe, raises: [].} =
+  try: trigger(shutdownevent)
+  except: discard
+
+shutdownCallbacks.add(shutdownImpl)
 
 proc suspend(server: GuildenServer, sleepmillisecs: int) {.gcsafe, nimcall, raises: [].} =
     server.log(TRACE, "suspending thread " & $getThreadId() & " for " & $sleepmillisecs & " millisecs") 
@@ -70,20 +66,27 @@ proc clientThread(server: GuildenServer) {.thread.} =
     event: ReadyKey
     socket: SocketHandle
     client: Client
+    probebuffer = newString(1)
+
   initializeThread(server)
   while true:
     if unlikely(shuttingdown): break
     try:
       {.gcsafe.}:
         event = servers[server.id].clientselector.selectFast()
+
         if unlikely(Event.User in event.events): break 
         if unlikely(Event.Error in event.events):
           closeSocketImpl(server, SocketHandle(event.fd), NetErrored, "socket " & $event.fd & ": error " & $event.errorCode)
           continue
         socket = SocketHandle(event.fd)
-        if unlikely(socket.int in [0, INVALID_SOCKET.int]): continue
+        if unlikely(socket.int in [0, INVALID_SOCKET.int]):
+          echo "invalid"
+          continue
         client = getSafelyData(emptyClient, servers[server.id].clientselector, socket.int)
-        if unlikely(client.flags == -1): continue
+        if unlikely(client.flags == -1):
+          echo "-1 flag"
+          continue
     except:
       server.log(INFO, "client selector select failure")
       continue
@@ -92,11 +95,22 @@ proc clientThread(server: GuildenServer) {.thread.} =
     let alreadybeingprocessed = exchange(client.processing, true)
     if alreadybeingprocessed == true: continue
   
-    server.log(TRACE, "handleRead starts for socket " & $socket)
-    handleRead(server, socket, client.customdata)
+    server.log(TRACE, "handleRead starts for socket " & $socket & " at thread " & $getThreadId())
+
+    while true:
+      handleRead(server, socket, client.customdata)
+      let ret = recv(socket, addr probebuffer[0], 1, MSG_PEEK or MSG_DONTWAIT)
+      if ret < 0:
+        let state = osLastError().cint
+        if state == EAGAIN: break
+        elif state == EWOULDBLOCK: continue
+        else: break
+      elif ret == 0: break
+      else: continue
+
     store(client.processing, false)
     server.log(TRACE, "handleRead finished for socket " & $socket)
-  
+
   if not isNil(server.threadFinalizerCallback): server.threadFinalizerCallback()
   {.gcsafe.}: discard servers[server.id].threadpoolsize.atomicDec()
 
@@ -203,6 +217,7 @@ proc serverThread(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].}
       var client = new Client
       {.gcsafe.}:
         servers[server.id].clientselector.registerExclusiveReadHandle(newsocket.int, client)
+        #servers[server.id].clientselector.registerHandle(newsocket.int, {Event.Read}, client)
     except:
       server.log(ERROR, "selector registerHandle error for socket " & $newsocket)
       continue
@@ -248,7 +263,3 @@ proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0): bool {.
     if shuttingdown: break
   if server.port == 0: shuttingdown = true
   return not shuttingdown
-
-
-proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0, maxactivethreadcount: uint): bool {.discardable, deprecated:"maxactivethreadcount is not used".} =
-   return start(server, port, threadpoolsize)

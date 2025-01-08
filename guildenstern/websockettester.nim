@@ -40,13 +40,17 @@ proc newWsClient(url: string, onwsmessagecallback: WsClientMessageCallback, recv
   result.socketserver.isclient = true
 
 
-proc close*(client: WsClient) =
+proc close*(client: WsClient, handshake = true) =
+  let text = "x"
   if client.connected and client.socket != INVALID_SOCKET:
+    if handshake:
+      client.socketserver.sendClose(client.socket)
+      sleep(10)
+    client.connected = false
+    discard send(client.socket, unsafeAddr text[0], 1.cint, 0)
+  else:
     discard pthread_cancel(Pthread(client.readthread.handle()))
-    client.socketserver.sendClose(client.socket)
-    discard client.socket.close()
   client.socket = INVALID_SOCKET
-  client.connected = false
   
 
 proc newConnection(client: WsClient) =
@@ -78,15 +82,17 @@ proc readLoop(client: WsClient) =
       if shuttingdown: break
       if client.socket == INVALID_SOCKET: break
       let ret = recv(client.socket, addr buffer[0], 1, MSG_PEEK)
+      if not client.connected: break
       if ret == 1:
         socketcontext.server = client.socketserver
         socketcontext.socket = client.socket
         handleWsRequest()
         client.messagecallback(client)
       else:
-        if not shuttingdown: echo "socket ", client.socket, " failed"
+        echo "socket ", client.socket, " failed"
         client.close()
         break
+
 
 proc notUpgraded(server: GuildenServer, socket: posix.SocketHandle): int = 0
 proc upgraded(server: GuildenServer, socket: posix.SocketHandle): int = 1

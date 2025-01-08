@@ -4,7 +4,7 @@ import segfaults
 
 import std/atomics
 from os import sleep
-import guildenstern/[websockettester, altdispatcher]
+import guildenstern/[websockettester, osdispatcher]
 
 const ClientCount = 10000
 const MinRoundTrips = 100000
@@ -18,10 +18,7 @@ proc doShutdown(msg: string) =
     if closing: return
     closing = true
     echo "Shutting down, because ", msg
-    sleep(2000)
-    for client in clients:
-      client.close()
-      # echo "Client ", client.id, " closed"
+    for client in clients: client.close(false)
     shutdown()
 
 proc serverHandler() =
@@ -32,9 +29,11 @@ proc serverHandler() =
 proc clientHandler(client: WsClient) =
   let r = 1 + roundtrips.fetchAdd(1)
   if r mod 10000 == 0: echo "round trips: ", r
+  if r >= MinRoundTrips:
+    done.atomicInc()
+    return
   if closing: return
   if not client.send("fromclienttoserver"): doShutdown("Client could not reach server")
-  if r >= MinRoundTrips: done.atomicInc()
 
 
 let wsServer = newWebSocketServer(nil, nil, serverHandler, nil)

@@ -1,4 +1,4 @@
-import cgi, guildenstern/[dispatcher, httpserver]
+import cgi, guildenstern/[dispatcher, osdispatcher, httpserver]
      
 proc handleGet() =
   echo "method: ", getMethod()
@@ -16,6 +16,6 @@ proc handlePost() =
   
 let getserver = newHttpServer(handleGet, contenttype = NoBody)
 let postserver = newHttpServer(handlePost, loglevel = INFO, headerfields = ["origin"])
-getserver.start(5050)
-postserver.start(5051, threadpoolsize = 20, maxactivethreadcount = 10)
+dispatcher.start(getserver, 5050)
+osdispatcher.start(postserver, 5051, threadpoolsize = 20)
 joinThreads(getserver.thread, postserver.thread)

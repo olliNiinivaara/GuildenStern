@@ -1,4 +1,4 @@
-import guildenstern/[altdispatcher, httpserver]
+import guildenstern/[osdispatcher, httpserver]
 
 proc handleHttpRequest*() =
   echo "sovellukseen asti päästiin"

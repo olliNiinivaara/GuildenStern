@@ -33,8 +33,6 @@ const GuildenSternVersion* = "8.0.0"
 ## (And if you invent something useful, please share it with us.)
 ## 
 
-# from std/selectors import newSelectEvent, trigger
-from selector import newSelectEvent, trigger
 from std/posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onSignal, `==`
 from std/net import Socket, newSocket
 from std/nativesockets import close
@@ -82,6 +80,7 @@ type
   GetFlagsCallback* = proc(server: GuildenServer, socket: SocketHandle): int {.nimcall, gcsafe, raises: [].}
   SetFlagsCallback* = proc(server: GuildenServer, socket: SocketHandle, newflags: int): bool {.nimcall, gcsafe, raises: [].}
 
+
   GuildenServer* {.inheritable.} = ref object
     port*: uint16
     thread*: Thread[GuildenServer]
@@ -109,8 +108,9 @@ type
 var
   shuttingdown* = false ## Global variable that all code is expected to observe and abide to.
   socketcontext* {.threadvar.}: SocketContext
-  shutdownevent* = newSelectEvent()
   nextid: int
+  shutdownCallbacks*: seq[proc() {.nimcall, gcsafe, raises: [].}]
+
 
 proc socketdata*(sc: SocketContext): SocketContext {.deprecated:"Use socketcontext directly".} = sc
 
@@ -120,8 +120,7 @@ proc shutdown*() =
   ## Sets [shuttingdown] to true and signals dispatcher loops to cease operation.
   {.gcsafe.}:
     shuttingdown = true
-    try: trigger(shutdownevent)
-    except: discard
+    for shutdownCallback in shutdownCallbacks: shutdownCallback()
  
  
 {.hint[XDeclaredButNotUsed]:off.}

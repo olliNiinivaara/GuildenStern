@@ -218,23 +218,6 @@ proc hasData(): bool =
   if likely(r == 1): return true
   closeSocket(server, thesocket, ClosedbyClient, "client sent nothing")
   return false
-  #[var loops: int
-  while true:
-    let ret = recv(thesocket, addr http.probebuffer[0], 1, MSG_DONTWAIT)
-    if ret > 0:
-      echo "tuli merkki: ", http.probebuffer
-      return true
-    if unlikely(ret == 0):
-      echo "nolla tuli"
-      suspend(100)
-      loops += 1
-      if loops > 5:
-        echo "ei taida tulla dataa"
-        return false
-      continue
-    let lastError = osLastError().int
-    if lasterror == EAGAIN.int: return false
-    else: return true]#
 
 
 proc readHeader*(): bool {.gcsafe, raises:[].} =

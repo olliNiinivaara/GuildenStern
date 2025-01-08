@@ -1,4 +1,4 @@
-## This is the default dispatcher that ships with GuildenStern. Use it by importing guildenstern/dispatcher and
+## This is the default dispatcher. Use it by importing guildenstern/dispatcher and
 ## then starting a server's dispatcher thread by calling [start].
 ## 
 ## This dispatcher spawns a thread from a server-specific threadpool for 
@@ -11,13 +11,13 @@
 ## performance without leaning to more complex asynchronous concurrency techniques.    
 
 import net, os, posix, locks
-import selector
+import selectors
 from nativesockets import accept, setBlocking
 from std/osproc import countProcessors
 import guildenserver
 
 static:
-  when not defined(nimdoc): doAssert(defined(threadsafe))
+  when not defined(nimdoc): doAssert(defined(threadsafe), "This dispatcher requires the -d:threadsade compiler switch")
 
 const
   QueueSize {.intdefine.} = 200
@@ -43,12 +43,18 @@ type
     maxactivethreadcount: int
     threadpoolsize: int
 
-var NoSocketdata = SocketData()
-
-var workerdatas: array[MaxServerCount, WorkerData]
+var
+  shutdownevent = newSelectEvent()
+  NoSocketdata = SocketData()
+  workerdatas: array[MaxServerCount, WorkerData]
 
 template wd(): untyped = workerdatas[server.id]
 
+proc shutdownImpl() {.nimcall, gcsafe, raises: [].} =
+  try: trigger(shutdownevent)
+  except: discard
+
+shutdownCallbacks.add(shutdownImpl)
 
 proc suspend(server: GuildenServer, sleepmillisecs: int) {.gcsafe, nimcall, raises: [].} =
   {.gcsafe.}:
