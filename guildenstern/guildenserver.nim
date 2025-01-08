@@ -205,6 +205,5 @@ proc closeOtherSocket*(server: GuildenServer, socket: posix.SocketHandle, cause:
 
 
 proc closeSocket*(cause = CloseCalled, msg = "") =
-  echo "closesocket"
   ## Call this to close the current socket connection.
   closeSocket(server, thesocket, cause, msg)
