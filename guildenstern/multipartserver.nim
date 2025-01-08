@@ -32,7 +32,7 @@ template multipart(): untyped = MultipartContext(socketcontext)
 
 proc processHeader(c: char): PartState =
   if multipart.headerlen + 1 > server.maxheaderlength:
-    closeSocket(server, thesocket, ProtocolViolated, "header of part exceeded maximum allowed size")
+    closeSocket(ProtocolViolated, "header of part exceeded maximum allowed size")
     return Failed
   multipart.headercache[multipart.headerlen] = c
   multipart.headerlen += 1
@@ -141,7 +141,7 @@ iterator receiveParts*(parsepartheaders: bool = true): (PartState , string) =
         suspend(backoff)
         totalbackoff += backoff
         if totalbackoff > server.sockettimeoutms:
-          closeSocket(server, thesocket, TimedOut, "didn't stream all contents from socket")
+          closeSocket(TimedOut, "didn't stream all contents from socket")
           yield (Failed , "TimedOut")
           break
         backoff *= 2
@@ -199,7 +199,7 @@ proc handleMultipartRequest() {.gcsafe, nimcall, raises: [].} =
   if not parseRequestLine(): return
   let contenttype = http.headers.getOrDefault("content-type")
   if not contenttype.startsWith("multipart/form-data; boundary="):
-    closeSocket(server, thesocket, ProtocolViolated, "Multipart request with wrong content-type (" & contenttype & ") received from socket " & $thesocket)
+    closeSocket(ProtocolViolated, "Multipart request with wrong content-type (" & contenttype & ") received from socket " & $thesocket)
     return
   multipart.boundary = "--" & contenttype[30 .. ^1] # last boundary's extra -- is just ignored
   if unlikely(multipart.boundary.len > server.bufferlength - 1): server.log(ERROR, "bufferlength too small, even part boundary does not fit")

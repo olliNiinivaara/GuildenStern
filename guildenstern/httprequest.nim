@@ -1,20 +1,22 @@
 from std/strutils import find, parseInt, isLowerAscii, toLowerAscii
+{.push hint[DuplicateModuleImport]: off.}
 from posix import MSG_PEEK
+{.pop.}
 
 
 proc parseMethod*(): bool =
   if unlikely(http.requestlen < 13):
     server.log(WARN, "too short request: " & http.request)
-    closeSocket(server, thesocket, ProtocolViolated, "")
+    closeSocket(ProtocolViolated)
     return false
   while http.methlen < http.requestlen and http.request[http.methlen] != ' ': http.methlen.inc
   if unlikely(http.methlen == http.requestlen):
     server.log(WARN, "http method missing")
-    closeSocket(server, thesocket, ProtocolViolated, "")
+    closeSocket(ProtocolViolated)
     return false
   if unlikely(http.request[0 .. 1] notin ["GE", "PO", "HE", "PU", "DE", "CO", "OP", "TR", "PA"]):
     server.log(WARN, "invalid http method: " & http.request[0 .. 12])
-    closeSocket(server, thesocket, ProtocolViolated, "")
+    closeSocket(ProtocolViolated)
     return false
   return true
   
@@ -29,12 +31,12 @@ proc parseRequestLine*(): bool {.gcsafe, raises: [].} =
 
   if unlikely(http.requestlen < http.uristart + http.urilen + 9):
     server.log(WARN, "parseRequestLine: no version")
-    closeSocket(server, thesocket, ProtocolViolated, "")
+    closeSocket(ProtocolViolated)
     return false
 
   if unlikely(http.request[http.uristart + http.urilen + 1] != 'H' or http.request[http.uristart + http.urilen + 8] != '1'):
     server.log(WARN, "request not HTTP/1.1: " & http.request[http.uristart + http.urilen + 1 .. http.uristart + http.urilen + 8])
-    closeSocket(server, thesocket, ProtocolViolated, "")
+    closeSocket(ProtocolViolated)
     return false
   server.log(DEBUG, $server.port & "/" & $thesocket &  ": " & http.request[0 .. http.uristart + http.urilen + 8])
   true
@@ -52,7 +54,7 @@ proc getContentLength*(): bool {.raises: [].} =
     http.contentlength = parseInt(http.request[start + length ..< i])
     return true
   except:
-    closeSocket(server, thesocket, ProtocolViolated, "could not parse content-length")
+    closeSocket(ProtocolViolated, "could not parse content-length")
     return false
 
 
@@ -164,8 +166,8 @@ proc receiveHeader(): bool {.gcsafe, raises:[].} =
       suspend(backoff)
       totalbackoff += backoff
       if totalbackoff > server.sockettimeoutms:
-        if http.requestlen == 0: closeSocket(server, thesocket, TimedOut, "client sent nothing")
-        else: closeSocket(server, thesocket, TimedOut, "didn't receive whole header in time")
+        if http.requestlen == 0: closeSocket(TimedOut, "client sent nothing")
+        else: closeSocket(TimedOut, "didn't receive whole header in time")
         return false
       backoff *= 2
       continue
@@ -173,7 +175,7 @@ proc receiveHeader(): bool {.gcsafe, raises:[].} =
     http.requestlen += ret
     if isHeaderreceived(http.requestlen - ret, http.requestlen): break
     if http.requestlen > server.maxheaderlength:
-      closeSocket(server, thesocket, ProtocolViolated, "maximum allowed header size exceeded")
+      closeSocket(ProtocolViolated, "maximum allowed header size exceeded")
       return false
   http.contentreceived = http.requestlen - http.bodystart
   true
@@ -216,7 +218,7 @@ proc hasData(): bool =
   suspend(100)
   r = recv(thesocket, addr http.probebuffer[0], 1, MSG_PEEK or MSG_DONTWAIT)
   if likely(r == 1): return true
-  closeSocket(server, thesocket, ClosedbyClient, "client sent nothing")
+  closeSocket(ClosedbyClient, "client sent nothing")
   return false
 
 
@@ -232,7 +234,7 @@ proc readHeader*(): bool {.gcsafe, raises:[].} =
       if http.headers["content-length"].len > 0:
         http.contentlength = http.headers["content-length"].parseInt()
     except:
-      closeSocket(server, thesocket, ProtocolViolated, "non-parseable content-length")
+      closeSocket(ProtocolViolated, "non-parseable content-length")
       return false  
   true
 
@@ -291,7 +293,7 @@ proc receiveToSingleBuffer(): bool =
         suspend(backoff)
         totalbackoff += backoff
         if totalbackoff > server.sockettimeoutms:
-          closeSocket(server, thesocket, TimedOut, "didn't read all contents from socket")
+          closeSocket(TimedOut, "didn't read all contents from socket")
           return false
         backoff *= 2
         continue

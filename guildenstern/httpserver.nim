@@ -80,8 +80,8 @@ proc checkSocketState*(ret: int): SocketState =
       elif lasterror == 32: ConnectionLost
       elif lasterror == 104: ClosedbyClient
       else: NetErrored
-  if cause == Excepted: closeSocket(server, thesocket, Excepted, getCurrentExceptionMsg())
-  else: closeSocket(server, thesocket, cause, osErrorMsg(OSErrorCode(lastError)))
+  if cause == Excepted: closeSocket(Excepted, getCurrentExceptionMsg())
+  else: closeSocket(cause, osErrorMsg(OSErrorCode(lastError)))
   return Fail
 
 
@@ -131,7 +131,7 @@ proc handleRequest() {.gcsafe, nimcall, raises: [].} =
         server.log(DEBUG, "Nobody request of length " & $http.requestlen & " read from socket " & $thesocket)
     of Compact:
       if http.contentlength > server.bufferlength:
-          closeSocket(server, thesocket, ProtocolViolated, "content-length larger than bufferlength")
+          closeSocket(ProtocolViolated, "content-length larger than bufferlength")
           return
       if not receiveToSingleBuffer():
         server.log(DEBUG, "Receiving request to single buffer failed from socket " & $thesocket)

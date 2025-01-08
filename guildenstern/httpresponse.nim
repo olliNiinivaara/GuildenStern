@@ -48,7 +48,7 @@ proc writeToSocket(text: ptr string, length: int, flags = intermediateflags): So
       totalbackoff += backoff
       backoff *= 2
       if totalbackoff > server.sockettimeoutms:
-        closeSocket(server, thesocket, TimedOut, "didn't write to thesocket")
+        closeSocket(TimedOut, "didn't write to thesocket")
         return Fail
       continue
     else: return result
@@ -214,7 +214,7 @@ proc replyContinueChunked*(chunk: string): bool {.gcsafe.} =
   except: return false
   while true:
     if shuttingdown:
-      closeSocket(server, thesocket)
+      closeSocket()
       return false
     let (state , len) = tryWriteToSocket(addr chunk, delivered, chunk.len - delivered)
     delivered += len
@@ -223,7 +223,7 @@ proc replyContinueChunked*(chunk: string): bool {.gcsafe.} =
       suspend(backoff)
       totalbackoff += backoff
       if totalbackoff > server.sockettimeoutms:
-        closeSocket(server, thesocket, TimedOut, "didn't write a chunk in time")
+        closeSocket(TimedOut, "didn't write a chunk in time")
         return false
       backoff *= 2
       continue

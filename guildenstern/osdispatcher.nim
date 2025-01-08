@@ -57,10 +57,6 @@ proc closeSocketImpl(server: GuildenServer, socket: posix.SocketHandle, cause: S
 {.warning[Deprecated]:on.}
 
 
-template error(s: string): untyped = 
-  server.log(TRACE, s)
-  continue
-
 proc clientThread(server: GuildenServer) {.thread.} =
   var
     event: ReadyKey
