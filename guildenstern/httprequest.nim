@@ -6,17 +6,14 @@ from posix import MSG_PEEK
 
 proc parseMethod*(): bool =
   if unlikely(http.requestlen < 13):
-    server.log(WARN, "too short request: " & http.request)
-    closeSocket(ProtocolViolated)
+    closeSocket(ProtocolViolated, "too short request: " & http.request)
     return false
   while http.methlen < http.requestlen and http.request[http.methlen] != ' ': http.methlen.inc
   if unlikely(http.methlen == http.requestlen):
-    server.log(WARN, "http method missing")
-    closeSocket(ProtocolViolated)
+    closeSocket(ProtocolViolated, "http method missing")
     return false
   if unlikely(http.request[0 .. 1] notin ["GE", "PO", "HE", "PU", "DE", "CO", "OP", "TR", "PA"]):
-    server.log(WARN, "invalid http method: " & http.request[0 .. 12])
-    closeSocket(ProtocolViolated)
+    closeSocket(ProtocolViolated, "invalid http method: " & http.request[0 .. 12])
     return false
   return true
   
@@ -28,15 +25,11 @@ proc parseRequestLine*(): bool {.gcsafe, raises: [].} =
   while i < http.requestlen and http.request[i] != ' ': i.inc()
   http.uristart = start
   http.urilen = i - start
-
   if unlikely(http.requestlen < http.uristart + http.urilen + 9):
-    server.log(WARN, "parseRequestLine: no version")
-    closeSocket(ProtocolViolated)
+    closeSocket(ProtocolViolated, "parseRequestLine: no version")
     return false
-
   if unlikely(http.request[http.uristart + http.urilen + 1] != 'H' or http.request[http.uristart + http.urilen + 8] != '1'):
-    server.log(WARN, "request not HTTP/1.1: " & http.request[http.uristart + http.urilen + 1 .. http.uristart + http.urilen + 8])
-    closeSocket(ProtocolViolated)
+    closeSocket(ProtocolViolated, "request not HTTP/1.1: " & http.request[http.uristart + http.urilen + 1 .. http.uristart + http.urilen + 8])
     return false
   server.log(DEBUG, $server.port & "/" & $thesocket &  ": " & http.request[0 .. http.uristart + http.urilen + 8])
   true
@@ -155,7 +148,7 @@ proc getRequest*(): string =
 
 
 proc receiveHeader(): bool {.gcsafe, raises:[].} =
-  var backoff = 4
+  var backoff = initialbackoff
   var totalbackoff = 0
   while true:
     if shuttingdown: return false
@@ -285,7 +278,7 @@ iterator receiveStream*(): (SocketState , string) {.gcsafe, raises: [].} =
 
 
 proc receiveToSingleBuffer(): bool =
-  var backoff = 4
+  var backoff = initialbackoff
   var totalbackoff = 0
   for (state , chunk) in receiveStream():
     case state:

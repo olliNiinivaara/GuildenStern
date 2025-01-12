@@ -33,6 +33,6 @@ for i in 0 .. 50000: thisisyourdata &= $i
 thisisyourdata &= "finalwords"
 let getserver = newHttpServer(onGet, contenttype = NoBody)
 let postserver = newHttpServer(onPost, contenttype = Streaming)
-getserver.start(5050)
-postserver.start(5051)
+if not getserver.start(5050): quit() 
+if not postserver.start(5051): quit()
 joinThreads(getserver.thread, postserver.thread)

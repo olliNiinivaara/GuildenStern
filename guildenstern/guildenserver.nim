@@ -61,7 +61,7 @@ type
     SecurityThreatened ## Use this, when you decide to close socket for security reasons 
     DontClose ## Internal flag
 
-  LogCallback* = proc(loglevel: LogLevel, message: string) {.gcsafe, nimcall, raises: [].}
+  LogCallback* = proc(loglevel: LogLevel, source: string, message: string) {.gcsafe, nimcall, raises: [].}
 
 {.warning[Deprecated]:off.}
 type
@@ -137,21 +137,31 @@ template log*(theserver: GuildenServer, level: LogLevel, message: string) =
   ## if level is same or higher than server's loglevel.
   if unlikely(int(level) >= int(theserver.loglevel)):
     if likely(not isNil(theserver.logCallback)):
-      theserver.logCallback(level, message)
+      var s = if theserver.port == 0: "c" else: "s"
+      s.add($theserver.id)
+      theserver.logCallback(level, s, message)
+
+
+template log*(theserver: GuildenServer, level: LogLevel, source: string, message: string) =
+  ## Calls logCallback, if it set. By default, the callback is set to echo the message,
+  ## if level is same or higher than server's loglevel.
+  if unlikely(int(level) >= int(theserver.loglevel)):
+    if likely(not isNil(theserver.logCallback)):
+      theserver.logCallback(level, source, message)
 
 
 proc initialize*(server: GuildenServer, loglevel: LogLevel) =
   server.id = nextid
   nextid += 1
   server.loglevel = loglevel
-  if isNil(server.logCallback): server.logCallback = proc(loglevel: LogLevel, message: string) = (
+  if isNil(server.logCallback): server.logCallback = proc(loglevel: LogLevel, source: string, message: string) {.nimcall.} = (
     block:
       if unlikely(not isNil(getCurrentException())):
-        echo LogColors[loglevel.int], loglevel, "\e[0m ", message, ": ", getCurrentExceptionMsg()
-      elif message.len < 200: echo LogColors[loglevel.int], loglevel, "\e[0m ", message
+        echo LogColors[loglevel.int], loglevel, "\e[0m ", source, " ", message, ": ", getCurrentExceptionMsg()
+      elif message.len < 200: echo LogColors[loglevel.int], loglevel, "\e[0m ", source, " ", message
       else:
         let excerpt = message[0 .. 49] & " ... (" & $(message.len - 100) & " chars omitted) ... " & message[(message.len - 50) .. (message.len - 1)]
-        echo LogColors[loglevel.int], loglevel, "\e[0m ", excerpt.replace("\n", "\\n ")
+        echo LogColors[loglevel.int], loglevel, "\e[0m ", source, " ", excerpt.replace("\n", "\\n ")
   )
 
 

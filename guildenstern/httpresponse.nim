@@ -32,7 +32,7 @@ proc replyFinish*(): SocketState {.discardable, inline, gcsafe, raises: [].} =
 proc writeToSocket(text: ptr string, length: int, flags = intermediateflags): SocketState {.inline, gcsafe, raises: [].} =
   if length == 0: return Complete
   var bytessent = 0
-  var backoff = 1
+  var backoff = initialbackoff
   var totalbackoff = 0
   while true:
     let ret = send(thesocket, unsafeAddr text[bytessent], (length - bytessent).cint, flags)
@@ -204,7 +204,7 @@ proc replyStartChunked*(code: HttpCode = Http200, headers: openArray[string] = [
 
 
 proc replyContinueChunked*(chunk: string): bool {.gcsafe.} =
-  var backoff = 4
+  var backoff = initialbackoff
   var totalbackoff = 0
   var delivered = 0
   try:

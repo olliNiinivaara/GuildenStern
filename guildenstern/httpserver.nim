@@ -51,6 +51,7 @@ type
 const
   MSG_DONTWAIT* = when defined(macosx): 0x80.cint else: 0x40.cint
   MSG_MORE* = 0x8000.cint
+  initialbackoff* = 1
 
 
 proc isHttpContext*(): bool = return socketcontext is HttpContext
@@ -80,7 +81,7 @@ proc checkSocketState*(ret: int): SocketState =
       elif lasterror == 32: ConnectionLost
       elif lasterror == 104: ClosedbyClient
       else: NetErrored
-  if cause == Excepted: closeSocket(Excepted, getCurrentExceptionMsg())
+  if cause == Excepted: closeSocket(Excepted)
   else: closeSocket(cause, osErrorMsg(OSErrorCode(lastError)))
   return Fail
 

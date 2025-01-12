@@ -32,6 +32,7 @@ type
     isserversocket: bool
     flags: int
     customdata: pointer
+
   WorkerData = object
     gsselector: Selector[SocketData]
     queue: array[QueueSize, ptr SocketData]
@@ -45,7 +46,6 @@ type
 
 var
   shutdownevent = newSelectEvent()
-  NoSocketdata = SocketData()
   workerdatas: array[MaxServerCount, WorkerData]
 
 template wd(): untyped = workerdatas[server.id]
@@ -103,11 +103,11 @@ proc workerthreadLoop(server: GuildenServer) {.thread.} =
   if not isNil(server.threadFinalizerCallback): server.threadFinalizerCallback()
 
 
-proc findSocketDataForSocket(server: GuildenServer, socket: posix.SocketHandle): ptr SocketData =
+#[proc findSocketDataForSocket(server: GuildenServer, socket: posix.SocketHandle): ptr SocketData =
   {.gcsafe.}:
     for socketdata in workerdatas[server.id].queue: 
       if socketdata.socket == socket: return socketdata
-    return addr NoSocketdata
+    return addr NoSocketdata]#
 
 proc findSelectorForSocket(server: GuildenServer, socket: posix.SocketHandle): Selector[SocketData] =
   {.gcsafe.}:
@@ -129,7 +129,7 @@ proc closeSocketImpl(server: GuildenServer, socket: posix.SocketHandle, cause: S
   let theselector = findSelectorForSocket(server, socket)
   try:
     if not isNil(theselector): theselector.unregister(socket.int)
-  except CatchableError, Defect:
+  except:
     server.log(ERROR, "error unregistering socket")
   discard posix.close(socket)
 {.warning[Deprecated]:on.}
@@ -139,12 +139,13 @@ proc getFlags(server: GuildenServer, socket: posix.SocketHandle): int =
   for socketdata in workerdatas[server.id].queue.mitems(): 
     if socketdata.socket == socket: return socketdata.flags
   return -1
-
+  
 
 proc setFlags(server: GuildenServer, socket: posix.SocketHandle, flags: int): bool =
   for socketdata in workerdatas[server.id].queue.mitems(): 
     if socketdata.socket == socket:
       socketdata.flags = flags
+      server.log(DEBUG, "Socket " & $socket & " flags set to " & $flags)
       return true 
   return false
 
@@ -171,7 +172,7 @@ proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].}
     {.push warning[ProveInit]: off.}
     socketdata = addr wd.gsselector.getData(fd.int)
     {.pop.}
-  except CatchableError, Defect:
+  except:
     server.log(FATAL, "selector.getData error")
     return
 
@@ -193,7 +194,7 @@ proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].}
     try:
       server.log(INFO, "dysunctional " & $fd & ": " & $event.events)
       closeSocketImpl(server, fd, NetErrored, "non-read " & $fd & ": " & $event.events)
-    except CatchableError, Defect: discard
+    except: discard
     finally: return
 
   if unlikely(socketdata.isserversocket):
@@ -205,7 +206,7 @@ proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].}
         return
       wd.gsselector.registerHandle(fd.int, {Event.Read}, SocketData(isserversocket: false, socket: fd))
       server.log(DEBUG, "socket " & $fd & " connected to thread " & $getThreadId())
-    except CatchableError, Defect:
+    except:
       server.log(ERROR, "selector registerHandle error")
     finally:
       return
@@ -243,14 +244,15 @@ proc eventLoop(server: GuildenServer) {.gcsafe, raises: [].} =
   var eventid: int
   {.gcsafe.}:
     let gsselector = workerdatas[server.id].gsselector
+    server.log(INFO, "dispatcher now listening at port " & $server.port) 
   server.started = true
+  
 
   while true:
     if unlikely(shuttingdown): break
     var ret: int
-    try:
-      ret = gsselector.selectInto(-1, eventbuffer)
-    except CatchableError, Defect:
+    try: ret = gsselector.selectInto(-1, eventbuffer)
+    except:
       server.log(ERROR, "selector.select")
       continue
     if unlikely(server.loglevel == TRACE):
@@ -260,20 +262,21 @@ proc eventLoop(server: GuildenServer) {.gcsafe, raises: [].} =
     processEvent(server, eventbuffer[0])
 
 
-proc dispatchloop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].} =
-  when not defined(nimdoc):
-    var linger = TLinger(l_onoff: 1, l_linger: 0)
+proc createSelector(server: GuildenServer): bool =
   try:
     {.gcsafe.}:
       signal(SIG_PIPE, SIG_IGN)
       workerdatas[server.id].gsselector = newSelector[SocketData]()
       workerdatas[server.id].gsselector.registerEvent(shutdownevent, SocketData())
-  except Exception, CatchableError, Defect:
+  except:
     server.log(FATAL, "Could not create selector")
-    server.started = true
-    server.port = 0
-    return
+    return false
+  return true
 
+
+proc startListening(server: GuildenServer): bool =
+  when not defined(nimdoc):
+    var linger = TLinger(l_onoff: 1, l_linger: 0)
   var portserver: Socket
   try:
     portserver = newSocket()
@@ -281,22 +284,21 @@ proc dispatchloop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].}
     when not defined(nimdoc):
       discard setsockopt(portserver.getFd(), cint(SOL_SOCKET), cint(SO_LINGER), addr linger, SockLen(sizeof(TLinger)))
     portserver.listen()
-  except CatchableError, Defect:
+  except:
     server.log(FATAL, "Could not open port " & $server.port)
-    server.started = true
-    server.port = 0
-    return
+    return false
   try:
     {.gcsafe.}:
       workerdatas[server.id].gsselector.registerHandle(portserver.getFd().int, {Event.Read}, SocketData(isserversocket: true))
     when not defined(nimdoc): portserver.getFd().setBlocking(false)
     portserver.setSockOpt(OptNoDelay, true, level = cint(Protocol.IPPROTO_TCP))
-  except CatchableError, Defect:
+  except:
     server.log(FATAL, "Could not listen to port " & $server.port)
-    server.started = true
-    server.port = 0
-    return
+    return false
+  return true
+  
 
+proc startEventloop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].} =
   {.gcsafe.}:
     var workerthreads = newSeq[Thread[GuildenServer]](workerdatas[server.id].threadpoolsize)
     try:
@@ -304,7 +306,7 @@ proc dispatchloop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].}
     except ResourceExhaustedError:
       server.log(FATAL, "Could not create worker threads")
       server.started = true
-      server.port = 0
+      server.port = 1
       return
 
   eventLoop(server)
@@ -319,7 +321,7 @@ proc dispatchloop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].}
     server.log(FATAL, "shutdown failed")
 
   let waitingtime = 10 # 10 seconds, TODO: make this configurable / larger than socket timeout
-  server.log(DEBUG, "Waiting for worker threads to stop...")
+  server.log(DEBUG, "waiting for client threads to stop...")
   var slept = 0
   while slept < 1000 * waitingtime:
     sleep(500)
@@ -330,14 +332,16 @@ proc dispatchloop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].}
   if slept > 1000 * waitingtime:
     server.log(NOTICE, "Not all threads stopped after waiting " & $waitingtime & " seconds. Proceeding with shutdown anyway.")
   else: server.log(DEBUG, "threads stopped.")
+  sleep(200) # wait for OS
 
 
-proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0, maxactivethreadcount: uint = 0): bool {.discardable.} =
+proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0, maxactivethreadcount: uint = 0): bool =
   ## Starts the server.thread loop, which then listens the given port for read requests until shuttingdown == true.
   ## By default maxactivethreadcount will be set to processor core count, and threadpoolsize twice that.
   ## If you a running lots of servers, or if this server is not under a heavy load, these numbers can be lowered.
   doAssert(server.id < MaxServerCount)
   doAssert(not server.started)
+  doAssert(port != 1)
   doAssert(threadpoolsize >= maxactivethreadcount)
   workerdatas[server.id] = WorkerData()
   workerdatas[server.id].head = -1
@@ -352,9 +356,20 @@ proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0, maxactiv
   server.closeSocketCallback = closeSocketImpl
   server.getFlagsCallback = getFlags
   server.setFlagsCallback = setFlags
-  createThread(server.thread, dispatchloop, server)
+  if not createSelector(server): return false
+  if server.port > 0 and not startListening(server): return false
+  createThread(server.thread, startEventloop, server)
   while not server.started:
     sleep(50)
-    if shuttingdown: break
-  if server.port == 0: shuttingdown = true
-  return not shuttingdown
+    if shuttingdown: return false
+  return server.port != 1 and not shuttingdown
+
+
+proc registerSocket*(theserver: GuildenServer, socket: SocketHandle, customdata: pointer = nil): bool =
+  try:
+    workerdatas[theserver.id].gsselector.registerHandle(socket.int, {Event.Read}, SocketData(isserversocket: false, socket: socket, customdata: customdata))
+    theserver.log(DEBUG, "socket " & $socket & " connected to client-server " & $theserver.id)
+    return true
+  except:
+    theserver.log(ERROR, "registerSocket: selector registerHandle error")
+    return false

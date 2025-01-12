@@ -252,7 +252,7 @@ proc close*(ev: SelectEvent) =
   if res != 0:
     raiseIOSelectorsError(osLastError())
 
-template checkFd(s, f) =
+#[template checkFd(s, f) =
   # TODO: I don't see how this can ever happen. You won't be able to create an
   # FD if there is too many. -- DP
   if f >= s.maxFD:
@@ -263,7 +263,16 @@ template checkFd(s, f) =
     s.fds = reallocSharedArray(s.fds, s.numFD, numFD)
     for i in s.numFD ..< numFD:
       s.fds[i].ident = InvalidIdent
+    s.numFD = numFD]#
+
+template checkFd(s, f) =
+  if f >= s.numFD:
+    var numFD = s.numFD
+    while numFD <= f: numFD *= 2
+    s.fds = reallocSharedArray(s.fds, s.numFD, numFD)
+    for i in s.numFD ..< numFD: s.fds[i].ident = InvalidIdent
     s.numFD = numFD
+
 
 proc registerHandle*[T](s: Selector[T], fd: int | SocketHandle,
                         events: set[Event], data: T) =
@@ -287,12 +296,12 @@ proc registerExclusiveReadHandle*[T](s: Selector[T], fd: int | SocketHandle,  da
   doAssert(s.fds[fdi].ident == InvalidIdent, "Descriptor $# already registered" % $fdi)
   s.setKey(fdi, {Event.Read}, 0, data)
   var epv = EpollEvent(events: EPOLLRDHUP or EPOLLIN or EPOLLET)
-  # var epv = EpollEvent(events: EPOLLRDHUP or EPOLLIN)
   epv.data.u64 = fdi.uint
   if epoll_ctl(s.epollFD, EPOLL_CTL_ADD, fdi.cint, addr epv) != 0:
     raiseIOSelectorsError(osLastError())
   inc(s.count)
-
+  
+  
 proc updateHandle*[T](s: Selector[T], fd: int | SocketHandle, events: set[Event]) =
   let maskEvents = {Event.Timer, Event.Signal, Event.Process, Event.Vnode,
                     Event.User, Event.Oneshot, Event.Error}
@@ -646,11 +655,6 @@ proc selectFast*[T](s: Selector[T]): ReadyKey =
       result.events.incl(Event.Error)
     if (res.events and EPOLLIN) != 0: result.events.incl(Event.Read)
     elif Event.User in pkey.events: result.events.incl(Event.User)
-    else:
-      echo "ei kumpikaan"
-      echo res.events
-      echo pkey.events
-      echo "----"
     if result.events.len > 0: break
 
 
@@ -673,19 +677,9 @@ proc getData*[T](s: Selector[T], fd: SocketHandle|int): var T =
     result = s.fds[fdi].data
 
 
-template check(s, f) =
-  if f >= s.numFD:
-    echo "kasvatetaan"
-    var numFD = s.numFD
-    while numFD <= f: numFD *= 2
-    s.fds = reallocSharedArray(s.fds, s.numFD, numFD)
-    for i in s.numFD ..< numFD: s.fds[i].ident = InvalidIdent
-    s.numFD = numFD
-
-
 proc getSafelyData*[T](default: var T, s: Selector[T], fd: SocketHandle|int): var T =
   let fdi = int(fd)
-  s.check(fdi)
+  s.checkFd(fdi)
   if fdi in s:
     result = s.fds[fdi].data
   else:

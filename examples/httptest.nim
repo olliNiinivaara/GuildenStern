@@ -1,7 +1,6 @@
-import guildenstern/[osdispatcher, httpserver]
+import guildenstern/[dispatcher, httpserver]
 
 proc handleHttpRequest*() =
-  echo "sovellukseen asti päästiin"
   let body = "replyfromport" & $(server.port)
   doAssert getMethod() == "GET"
   doAssert http.headers.getOrDefault("connection") == "keep-alive"
@@ -19,10 +18,10 @@ proc onCloseSocket(server: GuildenServer, socket: SocketHandle, cause: SocketClo
   echo "closing socket ", socket, " due to ", cause, " ", msg
 
 echo "Starting at ports 8070, 8071"
-var server1 = newHttpServer(handleHttpRequest, headerfields = ["connection"])
-var server2 = newHttpServer(handleHttpRequest, TRACE, headerfields = ["connection"])
+var server0 = newHttpServer(handleHttpRequest, headerfields = ["connection"])
+var server1 = newHttpServer(handleHttpRequest, TRACE, headerfields = ["connection"])
+server0.onCloseSocketCallback = onCloseSocket
 server1.onCloseSocketCallback = onCloseSocket
-server2.onCloseSocketCallback = onCloseSocket
-server1.start(8070)
-server2.start(8071, 40)
-joinThreads(server1.thread, server2.thread)
+if not server0.start(8070): quit()
+if not server1.start(8071, 40): quit()
+joinThreads(server0.thread, server1.thread)

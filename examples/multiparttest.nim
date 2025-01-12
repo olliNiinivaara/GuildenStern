@@ -80,7 +80,7 @@ proc onRequest() =
   reply(Http200, html)
 
 let getserver = newHttpServer(onRequest, NOTICE, false, NoBody)
-getserver.start(5050)
+if not getserver.start(5050): quit()
 let uploadserver = newMultipartServer(handleUpload)
-uploadserver.start(5051)
+if not uploadserver.start(5051): quit()
 joinThreads(getserver.thread, uploadserver.thread)

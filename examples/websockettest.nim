@@ -1,7 +1,5 @@
 # nim r websockettest.nim 
-# and open couple of browsers at localhost:5050
-
-import segfaults
+# and open couple of browser tabs at localhost:5050
 
 import locks
 import guildenstern/[osdispatcher, httpserver, websocketserver]
@@ -12,14 +10,15 @@ var
   messages: int
 
 proc onUpgradeRequest(): bool =
-  echo "Socket ", ws.socketdata.socket, " requests upgrade to Websocket"
+  echo "Socket ", thesocket, " requests upgrade to Websocket"
   true
 
 proc afterUpgradeRequest() =
   {.gcsafe.}:
-    withLock(lock): wsconnections.add(ws.socketdata.socket)
-  echo "Websocket ", ws.socketdata.socket, " connected"
+    withLock(lock): wsconnections.add(thesocket)
+  echo "Websocket ", thesocket, " connected"
 
+# TODO: wrong code sent?
 proc doShutdown() =
   withLock(lock):
     for socket in wsconnections: wsserver.sendClose(socket, 1001)
@@ -36,11 +35,11 @@ proc onMessage() =
       withLock(lock): currentconnections = wsconnections
       discard wsserver.send(currentconnections, reply)
   
-proc onLost(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string) =
-  echo "Websocket ", socketdata.socket, " ", cause, " due to status code ", msg
+proc onLost(Server: GuildenServer, socket: SocketHandle, cause: SocketCloseCause, msg: string) =
+  echo "Websocket ", socket, " ", cause, " due to status code ", msg
   {.gcsafe.}:
     withLock(lock):
-      let index = wsconnections.find(socketdata.socket)
+      let index = wsconnections.find(socket)
       if index != -1: wsconnections.del(index)
         
 proc onRequest() =
@@ -63,8 +62,8 @@ proc onRequest() =
 
 initLock(lock)
 let server = newHttpServer(onRequest, NONE, false, NoBody)
-server.start(5050)
+if not server.start(5050): quit 1
 let wsserver = newWebsocketServer(onUpgradeRequest, afterUpgradeRequest, onMessage, onLost, TRACE)
-wsserver.start(5051, 2)
+if not wsserver.start(5051, 2): quit 2
 joinThreads(server.thread, wsserver.thread)
 deinitLock(lock)

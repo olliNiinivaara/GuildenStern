@@ -127,7 +127,7 @@ iterator receiveParts*(parsepartheaders: bool = true): (PartState , string) =
   multipart.partlen = 0
   multipart.inheader = true
   var failed = false
-  var backoff = 4
+  var backoff = initialbackoff
   var totalbackoff = 0
 
   var originalheaderfields = newSeq[string]() 
