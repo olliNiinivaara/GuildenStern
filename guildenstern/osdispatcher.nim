@@ -3,7 +3,7 @@
 import net, os, posix, locks, atomics
 from nativesockets import accept, setBlocking
 from std/osproc import countProcessors
-import guildenserver, osselector
+import guildenserver, guildenselectors
 
 const
   MSG_DONTWAIT = when defined(macosx): 0x80.cint else: 0x40.cint
@@ -169,8 +169,8 @@ proc startClientthreads(server: GuildenServer): bool =
 
 proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].} =
   var eventbuffer: array[1, ReadyKey]
-  {.gcsafe.}: server.log(INFO, "osdispatcher now listening at port " & $server.port &
-    " with socket " & $servers[server.id].serversocket.getFd())
+  {.gcsafe.}:
+    server.log(INFO, "osdispatcher now listening at port " & $server.port & " with socket " & $servers[server.id].serversocket.getFd())
   server.started = true
   while true:
     try:
@@ -213,7 +213,7 @@ proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].
     try:
       let client = new Client
       {.gcsafe.}:
-        servers[server.id].clientselector.registerExclusiveReadHandle(newsocket.int, client)
+        servers[server.id].clientselector.registerEPOLLETReadHandle(newsocket.int, client)
     except:
       server.log(ERROR, "selector registerHandle error for socket " & $newsocket)
       continue
@@ -264,13 +264,12 @@ proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0): bool =
   return not shuttingdown
 
 
-proc registerSocket*(server: GuildenServer, socket: SocketHandle, customdata: pointer = nil): bool =
+proc registerSocket*(server: GuildenServer, socket: SocketHandle,  flags = 0,customdata: pointer = nil): bool =
   try:
     let client = new Client
+    client.flags = flags
     client.customdata = customdata
-    {.gcsafe.}:
-      servers[server.id].clientselector.registerExclusiveReadHandle(socket.int, client)
-      #servers[server.id].clientselector.registerHandle(socket.int,  {Event.Read}, client)
+    {.gcsafe.}: servers[server.id].clientselector.registerEPOLLETReadHandle(socket.int, client)
     server.log(DEBUG, "socket " & $socket & " connected to client-server " & $server.id)
     return true
   except:

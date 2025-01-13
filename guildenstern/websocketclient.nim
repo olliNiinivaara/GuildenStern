@@ -1,5 +1,5 @@
 import std/[strutils, net, uri, httpclient, posix]
-import guildenstern/[dispatcher, websocketserver]
+import guildenstern/[osdispatcher, websocketserver]
 export websocketserver
 
 type
@@ -32,10 +32,9 @@ proc connect*(client: WebsocketClient, key = "dGhlIHNhbXBsZSBub25jZQ=="): bool =
     echo getCurrentExceptionMsg()
     return false
   client.socket = client.httpclient.getSocket().getFd()
-  if not client.clientele.registerSocket(client.socket, cast[pointer](client.id)):
+  if not client.clientele.registerSocket(client.socket, 1, cast[pointer](client.id)):
     client.close()
     return false
-  if not client.clientele.setFlags(client.socket, 1): return false
   return true
 
 
@@ -73,12 +72,13 @@ proc newWebsocketClient*(clientele: WebsocketClientele, url: string,
   clientele.clients.add(result)
 
 
-proc newWebsocketClientele*(onClosesocketcallback: OnCloseSocketCallback = nil, loglevel = LogLevel.WARN): WebsocketClientele =
+proc newWebsocketClientele*(onClosesocketcallback: OnCloseSocketCallback = nil, loglevel = LogLevel.WARN, bufferlength = 1000): WebsocketClientele =
   result = new WebsocketClientele
   initWebsocketServer(result, nil, nil, clienteleReceive, loglevel)
   result.onClosesocketcallback = onClosesocketcallback
+  result.bufferlength = bufferlength
   result.clients.add(emptyClient)
 
 
-proc start*(clientele: WebsocketClientele): bool =
-  return clientele.start(0)
+proc start*(clientele: WebsocketClientele, threadpoolsize = 0): bool =
+  return clientele.start(port = 0, threadpoolsize = threadpoolsize.uint)

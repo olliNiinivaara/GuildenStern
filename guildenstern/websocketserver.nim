@@ -18,7 +18,6 @@ export posix.SocketHandle
 import httpserver
 export httpserver
 
-
 type
   Opcode = enum
     Cont = 0x0                ## continuation frame
@@ -40,8 +39,6 @@ type
     upgradeCallback*: WsUpgradeCallback ## Return true to accept, false to decline
     afterUpgradeCallback*: WsAfterUpgradeCallback ## Optional, good for initialization purposes
     messageCallback*: WsMessageCallback ## Triggered when a message is received. Streaming reads are not supported: message length must be shorter than buffersize.
-    sendingsockets: HashSet[posix.Sockethandle]
-    sendlock: Lock
 
   State = tuple[sent: int, sendstate: SendState]
   
@@ -54,20 +51,27 @@ type
 
 const
   MaxParallelSendingSockets {.intdefine.} = 500
-  randommaskkey = "aaaa" # only used by the websockettester client
+  randommaskkey = "aaaa" # used by websocketclient (not very random, though)
 
 let
   MagicString = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
   MagicClose = "close-258EAFA5-E914:"
 
 var
+  sendingsockets: HashSet[posix.Sockethandle]
+  sendlock: Lock
+
   opcode {.threadvar.} : OpCode
   wsresponseheader {.threadvar.} : string
   maskkey {.threadvar.} : string
   ismasked {.threadvar.} : bool
   deli {.threadvar.} : WsDelivery
 
-{.push checks: off.}
+initLock(sendlock)
+sendingsockets = initHashSet[posix.Sockethandle](3 * MaxParallelSendingSockets)
+
+when not defined(debug):
+  {.push checks: off.}
 
 template ws*(): untyped =
   HttpContext(socketcontext)
@@ -132,9 +136,7 @@ proc bytesRecv(buffer: var string, size: int): int =
       let lastError = osLastError().int
       if lastError in [EAGAIN.int, EWOULDBLOCK.int]:
         if not isTimeout(backoff, totalbackoff): continue
-        else:
-          opcode = WsFail
-          return -1
+        else: error("websocket " & $thesocket & " sent nothing")
       else: error("websocket " & $thesocket & " ws header receive error: " & $lastError & " " & osErrorMsg(OSErrorCode(lastError)))
     elif res > 0:
       received += res
@@ -148,7 +150,7 @@ proc recvHeader(): int =
   let b0 = ws.request[0].uint8
   let b1 = ws.request[1].uint8
   opcode = (b0 and 0x0f).Opcode
-  if b0[1] or b0[2] or b0[3]: error("ws protocol error")
+  if b0[1] or b0[2] or b0[3]: error("ws receive protocol error")
   var expectedLen: int = 0
 
   ismasked = b1[0].uint8 == 1
@@ -218,7 +220,8 @@ proc receiveWs() =
     if opcode == WsFail: return
     while opcode == Cont: recvFrame()
     if ismasked:
-      for i in 0 ..< ws.requestlen: ws.request[i] = (ws.request[i].uint8 xor maskkey[i mod 4].uint8).char
+      for i in 0 ..< ws.requestlen:
+        ws.request[i] = (ws.request[i].uint8 xor maskkey[i mod 4].uint8).char
   except:
     closeSocket(wsserver, thesocket, Excepted, "ws receive exception")
     opcode = WsFail
@@ -338,7 +341,7 @@ proc isMessage*(message: string): bool =
 
 
 proc sendNonblocking(server: WebsocketServer, socket: posix.SocketHandle, text: ptr string, sent: int = 0): (SendState , int) =
-  server.log(DEBUG, "writeToWebSocket " & $socket.int & ": " & text[])
+  server.log(DEBUG, $getThreadId() & " writeToWebSocket " & $socket.int & ": " & text[])
   if socket == INVALID_SOCKET: return (Err , 0)
   let len = text[].len
   if sent == len: return (Delivered , 0)
@@ -355,8 +358,8 @@ proc sendNonblocking(server: WebsocketServer, socket: posix.SocketHandle, text: 
         else: NetErrored
       let errormsg = osErrorMsg(OSErrorCode(lastError))
       server.closeSocket(socket, cause, " send error: " & $lastError & " " & errormsg)
-    elif ret < -1:
-      server.closeSocket(socket, Excepted, "Send error")
+      echo socket, " send error: " & $lastError & " " & errormsg
+    elif ret < -1: server.closeSocket(socket, Excepted, "Send error")
     return (Err , 0)
   if sent + ret == len: return (Delivered , ret)
   return (Continue , ret)
@@ -366,12 +369,13 @@ proc closeSocketsInFlight(server: WebsocketServer, sockets: seq[posix.SocketHand
   for i in 0 ..< states.len:
     if states[i].sendstate == Continue:
       server.closeSocket(sockets[i], TimedOut, "")
-      withLock(server.sendlock): server.sendingsockets.excl(sockets[i])
+      {.gcsafe.}:
+        withLock(sendlock): sendingsockets.excl(sockets[i])
       result.inc
 
 
+var ts {.threadvar.} : Timespec
 proc getSafeMonoTime(): MonoTime {.tags: [TimeEffect].} =
-  var ts {.threadvar.} : Timespec
   discard clock_gettime(CLOCK_MONOTONIC, ts)
   privateAccess(MonoTime)
   result = MonoTime(ticks: ts.tv_sec.int64 * 1_000_000_000 + ts.tv_nsec.int64)
@@ -380,13 +384,14 @@ proc getSafeMonoTime(): MonoTime {.tags: [TimeEffect].} =
 let ping = "PING"
 let nostatuscode = ""
 
+
 proc send*(server: WebsocketServer, delivery: ptr WsDelivery, timeoutsecs = 10, sleepmillisecs = 10): int {.discardable.} =
   ## Sends message to multiple websockets at once. Uses non-blocking I/O so that slow receivers do not slow down fast receivers.
   ## | Can be called from multiple threads in parallel.
   ## | `timeoutsecs`: a timeout after which sending is given up and all sockets with messages in-flight are closed
   ## | `sleepmillisecs`: if all in-flight receivers are blocking, will suspend for (sleepmillisecs * in-flight receiver count) milliseconds
   ## Returns amount of websockets that had to be closed
-  server.log(TRACE, "starts sending websockets")
+  server.log(TRACE, "--starts sending websockets--")
   {.gcsafe.}:
     if delivery.message[].len == 0:
       delivery.message = addr ping
@@ -428,20 +433,23 @@ proc send*(server: WebsocketServer, delivery: ptr WsDelivery, timeoutsecs = 10, 
 
     var ret: int
     if delivery.states[s].sendstate == NotStarted:
-      withLock(server.sendlock):
-        if server.sendingsockets.len == MaxParallelSendingSockets:
-          server.log(INFO, "MaxParallelSendingSockets reached, sleeping for " & $(sleepmillisecs) & " ms")
-          suspend(sleepmillisecs)
-          continue
-        if server.sendingsockets.contains(delivery.sockets[s]): continue
-        server.sendingsockets.incl(delivery.sockets[s])
+      {.gcsafe.}:
+        withLock(sendlock):
+          if sendingsockets.len == MaxParallelSendingSockets:
+            server.log(INFO, "MaxParallelSendingSockets reached, sleeping for " & $(sleepmillisecs) & " ms")
+            suspend(sleepmillisecs)
+            continue
+          if not sendingsockets.contains(delivery.sockets[s]):
+            sendingsockets.incl(delivery.sockets[s])
+          else: continue
       var headerstate: SendState
       (headerstate , ret) = server.sendNonblocking(delivery.sockets[s], addr wsresponseheader)
       if headerstate == Delivered: delivery.states[s].sendstate = Continue # only header delivered
       else:
         delivery.states[s].sendstate = Err
-        withLock(server.sendlock):
-          server.sendingsockets.excl(delivery.sockets[s])
+        {.gcsafe.}:
+          withLock(sendlock):
+            sendingsockets.excl(delivery.sockets[s])
         if headerstate == Continue: server.closeSocket(delivery.sockets[s], TimedOut)
         result.inc
         handled.inc
@@ -449,6 +457,7 @@ proc send*(server: WebsocketServer, delivery: ptr WsDelivery, timeoutsecs = 10, 
         if handled == delivery.sockets.len: break
       continue
       
+    if shuttingdown: return -1  
     (delivery.states[s].sendstate , ret) = server.sendNonblocking(delivery.sockets[s], delivery.message, delivery.states[s].sent)
     case delivery.states[s].sendstate
       of Err: result.inc
@@ -461,11 +470,12 @@ proc send*(server: WebsocketServer, delivery: ptr WsDelivery, timeoutsecs = 10, 
           blockedsockets = 0
       else: discard
     if delivery.states[s].sendstate != Continue:
-      withLock(server.sendlock): server.sendingsockets.excl(delivery.sockets[s])
+      {.gcsafe.}:
+        withLock(sendlock): sendingsockets.excl(delivery.sockets[s])
       handled.inc
       server.log(TRACE, "wsockets processed: " & $handled & "/" & $delivery.sockets.len)
       if handled >= delivery.sockets.len: break
-  server.log(TRACE, "websocket send finished")
+  server.log(TRACE, "--ends sending websockets--")
 
 
 proc send*(server: WebsocketServer, sockets: seq[posix.SocketHandle], message: string, binary = false, timeoutsecs = 10, sleepmillisecs = 10): bool {.discardable.} =
@@ -475,8 +485,11 @@ proc send*(server: WebsocketServer, sockets: seq[posix.SocketHandle], message: s
   deli.sockets = sockets
   deli.message = unsafeAddr(message)
   deli.binary = binary
-  return send(server, unsafeAddr deli, timeoutsecs, sleepmillisecs) == 0
-
+  let fails = send(server, unsafeAddr deli, timeoutsecs, sleepmillisecs)
+  if likely(fails < 1): return true
+  server.log(NOTICE, "websocket multisend failed for " & $fails & " sockets")
+  return false
+  
 
 proc send*(server: WebsocketServer, socket: posix.SocketHandle, message: string, binary = false, timeoutsecs = 2, sleepmillisecs = 10): bool {.discardable.} =
   when not compiles(unsafeAddr message):
@@ -509,13 +522,13 @@ proc handleWsRequest*() {.gcsafe, nimcall, raises: [].} =
   prepareHttpContext()
   let flags = getFlags(wsserver, thesocket)
   if unlikely(flags == -1):
-    wsserver.log(INFO, "socket " & $thesocket & " get data disappeared during websocket handshake")
+    wsserver.log(DEBUG, "websocket " & $thesocket & " disappeared")
     return
   elif unlikely(flags == 0):
     if wsserver.isclient:
       if not readHeader(): closeSocket(wsserver, thesocket, NetErrored, "Websocket header read failed")
       if not setFlags(wsserver, thesocket, 1):
-        closeSocket(wsserver, thesocket, NetErrored, " set data disappeared during websocket handshake")
+        closeSocket(wsserver, thesocket, NetErrored, " websocket disappeared at hanshake")
         return
     else: handleWsUpgradehandshake()
     return
@@ -533,7 +546,7 @@ proc handleWsRequest*() {.gcsafe, nimcall, raises: [].} =
           wsserver.log(NOTICE, "websocket blocking, could not autoacknowledge close")
         if statuscode == "": closeSocket(wsserver, thesocket, ClosedbyClient, "1005")
         else: closeSocket(wsserver, thesocket, ClosedbyClient, $(byte(statuscode[1]) + 256*byte(statuscode[0])))
-    of WsFail: closeSocket(wsserver, thesocket, NetErrored, "Websocket failed")
+    of WsFail: return
     else: {.gcsafe.}:
       if likely(ws.requestlen > 0 and not isNil(wsserver.messageCallback)): wsserver.messageCallback()
 
@@ -550,8 +563,6 @@ proc initWebsocketServer*(wsserver: WebsocketServer, upgradecallback: WsUpgradeC
   wsserver.upgradeCallback = upgradecallback
   wsserver.afterUpgradeCallback = afterupgradecallback
   wsserver.messageCallback = onwsmessagecallback
-  initLock(wsserver.sendlock)
-  wsserver.sendingsockets = initHashSet[posix.Sockethandle](3 * MaxParallelSendingSockets)
   wsserver.internalThreadInitializationCallback = handleWsThreadInitialization
  
 
@@ -572,5 +583,5 @@ proc newWebsocketServer*(upgradecallback: WsUpgradeCallback, afterupgradecallbac
   result = newWebsocketServer(upgradecallback, afterupgradecallback, onwsmessagecallback, loglevel)
   result.onClosesocketcallback = onClosesocketcallback
 
-
-{.pop.}
+when not defined(debug):
+  {.pop.}

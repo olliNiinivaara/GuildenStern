@@ -2,7 +2,7 @@
 # and open couple of browser tabs at localhost:5050
 
 import locks
-import guildenstern/[osdispatcher, httpserver, websocketserver]
+import guildenstern/[dispatcher, httpserver, websocketserver]
 
 var
   lock: Lock

@@ -5,7 +5,7 @@ Modular multithreading HTTP/1.1 + WebSocket upstream server framework
 ## Example
 
 ```nim
-# nim r --d:release --d:threadsafe --mm:atomicArc thisexample
+# nim r --d:release --mm:atomicArc thisexample
 
 import cgi, guildenstern/[dispatcher, osdispatcher, httpserver]
      

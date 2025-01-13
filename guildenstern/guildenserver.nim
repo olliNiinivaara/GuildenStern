@@ -139,6 +139,7 @@ template log*(theserver: GuildenServer, level: LogLevel, message: string) =
     if likely(not isNil(theserver.logCallback)):
       var s = if theserver.port == 0: "c" else: "s"
       s.add($theserver.id)
+      s.add(" " & $getThreadId() & " ")
       theserver.logCallback(level, s, message)
 
 
@@ -204,6 +205,7 @@ proc logClose(server: GuildenServer, socket: SocketHandle, cause = CloseCalled, 
 
 proc closeSocket*(server: GuildenServer, socket: SocketHandle, cause = CloseCalled, msg = "") {.gcsafe, nimcall, raises: [].} =
   ## Call this to close any socket connection.
+  if socket == INVALID_SOCKET: return
   logClose(server, socket, cause, msg)
   if not isNil(server.closeSocketCallback):
     server.closeSocketCallback(server, socket, cause, msg)
