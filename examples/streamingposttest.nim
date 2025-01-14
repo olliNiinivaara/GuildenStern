@@ -15,7 +15,7 @@ proc onPost() =
   for (state , chunk) in receiveStream():
     case state:
       of TryAgain:
-        suspend(100)
+        server.suspend(100)
         trials += 1
         if trials > 100: (closeSocket() ; break)
       of Fail: discard

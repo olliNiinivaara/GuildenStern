@@ -156,7 +156,7 @@ proc receiveHeader(): bool {.gcsafe, raises:[].} =
     let state = checkSocketState(ret)
     if state == Fail: return false
     if state == SocketState.TryAgain:
-      suspend(backoff)
+      server.suspend(backoff)
       totalbackoff += backoff
       if totalbackoff > server.sockettimeoutms:
         if http.requestlen == 0: closeSocket(TimedOut, "client sent nothing")
@@ -208,7 +208,7 @@ proc parseHeaders() =
 proc hasData(): bool =
   var r = recv(thesocket, addr http.probebuffer[0], 1, MSG_PEEK or MSG_DONTWAIT)
   if likely(r == 1): return true
-  suspend(100)
+  server.suspend(100)
   r = recv(thesocket, addr http.probebuffer[0], 1, MSG_PEEK or MSG_DONTWAIT)
   if likely(r == 1): return true
   closeSocket(ClosedbyClient, "client sent nothing")
@@ -283,7 +283,7 @@ proc receiveToSingleBuffer(): bool =
   for (state , chunk) in receiveStream():
     case state:
       of TryAgain:
-        suspend(backoff)
+        server.suspend(backoff)
         totalbackoff += backoff
         if totalbackoff > server.sockettimeoutms:
           closeSocket(TimedOut, "didn't read all contents from socket")

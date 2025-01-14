@@ -11,6 +11,7 @@
 ## performance without leaning to more complex asynchronous concurrency techniques.    
 
 import net, os, posix, locks, atomics
+from strutils import startsWith
 from nativesockets import accept, setBlocking
 from std/osproc import countProcessors
 import guildenserver, guildenselectors
@@ -94,31 +95,16 @@ proc closeSocketImpl(server: GuildenServer, socket: posix.SocketHandle, cause: S
 {.warning[Deprecated]:on.}
 
 
-#[proc restoreRead(server: GuildenServer, selector: Selector[SocketData], socket: int) {.inline.} =
-  if unlikely(shuttingdown or socket == INVALID_SOCKET.int) or not selector.contains(socket): return
-  var success = true
-  var failures = 0
-  try: selector.updateHandle(socket, {Event.Read})
-  except: success = false
-  while not success:
-    if shuttingdown: return
-    sleep(failures)
-    try:
-      selector.updateHandle(socket, {Event.Read})
-      success = true
-    except:
-      failures += 1
-      if failures == 10: success = true
-  if unlikely(failures == 10):
-    closeSocket(server, socket.SocketHandle, NetErrored, "Could not restore Read event to selector")]#
-
-
 proc restoreRead(server: GuildenServer, selector: Selector[SocketData], socketdata: SocketData) {.inline.} =
   if unlikely(shuttingdown or socketdata.socket == INVALID_SOCKET) or not selector.contains(socketdata.socket): return
   try:
-    socketdata.isprocessing.store(false)
     selector.updateHandle(socketdata.socket.int, {Event.Read})
-  except: closeSocket(server, socketdata.socket, NetErrored, "Could not restore Read event to selector")
+  except:
+    if getCurrentExceptionMsg().startsWith("File exists"):
+      server.log(WARN, "Selector tried to restore existing read")
+    else:
+      closeSocket(server, socketdata.socket, NetErrored, "Could not restore Read event to selector")
+  socketdata.isprocessing.store(false)
 
 
 proc workerthreadLoop(server: GuildenServer) {.thread.} =
@@ -260,10 +246,11 @@ proc eventLoop(server: GuildenServer) {.gcsafe, raises: [].} =
   var eventid: int
   {.gcsafe.}:
     let gsselector = workerdatas[server.id].gsselector
-    if server.port > 0: server.log(INFO, "dispatcher now listening at port " & $server.port) 
+    if server.port > 0: server.log(INFO, "dispatcher " & $server.id & " now listening at port " & $server.port &
+    " using " & $workerdatas[server.id].threadpoolsize & " threads")
+    else: server.log(INFO, "dispatcher client-server " & $server.id & " now serving, using " & $workerdatas[server.id].threadpoolsize & " threads")
   server.started = true
   
-
   while true:
     if unlikely(shuttingdown): break
     try: event = gsselector.selectFast()
@@ -336,16 +323,28 @@ proc startEventloop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: []
     server.log(FATAL, "shutdown failed")
 
   let waitingtime = 10 # 10 seconds, TODO: make this configurable / larger than socket timeout
-  server.log(DEBUG, "waiting for client threads to stop...")
+  server.log(DEBUG, "Stopping client threads...")
   var slept = 0
+  var stillworking = false
+
   while slept < 1000 * waitingtime:
-    sleep(500)
-    slept += 500
+    stillworking = false
+    sleep(200)
+    slept += 200
     for t in workerthreads:
-      if t.running: continue
-    break
+      if t.running:
+        stillworking = true
+        break
+    if stillworking:
+      if slept == 200:
+        {.gcsafe.}:
+          server.log(NOTICE, "waiting for threads to stop")
+      try: trigger(shutdownevent)
+      except: discard
+    else: break
+
   if slept > 1000 * waitingtime:
-    server.log(NOTICE, "Not all threads stopped after waiting " & $waitingtime & " seconds. Proceeding with shutdown anyway.")
+    server.log(NOTICE, "not all threads stopped after waiting " & $waitingtime & " seconds. Proceeding with shutdown anyway.")
   else: server.log(DEBUG, "threads stopped.")
   {.gcsafe.}:
     deinitLock(workerdatas[server.id].flaglock)
@@ -381,8 +380,11 @@ proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0, maxactiv
   while not server.started:
     sleep(50)
     if shuttingdown: return false
-  return server.port != 1 and not shuttingdown
-
+  if server.port != 1 and not shuttingdown:
+    sleep(200) # wait for OS
+    return true
+  else: return false
+ 
 
 proc registerSocket*(theserver: GuildenServer, socket: SocketHandle, flags = 0, customdata: pointer = nil): bool =
   try:

@@ -37,6 +37,7 @@ from std/posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onS
 from std/net import Socket, newSocket
 from std/nativesockets import close
 from std/strutils import replace
+from os import sleep
 export SocketHandle, INVALID_SOCKET, posix.`==`
 
 static: doAssert(compileOption("threads"))
@@ -128,8 +129,6 @@ onSignal(SIGTERM): shutdown()
 onSignal(SIGINT): shutdown()
 {.hint[XDeclaredButNotUsed]:on.}
 
-
-template server(): untyped = socketcontext.server
 template thesocket*(): untyped = socketcontext.socket
 
 template log*(theserver: GuildenServer, level: LogLevel, message: string) =
@@ -138,8 +137,7 @@ template log*(theserver: GuildenServer, level: LogLevel, message: string) =
   if unlikely(int(level) >= int(theserver.loglevel)):
     if likely(not isNil(theserver.logCallback)):
       var s = if theserver.port == 0: "c" else: "s"
-      s.add($theserver.id)
-      s.add(" " & $getThreadId() & " ")
+      s.add($theserver.id & " " & $getThreadId())
       theserver.logCallback(level, s, message)
 
 
@@ -167,7 +165,9 @@ proc initialize*(server: GuildenServer, loglevel: LogLevel) =
 
 
 proc initializeThread*(server: GuildenServer) =
-  {.gcsafe.}: server.internalThreadInitializationCallback(server)
+  {.gcsafe.}:
+    if not isNil(server.internalThreadInitializationCallback):
+      server.internalThreadInitializationCallback(server)
   
 
 proc handleRead*(theserver: GuildenServer, socket: SocketHandle, customdata: pointer) =
@@ -188,7 +188,11 @@ proc setFlags*(server: GuildenServer, socket: posix.SocketHandle, flags: int): b
   return server.setFlagsCallback(server, socket, flags)
 
 
-proc suspend*(sleepmillisecs: int) {.inline.} =
+proc suspend*(sleepmillisecs: int) {.deprecated:"use suspend that takes server as parameter".} =
+  sleep(sleepmillisecs)
+
+
+proc suspend*(server: GuildenServer, sleepmillisecs: int) {.inline.} =
   if not isNil(server.suspendCallback):
     server.suspendCallback(server, sleepmillisecs)
 
@@ -218,4 +222,5 @@ proc closeOtherSocket*(server: GuildenServer, socket: posix.SocketHandle, cause:
 
 proc closeSocket*(cause = CloseCalled, msg = "") =
   ## Call this to close the current socket connection.
-  closeSocket(server, thesocket, cause, msg)
+  if not isNil(socketcontext.server):
+    closeSocket(socketcontext.server, thesocket, cause, msg)

@@ -162,15 +162,14 @@ proc startClientthreads(server: GuildenServer): bool =
     return true
   except:
     server.log(FATAL, "Could not create client threads")
-    server.started = true
-    server.port = 0
     return false
 
 
 proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].} =
   var eventbuffer: array[1, ReadyKey]
   {.gcsafe.}:
-    server.log(INFO, "osdispatcher now listening at port " & $server.port & " with socket " & $servers[server.id].serversocket.getFd())
+    server.log(INFO, "osdispatcher " & $server.id & " now listening at port " & $server.port &
+     " with socket " & $servers[server.id].serversocket.getFd() & " using " & $servers[server.id].threadpoolsize & " threads")
   server.started = true
   while true:
     try:
@@ -223,15 +222,17 @@ proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].
   {.gcsafe.}:
     servers[server.id].serversocket.close()
     let waitingtime = 10 # 10 seconds, TODO: make this configurable / larger than socket timeout?
-    server.log(DEBUG, "waiting for client threads to stop...")
+    server.log(DEBUG, "Stopping client threads...")
     var slept = 0
     while slept <= 1000 * waitingtime:
-      sleep(100)
-      slept += 100
+      sleep(200)
+      slept += 200
       for i in 1 .. servers[server.id].threadpoolsize:
         try: trigger(shutdownevent)
         except: discard
-      if servers[server.id].threadpoolsize == 0: break
+      if servers[server.id].threadpoolsize < 1: break
+      if slept == 200:
+        server.log(NOTICE, "Waiting for threads to stop...")
     servers[server.id].flaglock.deinitLock()
     if slept > 1000 * waitingtime:
       server.log(NOTICE, "Not all threads stopped after waiting " & $waitingtime & " seconds. Proceeding with shutdown anyway.")
@@ -241,14 +242,14 @@ proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].
 
 proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0): bool =
   ## Starts the server.thread loop, which then listens the given port for read requests until shuttingdown == true.
-  ## By default threadpoolsize will be set to 10 * processor core count.
+  ## By default threadpoolsize will be set to 2 * processor core count.
   doAssert(server.id < MaxServerCount)
   doAssert(not server.started)
   doAssert(not isNil(server.handlerCallback))
   servers[server.id] = Server()
   servers[server.id].flaglock.initLock()
   servers[server.id].threadpoolsize = threadpoolsize.int
-  if servers[server.id].threadpoolsize == 0: servers[server.id].threadpoolsize = 10 * countProcessors()
+  if servers[server.id].threadpoolsize == 0: servers[server.id].threadpoolsize = 2 * countProcessors()
   server.port = port.uint16
   server.suspendCallback = suspend
   server.closeSocketCallback = closeSocketImpl
@@ -261,6 +262,9 @@ proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0): bool =
     while not server.started:
       sleep(50)
       if shuttingdown: return false
+  sleep(200) # wait for OS
+  if port == 0:
+    server.log(INFO, "osdispatcher client-server " & $server.id & " now serving, using " & $servers[server.id].threadpoolsize & " threads")
   return not shuttingdown
 
 

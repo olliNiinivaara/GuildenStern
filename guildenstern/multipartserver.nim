@@ -138,7 +138,7 @@ iterator receiveParts*(parsepartheaders: bool = true): (PartState , string) =
   for (state , chunk) in receiveStream():
     case state:
       of TryAgain:
-        suspend(backoff)
+        server.suspend(backoff)
         totalbackoff += backoff
         if totalbackoff > server.sockettimeoutms:
           closeSocket(TimedOut, "didn't stream all contents from socket")

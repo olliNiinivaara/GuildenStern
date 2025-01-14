@@ -44,7 +44,7 @@ proc writeToSocket(text: ptr string, length: int, flags = intermediateflags): So
       continue
     result = checkSocketState(ret)
     if result == TryAgain:
-      suspend(backoff)
+      server.suspend(backoff)
       totalbackoff += backoff
       backoff *= 2
       if totalbackoff > server.sockettimeoutms:
@@ -220,7 +220,7 @@ proc replyContinueChunked*(chunk: string): bool {.gcsafe.} =
     delivered += len
     if state == Fail: return false
     elif state == TryAgain:
-      suspend(backoff)
+      server.suspend(backoff)
       totalbackoff += backoff
       if totalbackoff > server.sockettimeoutms:
         closeSocket(TimedOut, "didn't write a chunk in time")

@@ -1,12 +1,9 @@
-# nim r -mm:atomicArc -d:danger examples/wsmulticasttest 
-
-import segfaults
+# nim r -mm:atomicArc -d:release examples/wsmulticasttest 
 
 from strutils import parseEnum
 from os import sleep
-import atomics
-import random
-import guildenstern/[dispatcher, websocketserver, websocketclient]
+import atomics, random, locks
+import guildenstern/[osdispatcher, websocketserver, websocketclient]
 
 type Message = enum
   imodd = "I am odd"
@@ -15,102 +12,110 @@ type Message = enum
   eventoevens = "hello all evens"
 
 const
-  ClientCount = 200
-  ThreadCount = 50
-  MessageCount = 50
+  ClientCount = 50
+  MessageCount = 10000
 
 doAssert(ClientCount mod 2 == 0)
 
-let TotalMessageCount =
-  # Every Thread sends MessageCount times either to all odds or to all evens...
-  ThreadCount * MessageCount * (ClientCount div 2)
+var Aim =  MessageCount * ClientCount div 2
 
 var
   oddclients = newSeq[SocketHandle]()
   evenclients = newSeq[SocketHandle]()
-  threads: array[1..ThreadCount, Thread[void]]
+  clientlock: Lock
   reports, sendcount, receivecount: Atomic[int]
   closing: bool
   clientele: WebsocketClientele
 
+clientlock.initLock
 
 proc doShutdown() =
   {.gcsafe.}:
     if closing: return
     closing = true
-    echo "Shutting down now"
+    echo "Shutting down now..."
+    sleep(2000)
     for client in clientele.connectedClients():
-      # echo "Closing client ", client.id
-      client.close(true)
+      client.close(false)
+      if client.id mod 10 == 0: echo client.id, "/", ClientCount, " clients closed"
+    echo "All connections closed"
+    sleep(1000)
     shutdown()
     
+
+var failedsockets {.threadvar.}: seq[SocketHandle]
 
 proc serverHandler() =
   {.gcsafe.}:
     if closing: return
-    sleep(1) # lets cheat a little
-    var success: bool
     var msg: Message
     try:
       try: msg = parseEnum[Message](getMessage())
       except:
-        echo "spesiaaali: ", getMessage()
-        echo "len: ", ws.requestlen
+        echo "weird: ", getMessage()
         return
       case msg:
       of imodd:
         oddclients.add(thesocket)
         reports.atomicInc()
-        success = true
       of imeven:
         evenclients.add(thesocket)
         reports.atomicInc()
-        success = true
-      of oddtoodds: success = wsserver.send(oddclients, $oddtoodds, timeoutsecs = 10)
-      of eventoevens: success = wsserver.send(evenclients, $eventoevens, timeoutsecs = 10)
+      of oddtoodds:
+        wsserver.send(oddclients, $oddtoodds, failedsockets)
+        sendcount.atomicInc(oddclients.len - failedsockets.len)
+      of eventoevens:
+        wsserver.send(evenclients, $eventoevens, failedsockets)
+        sendcount.atomicInc(evenclients.len - failedsockets.len)
+      Aim.atomicDec(failedsockets.len)
+      if msg notin [imodd, imeven]:
+        if sendcount.load mod 10000 == 0:
+          echo sendcount.load, " messages sent"
     except:
       echo "Server failed: ", getCurrentExceptionMsg()
       doShutdown()
-    if not success and not closing and not shuttingdown:
-      echo "System overload"
-      doShutdown()
+    if failedsockets.len > 0:
+      echo failedsockets.len, " sockets failed"
+      for socket in failedsockets:
+        echo "failed socket: ", socket
+        clientele.findClient(socket).close(false)
+        withLock(clientlock):
+          try:
+            if msg == oddtoodds: oddclients.delete(oddclients.find(socket))
+            else: evenclients.delete(evenclients.find(socket))
+          except: discard # already deleted?
+      failedsockets.setLen(0)
 
 
 proc clientHandler(client: WebsocketClient) =
-  if closing: return
   receivecount.atomicInc()
-  if receivecount.load mod 1000 == 0:
-    # let msg = getMessage()
-    # echo client.socket, " got msg: ", msg
+  if receivecount.load mod 10000 == 0:
     echo receivecount.load, " messages received"
-  if receivecount.load == TotalMessageCount: doShutdown() 
+  if receivecount.load >= Aim:
+    echo "Done: ", receivecount.load
+    doShutdown() 
+  
 
-
-proc threadFunc() {.thread, nimcall, gcsafe.} =
+proc sendStarters() =
   {.gcsafe.}:
     for i in 1 .. MessageCount:
       if shuttingdown: return
-      sleep(1) # lets cheat a little
-      let clientid = rand(ClientCount - 1) + 1
-      let IAmOdd = clientid mod 2 == 1
-      let msg = if IAmOdd: $oddtoodds else: $eventoevens
-      if not clientele.clients[clientid].send(msg):
-        if not closing:
-          echo "System overload"
-          doShutdown()
-        break
-      if IAmOdd: sendcount.atomicInc(oddclients.len)
-      else: sendcount.atomicInc(evenclients.len)
-      if sendcount.load mod 10000 == 0:
-        if not closing: echo sendcount.load, " messages sent"
+      sleep(1) # let's cheat a little, otherwise we are DDoS:ing the server
+      withlock(clientlock):
+        let clientid = rand(ClientCount - 1) + 1
+        let client = clientele.clients[clientid]
+        let IAmOdd = clientid mod 2 == 1
+        let msg = if IAmOdd: $oddtoodds else: $eventoevens
+        if not client.isConnected() or not client.send(msg):
+          if not closing and client.isConnected():
+            echo "System overload for socket ", client.socket
+          if IAmOdd: Aim.atomicDec(oddclients.len)
+          else: Aim.atomicDec(evenclients.len)    
 
 
-#let wsServer = newWebSocketServer(nil, nil, serverHandler, nil, TRACE)
-let wsServer = newWebSocketServer(nil, nil, serverHandler)
+let wsServer = newWebSocketServer(nil, nil, serverHandler, loglevel = INFO)
 if not wsServer.start(5050): quit()
-#clientele = newWebsocketClientele(loglevel = TRACE)
-clientele = newWebsocketClientele()
-clientele.sockettimeoutms = 10000
+clientele = newWebsocketClientele(bufferlength = 20, loglevel = INFO)
 if not clientele.start(): quit()
 for i in 1 .. ClientCount:
   let client = clientele.newWebsocketClient("http://127.0.0.1:5050", clientHandler)
@@ -120,13 +125,13 @@ for i in 1 .. ClientCount:
   if not client.send(msg):
     echo "could not report oddity to server"
     doShutdown()
-  echo i, "/", ClientCount, " clients connected"
-echo "Aiming to send ", TotalMessageCount, " messages..."  
+  if i mod 100 == 0: echo i, "/", ClientCount, " clients connected"  
 while reports.load < ClientCount: sleep(10)
-for i in 1 .. ThreadCount: createThread(threads[i], threadFunc)
-joinThreads(threads)
-sleep(3000)
-echo sendcount.load, " messages sent"
+#for i in 1 .. ThreadCount: createThread(threads[i], threadFunc)
+echo "Aiming to ", Aim
+sendStarters()
+#[echo "Total ", sendcount.load, " messages sent"
 if sendcount.load < TotalMessageCount:
   echo "Could not send all messages..."
+  TotalMessageCount = sendcount.load]#
 joinThread(wsserver.thread)

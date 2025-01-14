@@ -18,6 +18,8 @@ export posix.SocketHandle
 import httpserver
 export httpserver
 
+when not defined(nimdoc) and not defined(gcDestructors): {.fatal: "arc or orc memory manager required, e.g. --mm:atomicArc".}
+
 type
   Opcode = enum
     Cont = 0x0                ## continuation frame
@@ -115,7 +117,7 @@ template error(msg: string) =
 
 
 proc isTimeout(backoff, totalbackoff: var int): bool {.inline.} =
-  suspend(backoff)
+  server.suspend(backoff)
   totalbackoff += backoff
   if totalbackoff > wsserver.sockettimeoutms:
     closeSocket(wsserver, thesocket, TimedOut, "websocket time out")
@@ -299,7 +301,7 @@ proc replyHandshake(): (SocketCloseCause , string) =
     else: true
   if not accept:
     reply(Http400)
-    suspend(200)
+    server.suspend(200)
     closeSocket(wsserver, thesocket, CloseCalled , "ws upgrade request was not accepted: " & getRequest())
     return 
   when not defined(nimdoc):
@@ -365,13 +367,23 @@ proc sendNonblocking(server: WebsocketServer, socket: posix.SocketHandle, text: 
   return (Continue , ret)
 
 
-proc closeSocketsInFlight(server: WebsocketServer, sockets: seq[posix.SocketHandle], states: seq[State]): int =
+#[proc closeSocketsInFlight(server: WebsocketServer, sockets: seq[SocketHandle], states: seq[State]): int =
   for i in 0 ..< states.len:
     if states[i].sendstate == Continue:
       server.closeSocket(sockets[i], TimedOut, "")
       {.gcsafe.}:
         withLock(sendlock): sendingsockets.excl(sockets[i])
-      result.inc
+      result.inc]#
+
+
+proc closeSocketsInFlight(server: WebsocketServer, sockets: seq[SocketHandle], states: seq[State], failedsockets: var seq[SocketHandle]) =
+  for i in 0 ..< states.len:
+    if states[i].sendstate == Continue:
+      server.closeSocket(sockets[i], TimedOut, "")
+      {.gcsafe.}:
+        withLock(sendlock):
+          failedsockets.add(sockets[i])
+          sendingsockets.excl(sockets[i])
 
 
 var ts {.threadvar.} : Timespec
@@ -385,7 +397,7 @@ let ping = "PING"
 let nostatuscode = ""
 
 
-proc send*(server: WebsocketServer, delivery: ptr WsDelivery, timeoutsecs = 10, sleepmillisecs = 10): int {.discardable.} =
+proc send*(server: WebsocketServer, delivery: ptr WsDelivery, failedsockets: var seq[SocketHandle], timeoutsecs = 10, sleepmillisecs = 10) =
   ## Sends message to multiple websockets at once. Uses non-blocking I/O so that slow receivers do not slow down fast receivers.
   ## | Can be called from multiple threads in parallel.
   ## | `timeoutsecs`: a timeout after which sending is given up and all sockets with messages in-flight are closed
@@ -413,17 +425,18 @@ proc send*(server: WebsocketServer, delivery: ptr WsDelivery, timeoutsecs = 10, 
     handled = 0
     s = -1
     blockedsockets = 0
+    parallelsleep = sleepmillisecs
   let
     start = getSafeMonoTime()
     timeout = initDuration(seconds = timeoutsecs)
   while true:
-    if shuttingdown: return -1
+    if shuttingdown: return
     
     let elapsed = getSafeMonoTime() - start
     if elapsed > timeout:
-      result += server.closeSocketsInFlight(delivery.sockets, delivery.states)
+      server.closeSocketsInFlight(delivery.sockets, delivery.states, failedsockets)
       server.log(NOTICE, "send timed out")
-      return result
+      return
 
     s.inc
     if s == delivery.sockets.len:
@@ -436,8 +449,9 @@ proc send*(server: WebsocketServer, delivery: ptr WsDelivery, timeoutsecs = 10, 
       {.gcsafe.}:
         withLock(sendlock):
           if sendingsockets.len == MaxParallelSendingSockets:
-            server.log(INFO, "MaxParallelSendingSockets reached, sleeping for " & $(sleepmillisecs) & " ms")
-            suspend(sleepmillisecs)
+            server.log(INFO, "MaxParallelSendingSockets reached, sleeping for " & $(parallelsleep) & " ms")
+            server.suspend(parallelsleep)
+            parallelsleep *= 2 
             continue
           if not sendingsockets.contains(delivery.sockets[s]):
             sendingsockets.incl(delivery.sockets[s])
@@ -449,39 +463,53 @@ proc send*(server: WebsocketServer, delivery: ptr WsDelivery, timeoutsecs = 10, 
         delivery.states[s].sendstate = Err
         {.gcsafe.}:
           withLock(sendlock):
+            failedsockets.add(delivery.sockets[s])
             sendingsockets.excl(delivery.sockets[s])
         if headerstate == Continue: server.closeSocket(delivery.sockets[s], TimedOut)
-        result.inc
         handled.inc
         server.log(TRACE, "wsockets processed: " & $handled & "/" & $delivery.sockets.len)
         if handled == delivery.sockets.len: break
       continue
       
-    if shuttingdown: return -1  
+    if shuttingdown: return
     (delivery.states[s].sendstate , ret) = server.sendNonblocking(delivery.sockets[s], delivery.message, delivery.states[s].sent)
-    case delivery.states[s].sendstate
-      of Err: result.inc
-      of Continue:
-        delivery.states[s].sent += ret      
-        blockedsockets.inc
-        if blockedsockets >= delivery.sockets.len - handled:           
-          server.log(DEBUG, "all remaining websockets are blocking, suspending for " & $(blockedsockets * sleepmillisecs) & " ms")
-          suspend(blockedsockets * sleepmillisecs)
-          blockedsockets = 0
-      else: discard
-    if delivery.states[s].sendstate != Continue:
+    if delivery.states[s].sendstate == Continue:
+      delivery.states[s].sent += ret      
+      blockedsockets.inc
+      if blockedsockets >= delivery.sockets.len - handled:           
+        server.log(DEBUG, "all remaining websockets are blocking, suspending for " & $(blockedsockets * sleepmillisecs) & " ms")
+        server.suspend(blockedsockets * sleepmillisecs)
+        blockedsockets = 0
+    else:
       {.gcsafe.}:
-        withLock(sendlock): sendingsockets.excl(delivery.sockets[s])
+        withLock(sendlock):
+          if delivery.states[s].sendstate == Err: failedsockets.add(delivery.sockets[s])
+          sendingsockets.excl(delivery.sockets[s])
       handled.inc
       server.log(TRACE, "wsockets processed: " & $handled & "/" & $delivery.sockets.len)
       if handled >= delivery.sockets.len: break
   server.log(TRACE, "--ends sending websockets--")
 
 
+proc send*(server: WebsocketServer, sockets: seq[posix.SocketHandle], message: string, failedsockets: var seq[SocketHandle], binary = false, timeoutsecs = 10, sleepmillisecs = 10) =
+  when not compiles(unsafeAddr message):
+    let message = message
+  deli.sockets = sockets
+  deli.message = unsafeAddr(message)
+  deli.binary = binary
+  send(server, unsafeAddr deli, failedsockets, timeoutsecs, sleepmillisecs)
+  if unlikely(failedsockets.len > 0): server.log(INFO, "websocket multisend failed for " & $failedsockets.len & " sockets")
+
+
+proc send*(server: WebsocketServer, delivery: ptr WsDelivery, timeoutsecs = 10, sleepmillisecs = 10): int {.discardable.} =
+  var failedsockets: seq[SocketHandle]
+  send(server, delivery, failedsockets, timeoutsecs, sleepmillisecs)
+  return failedsockets.len
+
+
 proc send*(server: WebsocketServer, sockets: seq[posix.SocketHandle], message: string, binary = false, timeoutsecs = 10, sleepmillisecs = 10): bool {.discardable.} =
   when not compiles(unsafeAddr message):
     let message = message
-  when not defined(nimdoc) and not defined(gcDestructors): {.fatal: "mm:arc or mm:orc required".}
   deli.sockets = sockets
   deli.message = unsafeAddr(message)
   deli.binary = binary
@@ -494,7 +522,6 @@ proc send*(server: WebsocketServer, sockets: seq[posix.SocketHandle], message: s
 proc send*(server: WebsocketServer, socket: posix.SocketHandle, message: string, binary = false, timeoutsecs = 2, sleepmillisecs = 10): bool {.discardable.} =
   when not compiles(unsafeAddr message):
     let message = message
-  when not defined(nimdoc) and not defined(gcDestructors): {.fatal: "mm:arc or mm:orc required".}
   deli.sockets.setLen(1)
   deli.sockets[0] = socket
   deli.message = unsafeAddr(message)

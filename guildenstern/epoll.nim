@@ -9,7 +9,10 @@
 
 # This module implements Linux epoll().
 
+{. hint[DuplicateModuleImport]:off .}
 import std/[posix, times, epoll]
+{. hint[DuplicateModuleImport]:on .}
+
 from guildenserver import shuttingdown
 
 # Maximum number of events that can be returned

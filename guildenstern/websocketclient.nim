@@ -1,5 +1,5 @@
 import std/[strutils, net, uri, httpclient, posix]
-import guildenstern/[osdispatcher, websocketserver]
+import guildenstern/[dispatcher, websocketserver]
 export websocketserver
 
 type
@@ -19,6 +19,7 @@ var emptyClient = WebSocketClient(id: 0)
 
 
 proc close*(client: WebsocketClient, handshake = true) =
+  if client == emptyClient: return
   client.httpclient.close()
   client.clientele.closeSocket(client.socket)
   client.socket = INVALID_SOCKET
@@ -48,11 +49,18 @@ proc clienteleReceive() {.nimcall, raises:[].} =
       echo getCurrentExceptionMsg()
 
 
-proc send*(client: WebSocketClient, message: string): bool {.discardable.} =
-  if not client.clientele.send(client.socket, message):
+proc send*(client: WebSocketClient, message: string, timeoutsecs = 10): bool {.discardable.} =
+  if client == emptyClient: return
+  if not client.clientele.send(client.socket, message, false, timeoutsecs):
     client.close()
     return false
   return true
+
+
+proc findClient*(clientele: WebsocketClientele, socket: SocketHandle): var WebSocketClient =
+  for client in clientele.clients.mitems:
+    if client.socket == socket: return client
+  return emptyClient
 
 
 proc isConnected*(client: WebSocketClient): bool =
@@ -67,10 +75,10 @@ iterator connectedClients*(clientele: WebsocketClientele): var WebsocketClient =
 proc newWebsocketClient*(clientele: WebsocketClientele, url: string,
  onwsmessagecallback: proc(client: WebsocketClient) {.nimcall.}): WebsocketClient =
   result = WebSocketClient(clientele: clientele, url: parseUri(url), wsmessageCallback: onwsmessagecallback)
-  result.httpclient = newHttpClient()
   result.id = clientele.clients.len
+  result.httpclient = newHttpClient()
   clientele.clients.add(result)
-
+ 
 
 proc newWebsocketClientele*(onClosesocketcallback: OnCloseSocketCallback = nil, loglevel = LogLevel.WARN, bufferlength = 1000): WebsocketClientele =
   result = new WebsocketClientele
