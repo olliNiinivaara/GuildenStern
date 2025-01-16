@@ -10,7 +10,7 @@ let server = newHttpServer(proc() = reply "hello world")
 if server.start(8080): joinThread(server.thread)
 ```
 
-## Example 2: Two different servers running in different ports
+## Example 2: Two special-purpose servers running in parallel
 
 ```nim
 # nim r --d:release --mm:atomicArc thisexample
@@ -38,7 +38,7 @@ if not epolldispatcher.start(postserver, 5051, threadpoolsize = 20): quit()
 joinThreads(getserver.thread, postserver.thread)
 ```
 
-## Example 3: Websocket server and clients discussing
+## Example 3: Websocket server and multiple clients discussing
 
 ```nim
 const ClientCount = 10
@@ -92,3 +92,35 @@ https://olliniinivaara.github.io/GuildenStern/theindex.html
 
 ## Release notes, 8.0.0 (2025-01-??)
 
+### breaking changes
+- dispatcher's *start* proc now returns *bool* that has to be handled
+- *LogCallback* takes also source as parameter (breaking only if you have been using a custom logger procedure)
+- socketdata *flags* parameter is not directly accessible anymore, but there are new *getFlags* and *setFlags* procs (only affects those who created new server components)
+
+### major changes
+- various stability improvements
+- new robust *epolldispatcher* available for platforms that support epoll (e.g. Linux)
+- new *websocketclient* module available, that let's you test your websocket servers easily (for inspiration, check the new *wsclienttest* and *wsmulticasttest* files in the examples folder)
+- SocketData is not anymore available in socketcontext. Instead, *server*, *socket* and *customdata* are directly available in the socketcontext.There is a convenience *socketdata* proc that makes the redirection, so existing code should not break
+- *OnCloseSocketCallback* that offers socketdata as parameter is deprecated (but works). Switch to new *OnCloseSocketCallback* that offers server and socket directly as parameters
+
+### minor changes
+- the --d:threadsafe compiler switch is not needed anymore
+- all-around better logging
+- log messages also include server id and thread id
+- servers can work in client mode when port number 0 is used
+- new dispatcher proc *registerSocket* for adding sockets to servers working in client mode
+- dispatchers close themselves more gracefully, waiting up to 10 seconds for workerthreads to finish
+- if dispatcher fails to start, returns false instead of shutting down everything
+- various internal improvements for those who write new server components
+- new error code EFault for detecting memory corruption (faulty pointer inputs to posix procs)
+- new static func *epollSupported* in guildenserver for checking if epoll is supported
+- global convenience template *thesocket* exists, so you don't need write *socketcontext.socket*, *http.socket* or *ws.socket*
+- *suspend* proc now needs also the server as parameter. The old suspend exists for backward compatibility, but it always only sleeps
+- socket closing is always logged, with suitable log level depending on cause
+- *closeOtherSocket* renamed to *closeSocket* (closeOthersocket is deprecated, and just redirects to closeSocket)
+- HttpServers do not close the socket, if an empty request is received (because it might be a keep-alive packet)
+- reply messages do not need to have and address anymore (constants accepted)
+- WebsocketServer supports running in client mode (triggered, when new *clientmaskkey* parameter is set in *initWebsocketServer* proc)
+- WebsocketServer now hails the *sockettimeoutms* parameter when receiving messages
+- WebsocketServer has new *send* proc for sending a message to many clients simultaneously, that takes *failedsockets: var seq[SocketHandle]* parameter, and returns in it all sockets that failed to receive the message. Consult *serverHandler* proc in wsmulticasttest as an example

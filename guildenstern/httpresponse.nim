@@ -115,6 +115,8 @@ proc reply*(code: HttpCode, body: ptr string, lengthstring: string, length: int,
 
 
 proc replyStart*(code: HttpCode, contentlength: int, headers: ptr string = nil): SocketState {.inline, gcsafe, raises: [].} =
+  ## Start replying to a request (continue with [replyMore] and [replyFinish]).
+  ## If you do not know the content-length yet, use [replyStartChunked] instead.
   {.gcsafe.}: 
     if unlikely(writeVersion() != Complete): return Fail 
     if unlikely(writeCode(code) != Complete): return Fail
