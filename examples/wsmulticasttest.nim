@@ -1,9 +1,9 @@
-# nim r -mm:atomicArc -d:release examples/wsmulticasttest 
+# nim r -mm:atomicArc -d:release wsmulticasttest 
 
 from strutils import parseEnum
 from os import sleep
 import atomics, random, locks
-import guildenstern/[osdispatcher, websocketserver, websocketclient]
+import guildenstern/[epolldispatcher, websocketserver, websocketclient]
 
 type Message = enum
   imodd = "I am odd"
@@ -13,7 +13,7 @@ type Message = enum
 
 const
   ClientCount = 50
-  MessageCount = 10000
+  MessageCount = 5000
 
 doAssert(ClientCount mod 2 == 0)
 
@@ -113,9 +113,9 @@ proc sendStarters() =
           else: Aim.atomicDec(evenclients.len)    
 
 
-let wsServer = newWebSocketServer(nil, nil, serverHandler, loglevel = INFO)
+let wsServer = newWebSocketServer(receive = serverHandler)
 if not wsServer.start(5050): quit()
-clientele = newWebsocketClientele(bufferlength = 20, loglevel = INFO)
+clientele = newWebsocketClientele(bufferlength = 20)
 if not clientele.start(): quit()
 for i in 1 .. ClientCount:
   let client = clientele.newWebsocketClient("http://127.0.0.1:5050", clientHandler)
@@ -127,11 +127,6 @@ for i in 1 .. ClientCount:
     doShutdown()
   if i mod 100 == 0: echo i, "/", ClientCount, " clients connected"  
 while reports.load < ClientCount: sleep(10)
-#for i in 1 .. ThreadCount: createThread(threads[i], threadFunc)
 echo "Aiming to ", Aim
 sendStarters()
-#[echo "Total ", sendcount.load, " messages sent"
-if sendcount.load < TotalMessageCount:
-  echo "Could not send all messages..."
-  TotalMessageCount = sendcount.load]#
 joinThread(wsserver.thread)

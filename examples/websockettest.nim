@@ -2,7 +2,7 @@
 # and open couple of browser tabs at localhost:5050
 
 import locks
-import guildenstern/[dispatcher, httpserver, websocketserver]
+import guildenstern/[epolldispatcher, httpserver, websocketserver]
 
 var
   lock: Lock
@@ -18,7 +18,6 @@ proc afterUpgradeRequest() =
     withLock(lock): wsconnections.add(thesocket)
   echo "Websocket ", thesocket, " connected"
 
-# TODO: wrong code sent?
 proc doShutdown() =
   withLock(lock):
     for socket in wsconnections: wsserver.sendClose(socket, 1001)

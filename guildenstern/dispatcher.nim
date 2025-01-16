@@ -98,7 +98,9 @@ proc closeSocketImpl(server: GuildenServer, socket: posix.SocketHandle, cause: S
 proc restoreRead(server: GuildenServer, selector: Selector[SocketData], socketdata: SocketData) {.inline.} =
   if unlikely(shuttingdown or socketdata.socket == INVALID_SOCKET) or not selector.contains(socketdata.socket): return
   try:
+    fence(moSequentiallyConsistent)
     selector.updateHandle(socketdata.socket.int, {Event.Read})
+    fence(moSequentiallyConsistent)
   except:
     if getCurrentExceptionMsg().startsWith("File exists"):
       server.log(WARN, "Selector tried to restore existing read")
@@ -127,7 +129,7 @@ proc workerthreadLoop(server: GuildenServer) {.thread.} =
       server.log(TRACE, "handling event at queue position " & $mytail)
       handleRead(server, workerdatas[server.id].queue[mytail].socket, workerdatas[server.id].queue[mytail].customdata)
       server.log(TRACE, "handled event at queue position " & $mytail)
-
+      
       restoreRead(server, workerdatas[server.id].gsselector, workerdatas[server.id].queue[mytail])
   if not isNil(server.threadFinalizerCallback): server.threadFinalizerCallback()
 
@@ -214,10 +216,14 @@ proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].}
       sleep(0)
       return
 
+    fence(moSequentiallyConsistent)
     let wasprocessing = exchange(socketdata.isprocessing, true)
+    fence(moSequentiallyConsistent)
     if wasprocessing: return
     try:
+      fence(moSequentiallyConsistent)
       workerdatas[server.id].gsselector.updateHandle(fd.int, {})
+      fence(moSequentiallyConsistent)
     except:
       socketdata.isprocessing.store(false)
       server.log(ERROR, "remove read handle error")
@@ -338,7 +344,7 @@ proc startEventloop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: []
     if stillworking:
       if slept == 200:
         {.gcsafe.}:
-          server.log(NOTICE, "waiting for threads to stop")
+          server.log(INFO, "waiting for threads to stop")
       try: trigger(shutdownevent)
       except: discard
     else: break

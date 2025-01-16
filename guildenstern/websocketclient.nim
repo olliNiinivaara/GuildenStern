@@ -1,6 +1,9 @@
 import std/[strutils, net, uri, httpclient, posix]
-import guildenstern/[dispatcher, websocketserver]
+import guildenstern/websocketserver
 export websocketserver
+
+when epollSupported(): import guildenstern/epolldispatcher
+else: import guildenstern/dispatcher
 
 type
   WebsocketClient* {.inheritable.} = ref object
@@ -26,7 +29,7 @@ proc close*(client: WebsocketClient, handshake = true) =
 
 
 proc connect*(client: WebsocketClient, key = "dGhlIHNhbXBsZSBub25jZQ=="): bool =
-  client.httpclient.headers = newHttpHeaders({ "Connection": "Upgrade", "Upgrade": "websocket", "Sec-WebSocket-Key": key, "Content-Length": "0"})
+  client.httpclient.headers = newHttpHeaders({ "Connection": "Upgrade", "Upgrade": "websocket", "Sec-WebSocket-Key": key, "Sec-WebSocket-Version": "13", "Content-Length": "0"})
   try:
     discard client.httpclient.getContent(client.url)
   except:
@@ -57,8 +60,8 @@ proc send*(client: WebSocketClient, message: string, timeoutsecs = 10): bool {.d
   return true
 
 
-proc findClient*(clientele: WebsocketClientele, socket: SocketHandle): var WebSocketClient =
-  for client in clientele.clients.mitems:
+proc findClient*(clientele: WebsocketClientele, socket: SocketHandle): WebSocketClient =
+  for client in clientele.clients.items:
     if client.socket == socket: return client
   return emptyClient
 
@@ -67,8 +70,8 @@ proc isConnected*(client: WebSocketClient): bool =
   return client.socket != INVALID_SOCKET
 
 
-iterator connectedClients*(clientele: WebsocketClientele): var WebsocketClient =
-  for client in clientele.clients.mitems:
+iterator connectedClients*(clientele: WebsocketClientele): WebsocketClient =
+  for client in clientele.clients.items:
     if client.isConnected: yield(client)
 
  
@@ -80,9 +83,9 @@ proc newWebsocketClient*(clientele: WebsocketClientele, url: string,
   clientele.clients.add(result)
  
 
-proc newWebsocketClientele*(onClosesocketcallback: OnCloseSocketCallback = nil, loglevel = LogLevel.WARN, bufferlength = 1000): WebsocketClientele =
+proc newWebsocketClientele*(onClosesocketcallback: OnCloseSocketCallback = nil, loglevel = LogLevel.WARN, bufferlength = 1000, bytemask = "\11\22\33\44"): WebsocketClientele =
   result = new WebsocketClientele
-  initWebsocketServer(result, nil, nil, clienteleReceive, loglevel)
+  initWebsocketServer(result, nil, nil, clienteleReceive, loglevel, bytemask)
   result.onClosesocketcallback = onClosesocketcallback
   result.bufferlength = bufferlength
   result.clients.add(emptyClient)

@@ -40,10 +40,17 @@ from std/strutils import replace
 from os import sleep
 export SocketHandle, INVALID_SOCKET, posix.`==`
 
+
 static: doAssert(compileOption("threads"))
 
-
+func epollSupported*(): bool =
+  when defined(linux) and not defined(emscripten): return true
+  else:
+    when defined(nimIoselector):
+      when nimIoselector == "epoll": return true
+    
 const LogColors = ["\e[90m", "\e[36m", "\e[32m", "\e[34m", "\e[33m", "\e[31m", "\e[35m", "\e[35m"]
+
 
 type
   LogLevel* = enum TRACE, DEBUG, INFO, NOTICE, WARN, ERROR, FATAL, NONE

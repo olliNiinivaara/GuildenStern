@@ -115,6 +115,7 @@ proc getBodylen*(): int =
 
 when compiles((var x = 1; var vx: var int = x)):
   ## Returns the body without making a string copy.
+  ## Requires --experimental:views compiler switch.
   proc getBodyview*(http: HttpContext): openArray[char] =
     assert(server.contenttype == Compact)
     if http.bodystart < 1: return http.request.toOpenArray(0, -1)
@@ -122,7 +123,7 @@ when compiles((var x = 1; var vx: var int = x)):
 
 
 proc getBody*(): string =
-  ## Returns the body as a string copy.  When --experimental:views compiler switch is used, there is also getBodyview proc that does not take a copy.
+  ## Returns the body as a string copy. See also: getBodyView
   if unlikely(server.contenttype != Compact):
     server.log(ERROR, "getBody is available only when server.contenttype == Compact")
     return

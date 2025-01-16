@@ -47,7 +47,7 @@ proc closeSocketImpl(server: GuildenServer, socket: posix.SocketHandle, cause: S
     if socket == INVALID_SOCKET:
       server.log(DEBUG, "cannot close invalid socket " & $cause & ": " & msg)
       return
-    server.log(TRACE, "osdispatcher now closing socket " & $socket)
+    server.log(TRACE, "epolldispatcher now closing socket " & $socket)
     if not isNil(server.onclosesocketcallback):
       server.onclosesocketcallback(server, socket, cause, msg)
     elif not isNil(server.deprecatedOnclosesocketcallback):
@@ -168,7 +168,7 @@ proc startClientthreads(server: GuildenServer): bool =
 proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].} =
   var eventbuffer: array[1, ReadyKey]
   {.gcsafe.}:
-    server.log(INFO, "osdispatcher " & $server.id & " now listening at port " & $server.port &
+    server.log(INFO, "epolldispatcher " & $server.id & " now listening at port " & $server.port &
      " with socket " & $servers[server.id].serversocket.getFd() & " using " & $servers[server.id].threadpoolsize & " threads")
   server.started = true
   while true:
@@ -232,7 +232,7 @@ proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].
         except: discard
       if servers[server.id].threadpoolsize < 1: break
       if slept == 200:
-        server.log(NOTICE, "Waiting for threads to stop...")
+        server.log(INFO, "waiting for threads to stop...")
     servers[server.id].flaglock.deinitLock()
     if slept > 1000 * waitingtime:
       server.log(NOTICE, "Not all threads stopped after waiting " & $waitingtime & " seconds. Proceeding with shutdown anyway.")
@@ -264,7 +264,7 @@ proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0): bool =
       if shuttingdown: return false
   sleep(200) # wait for OS
   if port == 0:
-    server.log(INFO, "osdispatcher client-server " & $server.id & " now serving, using " & $servers[server.id].threadpoolsize & " threads")
+    server.log(INFO, "epolldispatcher client-server " & $server.id & " now serving, using " & $servers[server.id].threadpoolsize & " threads")
   return not shuttingdown
 
 

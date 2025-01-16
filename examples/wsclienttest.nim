@@ -1,12 +1,12 @@
-# nim r --mm:atomicArc -d:release wsclienttestcopy
+# nim r --mm:atomicArc -d:release wsclienttest
 
 # import segfaults
 
 import std/atomics
 from os import sleep
-import guildenstern/[dispatcher, websocketserver, websocketclient]
+import guildenstern/[epolldispatcher, websocketserver, websocketclient]
 
-const ClientCount = 4000 # ulimit -n something more first
+const ClientCount = 1000 # ulimit -n something more first
 const MinRoundTrips = 100000
 var roundtrips: Atomic[int]
 var clientele: WebsocketClientele
@@ -53,9 +53,9 @@ proc start() =
   echo "All ", ClientCount, " clients started"
 
 
-let wsServer = newWebSocketServer(nil, nil, serverReceive)
+let wsServer = newWebSocketServer(receive = serverReceive)
 if not wsServer.start(5050, 10): quit 1
 clientele = newWebsocketClientele(bufferlength = 20)
-if not clientele.start(threadpoolsize = 10): quit 2
+if not clientele.start(threadpoolsize = 10): quit 2 
 start()
 joinThread(wsServer.thread)
