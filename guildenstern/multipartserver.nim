@@ -127,7 +127,7 @@ iterator receiveParts*(parsepartheaders: bool = true): (PartState , string) =
   multipart.partlen = 0
   multipart.inheader = true
   var failed = false
-  var backoff = 4
+  var backoff = initialbackoff
   var totalbackoff = 0
 
   var originalheaderfields = newSeq[string]() 
@@ -138,7 +138,7 @@ iterator receiveParts*(parsepartheaders: bool = true): (PartState , string) =
   for (state , chunk) in receiveStream():
     case state:
       of TryAgain:
-        suspend(backoff)
+        server.suspend(backoff)
         totalbackoff += backoff
         if totalbackoff > server.sockettimeoutms:
           closeSocket(TimedOut, "didn't stream all contents from socket")
@@ -193,20 +193,17 @@ proc handleMultipartInitialization(gserver: GuildenServer) =
   multipart.partcache = newString(HttpServer(gserver).bufferlength + 1)
 
 
-proc handleMultipartRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
-  let socketdata = data[]
-  let socketint = socketdata.socket.int
-  if unlikely(socketint == -1): return
-  prepareHttpContext(addr socketdata)
+proc handleMultipartRequest() {.gcsafe, nimcall, raises: [].} =
+  prepareHttpContext()
   if not readHeader(): return        
   if not parseRequestLine(): return
   let contenttype = http.headers.getOrDefault("content-type")
   if not contenttype.startsWith("multipart/form-data; boundary="):
-    closeSocket(ProtocolViolated, "Multipart request with wrong content-type (" & contenttype & ") received from socket " & $socketint)
+    closeSocket(ProtocolViolated, "Multipart request with wrong content-type (" & contenttype & ") received from socket " & $thesocket)
     return
   multipart.boundary = "--" & contenttype[30 .. ^1] # last boundary's extra -- is just ignored
   if unlikely(multipart.boundary.len > server.bufferlength - 1): server.log(ERROR, "bufferlength too small, even part boundary does not fit")
-  server.log(DEBUG, "Started multipart streaming with chunk of length " & $http.requestlen & " from socket " & $socketint)
+  server.log(DEBUG, "Started multipart streaming with chunk of length " & $http.requestlen & " from socket " & $thesocket)
   {.gcsafe.}: server.requestCallback()
 
 

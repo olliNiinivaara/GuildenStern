@@ -1,19 +1,19 @@
 from std/strutils import find, parseInt, isLowerAscii, toLowerAscii
+{.push hint[DuplicateModuleImport]: off.}
+from posix import MSG_PEEK
+{.pop.}
 
 
 proc parseMethod*(): bool =
   if unlikely(http.requestlen < 13):
-    server.log(WARN, "too short request: " & http.request)
-    closeSocket(ProtocolViolated, "")
+    closeSocket(ProtocolViolated, "too short request: " & http.request)
     return false
   while http.methlen < http.requestlen and http.request[http.methlen] != ' ': http.methlen.inc
   if unlikely(http.methlen == http.requestlen):
-    server.log(WARN, "http method missing")
-    closeSocket(ProtocolViolated, "")
+    closeSocket(ProtocolViolated, "http method missing")
     return false
   if unlikely(http.request[0 .. 1] notin ["GE", "PO", "HE", "PU", "DE", "CO", "OP", "TR", "PA"]):
-    server.log(WARN, "invalid http method: " & http.request[0 .. 12])
-    closeSocket(ProtocolViolated, "")
+    closeSocket(ProtocolViolated, "invalid http method: " & http.request[0 .. 12])
     return false
   return true
   
@@ -25,15 +25,13 @@ proc parseRequestLine*(): bool {.gcsafe, raises: [].} =
   while i < http.requestlen and http.request[i] != ' ': i.inc()
   http.uristart = start
   http.urilen = i - start
-
   if unlikely(http.requestlen < http.uristart + http.urilen + 9):
-    server.log(WARN, "parseRequestLine: no version")
-    (closeSocket(ProtocolViolated, ""); return false)
-
+    closeSocket(ProtocolViolated, "parseRequestLine: no version")
+    return false
   if unlikely(http.request[http.uristart + http.urilen + 1] != 'H' or http.request[http.uristart + http.urilen + 8] != '1'):
-    server.log(WARN, "request not HTTP/1.1: " & http.request[http.uristart + http.urilen + 1 .. http.uristart + http.urilen + 8])
-    (closeSocket(ProtocolViolated, ""); return false)
-  server.log(DEBUG, $server.port & "/" & $http.socketdata.socket &  ": " & http.request[0 .. http.uristart + http.urilen + 8])
+    closeSocket(ProtocolViolated, "request not HTTP/1.1: " & http.request[http.uristart + http.urilen + 1 .. http.uristart + http.urilen + 8])
+    return false
+  server.log(DEBUG, $server.port & "/" & $thesocket &  ": " & http.request[0 .. http.uristart + http.urilen + 8])
   true
 
 
@@ -116,15 +114,16 @@ proc getBodylen*(): int =
 
 
 when compiles((var x = 1; var vx: var int = x)):
-  ## Returns the body without making a string copy.
   proc getBodyview*(http: HttpContext): openArray[char] =
+    ## Returns the body without making an expensive string copy.
+    ## Requires --experimental:views compiler switch.
     assert(server.contenttype == Compact)
     if http.bodystart < 1: return http.request.toOpenArray(0, -1)
     else: return http.request.toOpenArray(http.bodystart, http.requestlen - 1)
-
+  
 
 proc getBody*(): string =
-  ## Returns the body as a string copy.  When --experimental:views compiler switch is used, there is also getBodyview proc that does not take a copy.
+  ## Returns the body as a string copy. See also: getBodyView
   if unlikely(server.contenttype != Compact):
     server.log(ERROR, "getBody is available only when server.contenttype == Compact")
     return
@@ -150,15 +149,15 @@ proc getRequest*(): string =
 
 
 proc receiveHeader(): bool {.gcsafe, raises:[].} =
-  var backoff = 4
+  var backoff = initialbackoff
   var totalbackoff = 0
   while true:
     if shuttingdown: return false
-    let ret = recv(http.socketdata.socket, addr http.request[http.requestlen], 1 + server.maxheaderlength - http.requestlen, MSG_DONTWAIT)
+    let ret = recv(thesocket, addr http.request[http.requestlen], 1 + server.maxheaderlength - http.requestlen, MSG_DONTWAIT)
     let state = checkSocketState(ret)
     if state == Fail: return false
     if state == SocketState.TryAgain:
-      suspend(backoff)
+      server.suspend(backoff)
       totalbackoff += backoff
       if totalbackoff > server.sockettimeoutms:
         if http.requestlen == 0: closeSocket(TimedOut, "client sent nothing")
@@ -207,7 +206,20 @@ proc parseHeaders() =
     i.inc
 
 
+proc hasData(): bool =
+  var r = recv(thesocket, addr http.probebuffer[0], 1, MSG_PEEK or MSG_DONTWAIT)
+  if likely(r == 1): return true
+  server.suspend(100)
+  r = recv(thesocket, addr http.probebuffer[0], 1, MSG_PEEK or MSG_DONTWAIT)
+  if likely(r == 1): return true
+  closeSocket(ClosedbyClient, "client sent nothing")
+  return false
+
+
 proc readHeader*(): bool {.gcsafe, raises:[].} =
+  ## Reads the header part of an incoming request. If an incoming request is empty (maybe a keep-alive packet),
+  ## ignores the request but keeps the socket open.
+  if not hasData(): return false
   if not receiveHeader(): return false
   if server.headerfields.len == 0:
     if server.contenttype == NoBody: return true
@@ -246,7 +258,7 @@ iterator receiveStream*(): (SocketState , string) {.gcsafe, raises: [].} =
           let position =
             if server.contenttype == Streaming: 0
             else: http.bodystart + http.contentreceived
-          let ret: int64 = recv(http.socketdata.socket, addr http.request[position], recvsize, MSG_DONTWAIT)
+          let ret: int64 = recv(thesocket, addr http.request[position], recvsize, MSG_DONTWAIT)
           let state = checkSocketState(ret)
           if ret > 0: http.contentreceived += ret
           http.requestlen =
@@ -268,12 +280,12 @@ iterator receiveStream*(): (SocketState , string) {.gcsafe, raises: [].} =
 
 
 proc receiveToSingleBuffer(): bool =
-  var backoff = 4
+  var backoff = initialbackoff
   var totalbackoff = 0
   for (state , chunk) in receiveStream():
     case state:
       of TryAgain:
-        suspend(backoff)
+        server.suspend(backoff)
         totalbackoff += backoff
         if totalbackoff > server.sockettimeoutms:
           closeSocket(TimedOut, "didn't read all contents from socket")

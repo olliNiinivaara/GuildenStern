@@ -31,6 +31,7 @@ type
     contentreceived*: int64
     contentdelivered*: int64
     headers*: StringTableRef
+    probebuffer: string
 
   SocketState* = enum
     Fail = -1
@@ -50,22 +51,20 @@ type
 const
   MSG_DONTWAIT* = when defined(macosx): 0x80.cint else: 0x40.cint
   MSG_MORE* = 0x8000.cint
+  initialbackoff* = 1
 
 
 proc isHttpContext*(): bool = return socketcontext is HttpContext
-
 
 template http*(): untyped =
   ## Casts the socketcontext thread local variable into a HttpContext
   HttpContext(socketcontext)
 
-
 template server*(): untyped =
-  ## Casts the socketcontext.socketdata.server into a HttpServer
-  HttpServer(socketcontext.socketdata.server)
+  HttpServer(socketcontext.server)
 
-
-{.push checks: off.}
+when defined(release):
+  {.push checks: off.}
 
 proc checkSocketState*(ret: int): SocketState =
   if unlikely(shuttingdown): return Fail
@@ -78,10 +77,11 @@ proc checkSocketState*(ret: int): SocketState =
       # https://www-numi.fnal.gov/offline_software/srt_public_context/WebDocs/Errors/unix_system_errors.html
       if lasterror in [EAGAIN.int, EWOULDBLOCK.int]: return TryAgain
       elif lasterror in [2,9]: AlreadyClosed
+      elif lasterror == 14: EFault
       elif lasterror == 32: ConnectionLost
       elif lasterror == 104: ClosedbyClient
       else: NetErrored
-  if cause == Excepted: closeSocket(Excepted, getCurrentExceptionMsg())
+  if cause == Excepted: closeSocket(Excepted)
   else: closeSocket(cause, osErrorMsg(OSErrorCode(lastError)))
   return Fail
 
@@ -90,18 +90,18 @@ include httprequest
 include httpresponse
 
 
-proc handleHttpThreadInitialization*(gserver: GuildenServer) =
-  if socketcontext == nil: socketcontext = new HttpContext
-  http.request = newString(HttpServer(gserver).bufferlength + 1)
-  if HttpServer(gserver).contenttype != NoBody or HttpServer(gserver).headerfields.len > 0:
+proc handleHttpThreadInitialization*(theserver: GuildenServer) =
+  if socketcontext.isNil: socketcontext = new HttpContext
+  http.request = newString(HttpServer(theserver).bufferlength + 1)
+  http.probebuffer = newString(1)
+  if HttpServer(theserver).contenttype != NoBody or HttpServer(theserver).headerfields.len > 0:
     http.headers = newStringTable()
-    for field in HttpServer(gserver).headerfields: http.headers[field] = ""
+    for field in HttpServer(theserver).headerfields: http.headers[field] = ""
     if not http.headers.contains("content-length"): http.headers["content-length"] = ""
-  if gserver.threadInitializerCallback != nil: gserver.threadInitializerCallback(gserver)
+  if not isNil(theserver.threadInitializerCallback): theserver.threadInitializerCallback(theserver)
+  
 
-
-proc prepareHttpContext*(socketdata: ptr SocketData) {.inline.} =
-  http.socketdata = socketdata
+proc prepareHttpContext*() {.inline.} =
   http.requestlen = 0
   http.contentlength = 0
   http.uristart = 0
@@ -120,44 +120,43 @@ proc initHttpServer*(s: HttpServer, loglevel: LogLevel, parserequestline: bool, 
   s.contenttype = contenttype
   s.parserequestline = parserequestline
   s.headerfields.add(headerfields)
-  if s.internalThreadInitializationCallback == nil: s.internalThreadInitializationCallback = handleHttpThreadInitialization
+  if isNil(s.internalThreadInitializationCallback): s.internalThreadInitializationCallback = handleHttpThreadInitialization
 
 
-proc handleRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
-  let socketdata = data[]
-  let socketint = socketdata.socket.int
-  if unlikely(socketint == -1): return
-  prepareHttpContext(addr socketdata)
+proc handleRequest() {.gcsafe, nimcall, raises: [].} =
+  prepareHttpContext()
   if not readHeader(): return
   if server.parserequestline and not parseRequestLine(): return
   case server.contenttype:
     of NoBody:
-        server.log(DEBUG, "Nobody request of length " & $http.requestlen & " read from socket " & $socketint)
+        server.log(DEBUG, "Nobody request of length " & $http.requestlen & " read from socket " & $thesocket)
     of Compact:
       if http.contentlength > server.bufferlength:
           closeSocket(ProtocolViolated, "content-length larger than bufferlength")
           return
       if not receiveToSingleBuffer():
-        server.log(DEBUG, "Receiving request to single buffer failed from socket " & $socketint)
+        server.log(DEBUG, "Receiving request to single buffer failed from socket " & $thesocket)
         return
     of Streaming:
-      server.log(DEBUG, "Started request streaming with chunk of length " & $http.requestlen & " from socket " & $socketint)
-  {.gcsafe.}: server.requestCallback()
+      server.log(DEBUG, "Started request streaming with chunk of length " & $http.requestlen & " from socket " & $thesocket)
+  {.gcsafe.}:
+    if likely(not isNil(server.requestCallback)): server.requestCallback()
 
-{.pop.}
+when defined(release):
+  {.pop.}
 
 
 proc newHttpServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, loglevel = LogLevel.WARN, parserequestline = true, contenttype = Compact, headerfields: openArray[string] = []): HttpServer =
   ## Constructs a new http server. The essential thing here is to set the onrequestcallback proc.
   ## When it is triggered, the [http] thread-local socket context is accessible.
   ## 
-  ## If you want to tinker with [maxheaderlength], [bufferlength] or [sockettimeoutms], that is best done
+  ## If you want to tinker with [HttpServer.maxheaderlength], [HttpServer.bufferlength] or [HttpServer.sockettimeoutms], that is best done
   ## after the server is constructed but before it is started.
+  result = new HttpServer
+  result.initHttpServer(loglevel, parserequestline, contenttype, headerfields)
   for field in headerfields:
     for c in field:
       if c != '-' and not isLowerAscii(c):
-        server.log(ERROR, "Header field not in lower case: " & field)
-  result = new HttpServer
-  result.initHttpServer(loglevel, parserequestline, contenttype, headerfields)
+        result.log(ERROR, "Header field not in lower case: " & field)
   result.handlerCallback = handleRequest
   result.requestCallback = onrequestcallback

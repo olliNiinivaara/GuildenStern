@@ -1,21 +1,27 @@
 import guildenstern/[dispatcher, httpserver]
 
-proc handleHttpRequest*() {.gcsafe, raises: [].} =
+proc handleHttpRequest*() =
   let body = "replyfromport" & $(server.port)
   doAssert getMethod() == "GET"
   doAssert http.headers.getOrDefault("connection") == "keep-alive"
   case getUri():
-    of "/close": closeSocket()
+    of "/close":
+      reply(Http204)
+      closeSocket()
     of "/stop":
       let stop = "stop"
-      reply(stop)
+      reply("stop")
       shutdown()
     else: reply(body)
 
+proc onCloseSocket(server: GuildenServer, socket: SocketHandle, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].} =
+  echo "closing socket ", socket, " due to ", cause, " ", msg
+
 echo "Starting at ports 8070, 8071"
-let server1 = newHttpServer(handleHttpRequest, headerfields = ["connection"])
-let server2 = newHttpServer(handleHttpRequest, TRACE, headerfields = ["connection"])
-server1.start(8070, 1)
-server2.start(8071, 0)
-joinThreads(server1.thread, server2.thread)
-echo "Stopped"
+var server0 = newHttpServer(handleHttpRequest, headerfields = ["connection"])
+var server1 = newHttpServer(handleHttpRequest, TRACE, headerfields = ["connection"])
+server0.onCloseSocketCallback = onCloseSocket
+server1.onCloseSocketCallback = onCloseSocket
+if not server0.start(8070): quit()
+if not server1.start(8071, 40): quit()
+joinThreads(server0.thread, server1.thread)

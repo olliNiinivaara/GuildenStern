@@ -1,8 +1,8 @@
-# nim r --d:threadsafe websockettest.nim 
-# and open couple of browsers at localhost:5050
+# nim r websockettest.nim 
+# and open couple of browser tabs at localhost:5050
 
 import locks
-import guildenstern/[dispatcher, httpserver, websocketserver]
+import guildenstern/[epolldispatcher, httpserver, websocketserver]
 
 var
   lock: Lock
@@ -10,13 +10,13 @@ var
   messages: int
 
 proc onUpgradeRequest(): bool =
-  echo "Socket ", ws.socketdata.socket, " requests upgrade to Websocket"
+  echo "Socket ", thesocket, " requests upgrade to Websocket"
   true
 
 proc afterUpgradeRequest() =
   {.gcsafe.}:
-    withLock(lock): wsconnections.add(ws.socketdata.socket)
-  echo "Websocket ", ws.socketdata.socket, " connected"
+    withLock(lock): wsconnections.add(thesocket)
+  echo "Websocket ", thesocket, " connected"
 
 proc doShutdown() =
   withLock(lock):
@@ -34,15 +34,15 @@ proc onMessage() =
       withLock(lock): currentconnections = wsconnections
       discard wsserver.send(currentconnections, reply)
   
-proc onLost(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string) =
-  echo "Websocket ", socketdata.socket, " ", cause, " due to status code ", msg
+proc onLost(Server: GuildenServer, socket: SocketHandle, cause: SocketCloseCause, msg: string) =
+  echo "Websocket ", socket, " ", cause, " due to status code ", msg
   {.gcsafe.}:
     withLock(lock):
-      let index = wsconnections.find(socketdata.socket)
+      let index = wsconnections.find(socket)
       if index != -1: wsconnections.del(index)
         
 proc onRequest() =
-  let html = """<!doctype html><title></title>
+  reply """<!doctype html><title></title>
   <script> let websocket = new WebSocket("ws://" + location.host.slice(0, -1) + '1')
   websocket.onmessage = function(evt) {
     let element = document.createElement("li")
@@ -58,12 +58,11 @@ proc onRequest() =
   <body><button style="position: fixed; left: 160px" onclick="websocket.send('shutdown')">shutdown</button>
   <ul id="ul"></ul>
   """
-  reply(html)
 
 initLock(lock)
 let server = newHttpServer(onRequest, NONE, false, NoBody)
-server.start(5050)
-let wsserver = newWebsocketServer(onUpgradeRequest, afterUpgradeRequest, onMessage, onLost)
-wsserver.start(5051)
+if not server.start(5050): quit 1
+let wsserver = newWebsocketServer(onUpgradeRequest, afterUpgradeRequest, onMessage, onLost, TRACE)
+if not wsserver.start(5051, 2): quit 2
 joinThreads(server.thread, wsserver.thread)
 deinitLock(lock)

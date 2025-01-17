@@ -4,8 +4,7 @@ import random
 proc onRequest() =
   if isUri("/favicon.ico"): reply(Http204)
   elif isUri("/"):
-    let html = """<!doctype html><title></title><body><a href="/download" download>Download</a>"""
-    reply(html)
+    reply """<!doctype html><title></title><body><a href="/download" download>Download</a>"""
   else:
     if not replyStartChunked(): (shutdown() ; return)
     var sentchunks = 0
@@ -17,5 +16,5 @@ proc onRequest() =
     replyFinishChunked()
 
 let s = newHttpServer(onRequest)
-s.start(5050)
+if not s.start(5050): quit()
 joinThread(s.thread)

@@ -25,7 +25,7 @@
   <div class="document" id="documentId">
     <div class="container">
       <h1 class="title">Index</h1>
-      Modules: <a href="guildenstern/dispatcher.html">guildenstern/dispatcher</a>, <a href="guildenstern/guildenserver.html">guildenstern/guildenserver</a>, <a href="guildenstern/httpserver.html">guildenstern/httpserver</a>, <a href="guildenstern/multipartserver.html">guildenstern/multipartserver</a>, <a href="guildenstern/websocketserver.html">guildenstern/websocketserver</a>.<br/><p /><h2>API symbols</h2>
+      Modules: <a href="guildenstern/dispatcher.html">guildenstern/dispatcher</a>, <a href="guildenstern/epolldispatcher.html">guildenstern/epolldispatcher</a>, <a href="guildenstern/guildenserver.html">guildenstern/guildenserver</a>, <a href="guildenstern/httpserver.html">guildenstern/httpserver</a>, <a href="guildenstern/multipartserver.html">guildenstern/multipartserver</a>, <a href="guildenstern/websocketclient.html">guildenstern/websocketclient</a>, <a href="guildenstern/websocketserver.html">guildenstern/websocketserver</a>.<br/><p /><h2>API symbols</h2>
 <dl><dt><a name="%60%24%60" href="#%60%24%60"><span>`$`:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: proc `$`(x: SocketHandle): string" href="guildenstern/guildenserver.html#%24%2CSocketHandle">guildenserver: proc `$`(x: SocketHandle): string</a></li>
@@ -46,6 +46,10 @@
 <li><a class="reference external"
           data-doc-search-tag="httpserver: proc checkSocketState(ret: int): SocketState" href="guildenstern/httpserver.html#checkSocketState%2Cint">httpserver: proc checkSocketState(ret: int): SocketState</a></li>
           </ul></dd>
+<dt><a name="close" href="#close"><span>close:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocketclient: proc close(client: WebsocketClient; handshake = true)" href="guildenstern/websocketclient.html#close%2CWebsocketClient">websocketclient: proc close(client: WebsocketClient; handshake = true)</a></li>
+          </ul></dd>
 <dt><a name="CloseCalled" href="#CloseCalled"><span>CloseCalled:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: SocketCloseCause.CloseCalled" href="guildenstern/guildenserver.html#CloseCalled">guildenserver: SocketCloseCause.CloseCalled</a></li>
@@ -60,12 +64,12 @@
                  cause: SocketCloseCause = CloseCalled; msg: string = &quot;&quot;)" href="guildenstern/guildenserver.html#closeOtherSocket%2CGuildenServer%2C%2CSocketCloseCause%2Cstring">guildenserver: proc closeOtherSocket(server: GuildenServer; socket: posix.SocketHandle;
                  cause: SocketCloseCause = CloseCalled; msg: string = &quot;&quot;)</a></li>
           </ul></dd>
-<dt><a name="CloseOtherSocketCallback" href="#CloseOtherSocketCallback"><span>CloseOtherSocketCallback:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="guildenserver: type CloseOtherSocketCallback" href="guildenstern/guildenserver.html#CloseOtherSocketCallback">guildenserver: type CloseOtherSocketCallback</a></li>
-          </ul></dd>
 <dt><a name="closeSocket" href="#closeSocket"><span>closeSocket:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
+          data-doc-search-tag="guildenserver: proc closeSocket(server: GuildenServer; socket: SocketHandle; cause = CloseCalled;
+            msg = &quot;&quot;)" href="guildenstern/guildenserver.html#closeSocket%2CGuildenServer%2CSocketHandle%2Cstring">guildenserver: proc closeSocket(server: GuildenServer; socket: SocketHandle; cause = CloseCalled;
+            msg = &quot;&quot;)</a></li>
+          <li><a class="reference external"
           data-doc-search-tag="guildenserver: proc closeSocket(cause = CloseCalled; msg = &quot;&quot;)" href="guildenstern/guildenserver.html#closeSocket%2Cstring">guildenserver: proc closeSocket(cause = CloseCalled; msg = &quot;&quot;)</a></li>
           </ul></dd>
 <dt><a name="CloseSocketCallback" href="#CloseSocketCallback"><span>CloseSocketCallback:</span></a></dt><dd><ul class="simple">
@@ -84,6 +88,14 @@
 <li><a class="reference external"
           data-doc-search-tag="multipartserver: PartState.Completed" href="guildenstern/multipartserver.html#Completed">multipartserver: PartState.Completed</a></li>
           </ul></dd>
+<dt><a name="connect" href="#connect"><span>connect:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocketclient: proc connect(client: WebsocketClient; key = &quot;dGhlIHNhbXBsZSBub25jZQ==&quot;): bool" href="guildenstern/websocketclient.html#connect%2CWebsocketClient%2Cstring">websocketclient: proc connect(client: WebsocketClient; key = &quot;dGhlIHNhbXBsZSBub25jZQ==&quot;): bool</a></li>
+          </ul></dd>
+<dt><a name="connectedClients" href="#connectedClients"><span>connectedClients:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocketclient: iterator connectedClients(clientele: WebsocketClientele): WebsocketClient" href="guildenstern/websocketclient.html#connectedClients.i%2CWebsocketClientele">websocketclient: iterator connectedClients(clientele: WebsocketClientele): WebsocketClient</a></li>
+          </ul></dd>
 <dt><a name="ConnectionLost" href="#ConnectionLost"><span>ConnectionLost:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: SocketCloseCause.ConnectionLost" href="guildenstern/guildenserver.html#ConnectionLost">guildenserver: SocketCloseCause.ConnectionLost</a></li>
@@ -96,9 +108,21 @@
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: LogLevel.DEBUG" href="guildenstern/guildenserver.html#DEBUG">guildenserver: LogLevel.DEBUG</a></li>
           </ul></dd>
+<dt><a name="DeprecatedOnCloseSocketCallback" href="#DeprecatedOnCloseSocketCallback"><span>DeprecatedOnCloseSocketCallback:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="guildenserver: type DeprecatedOnCloseSocketCallback" href="guildenstern/guildenserver.html#DeprecatedOnCloseSocketCallback">guildenserver: type DeprecatedOnCloseSocketCallback</a></li>
+          </ul></dd>
 <dt><a name="DontClose" href="#DontClose"><span>DontClose:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: SocketCloseCause.DontClose" href="guildenstern/guildenserver.html#DontClose">guildenserver: SocketCloseCause.DontClose</a></li>
+          </ul></dd>
+<dt><a name="EFault" href="#EFault"><span>EFault:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="guildenserver: SocketCloseCause.EFault" href="guildenstern/guildenserver.html#EFault">guildenserver: SocketCloseCause.EFault</a></li>
+          </ul></dd>
+<dt><a name="epollSupported" href="#epollSupported"><span>epollSupported:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="guildenserver: proc epollSupported(): bool" href="guildenstern/guildenserver.html#epollSupported">guildenserver: proc epollSupported(): bool</a></li>
           </ul></dd>
 <dt><a name="ERROR" href="#ERROR"><span>ERROR:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -120,6 +144,10 @@
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: LogLevel.FATAL" href="guildenstern/guildenserver.html#FATAL">guildenserver: LogLevel.FATAL</a></li>
           </ul></dd>
+<dt><a name="findClient" href="#findClient"><span>findClient:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocketclient: proc findClient(clientele: WebsocketClientele; socket: SocketHandle): WebsocketClient" href="guildenstern/websocketclient.html#findClient%2CWebsocketClientele%2CSocketHandle">websocketclient: proc findClient(clientele: WebsocketClientele; socket: SocketHandle): WebsocketClient</a></li>
+          </ul></dd>
 <dt><a name="getBody" href="#getBody"><span>getBody:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="httpserver: proc getBody(): string" href="guildenstern/httpserver.html#getBody">httpserver: proc getBody(): string</a></li>
@@ -128,13 +156,29 @@
 <li><a class="reference external"
           data-doc-search-tag="httpserver: proc getBodylen(): int" href="guildenstern/httpserver.html#getBodylen">httpserver: proc getBodylen(): int</a></li>
           </ul></dd>
+<dt><a name="getBodyview" href="#getBodyview"><span>getBodyview:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="httpserver: proc getBodyview(http: HttpContext): openArray[char]" href="guildenstern/httpserver.html#getBodyview%2CHttpContext">httpserver: proc getBodyview(http: HttpContext): openArray[char]</a></li>
+          </ul></dd>
 <dt><a name="getContentLength" href="#getContentLength"><span>getContentLength:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="httpserver: proc getContentLength(): bool" href="guildenstern/httpserver.html#getContentLength">httpserver: proc getContentLength(): bool</a></li>
           </ul></dd>
+<dt><a name="getFlags" href="#getFlags"><span>getFlags:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="guildenserver: proc getFlags(server: GuildenServer; socket: posix.SocketHandle): int" href="guildenstern/guildenserver.html#getFlags%2CGuildenServer%2C">guildenserver: proc getFlags(server: GuildenServer; socket: posix.SocketHandle): int</a></li>
+          </ul></dd>
+<dt><a name="GetFlagsCallback" href="#GetFlagsCallback"><span>GetFlagsCallback:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="guildenserver: type GetFlagsCallback" href="guildenstern/guildenserver.html#GetFlagsCallback">guildenserver: type GetFlagsCallback</a></li>
+          </ul></dd>
 <dt><a name="getMessage" href="#getMessage"><span>getMessage:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="websocketserver: proc getMessage(): string" href="guildenstern/websocketserver.html#getMessage">websocketserver: proc getMessage(): string</a></li>
+          </ul></dd>
+<dt><a name="getMessageview" href="#getMessageview"><span>getMessageview:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocketserver: proc getMessageview(ws: HttpContext): openArray[char]" href="guildenstern/websocketserver.html#getMessageview%2CHttpContext">websocketserver: proc getMessageview(ws: HttpContext): openArray[char]</a></li>
           </ul></dd>
 <dt><a name="getMethod" href="#getMethod"><span>getMethod:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -158,7 +202,7 @@
           </ul></dd>
 <dt><a name="handleHttpThreadInitialization" href="#handleHttpThreadInitialization"><span>handleHttpThreadInitialization:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="httpserver: proc handleHttpThreadInitialization(gserver: GuildenServer)" href="guildenstern/httpserver.html#handleHttpThreadInitialization%2CGuildenServer">httpserver: proc handleHttpThreadInitialization(gserver: GuildenServer)</a></li>
+          data-doc-search-tag="httpserver: proc handleHttpThreadInitialization(theserver: GuildenServer)" href="guildenstern/httpserver.html#handleHttpThreadInitialization%2CGuildenServer">httpserver: proc handleHttpThreadInitialization(theserver: GuildenServer)</a></li>
           </ul></dd>
 <dt><a name="HandlerCallback" href="#HandlerCallback"><span>HandlerCallback:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -166,7 +210,15 @@
           </ul></dd>
 <dt><a name="handleRead" href="#handleRead"><span>handleRead:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="guildenserver: template handleRead(socketdata: ptr SocketData)" href="guildenstern/guildenserver.html#handleRead.t%2Cptr.SocketData">guildenserver: template handleRead(socketdata: ptr SocketData)</a></li>
+          data-doc-search-tag="guildenserver: proc handleRead(theserver: GuildenServer; socket: SocketHandle; customdata: pointer)" href="guildenstern/guildenserver.html#handleRead%2CGuildenServer%2CSocketHandle%2Cpointer">guildenserver: proc handleRead(theserver: GuildenServer; socket: SocketHandle; customdata: pointer)</a></li>
+          </ul></dd>
+<dt><a name="handleWsRequest" href="#handleWsRequest"><span>handleWsRequest:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocketserver: proc handleWsRequest()" href="guildenstern/websocketserver.html#handleWsRequest">websocketserver: proc handleWsRequest()</a></li>
+          </ul></dd>
+<dt><a name="handleWsThreadInitialization" href="#handleWsThreadInitialization"><span>handleWsThreadInitialization:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocketserver: proc handleWsThreadInitialization(gserver: GuildenServer)" href="guildenstern/websocketserver.html#handleWsThreadInitialization%2CGuildenServer">websocketserver: proc handleWsThreadInitialization(gserver: GuildenServer)</a></li>
           </ul></dd>
 <dt><a name="HeaderReady" href="#HeaderReady"><span>HeaderReady:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -194,17 +246,37 @@
                contenttype: ContentType; headerfields: openArray[string])" href="guildenstern/httpserver.html#initHttpServer%2CHttpServer%2CLogLevel%2Cbool%2CContentType%2CopenArray%5Bstring%5D">httpserver: proc initHttpServer(s: HttpServer; loglevel: LogLevel; parserequestline: bool;
                contenttype: ContentType; headerfields: openArray[string])</a></li>
           </ul></dd>
+<dt><a name="initialbackoff" href="#initialbackoff"><span>initialbackoff:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="httpserver: const initialbackoff" href="guildenstern/httpserver.html#initialbackoff">httpserver: const initialbackoff</a></li>
+          </ul></dd>
 <dt><a name="initialize" href="#initialize"><span>initialize:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: proc initialize(server: GuildenServer; loglevel: LogLevel)" href="guildenstern/guildenserver.html#initialize%2CGuildenServer%2CLogLevel">guildenserver: proc initialize(server: GuildenServer; loglevel: LogLevel)</a></li>
           </ul></dd>
 <dt><a name="initializeThread" href="#initializeThread"><span>initializeThread:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="guildenserver: template initializeThread(server: ptr GuildenServer)" href="guildenstern/guildenserver.html#initializeThread.t%2Cptr.GuildenServer">guildenserver: template initializeThread(server: ptr GuildenServer)</a></li>
+          data-doc-search-tag="guildenserver: proc initializeThread(server: GuildenServer)" href="guildenstern/guildenserver.html#initializeThread%2CGuildenServer">guildenserver: proc initializeThread(server: GuildenServer)</a></li>
+          </ul></dd>
+<dt><a name="initWebsocketServer" href="#initWebsocketServer"><span>initWebsocketServer:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocketserver: proc initWebsocketServer(wsserver: WebsocketServer;
+                    upgradecallback: WsUpgradeCallback;
+                    afterupgradecallback: WsAfterUpgradeCallback;
+                    onwsmessagecallback: WsMessageCallback;
+                    loglevel = LogLevel.WARN; clientmaskkey = &quot;\x00\x00\x00\x00&quot;)" href="guildenstern/websocketserver.html#initWebsocketServer%2CWebsocketServer%2CWsUpgradeCallback%2CWsAfterUpgradeCallback%2CWsMessageCallback%2Cstring">websocketserver: proc initWebsocketServer(wsserver: WebsocketServer;
+                    upgradecallback: WsUpgradeCallback;
+                    afterupgradecallback: WsAfterUpgradeCallback;
+                    onwsmessagecallback: WsMessageCallback;
+                    loglevel = LogLevel.WARN; clientmaskkey = &quot;\x00\x00\x00\x00&quot;)</a></li>
           </ul></dd>
 <dt><a name="isBody" href="#isBody"><span>isBody:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="httpserver: proc isBody(body: string): bool" href="guildenstern/httpserver.html#isBody%2Cstring">httpserver: proc isBody(body: string): bool</a></li>
+          </ul></dd>
+<dt><a name="isConnected" href="#isConnected"><span>isConnected:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocketclient: proc isConnected(client: WebsocketClient): bool" href="guildenstern/websocketclient.html#isConnected%2CWebsocketClient">websocketclient: proc isConnected(client: WebsocketClient): bool</a></li>
           </ul></dd>
 <dt><a name="isHeaderreceived" href="#isHeaderreceived"><span>isHeaderreceived:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -229,6 +301,8 @@
 <dt><a name="log" href="#log"><span>log:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: template log(theserver: GuildenServer; level: LogLevel; message: string)" href="guildenstern/guildenserver.html#log.t%2CGuildenServer%2CLogLevel%2Cstring">guildenserver: template log(theserver: GuildenServer; level: LogLevel; message: string)</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="guildenserver: template log(theserver: GuildenServer; level: LogLevel; source: string; message: string)" href="guildenstern/guildenserver.html#log.t%2CGuildenServer%2CLogLevel%2Cstring%2Cstring">guildenserver: template log(theserver: GuildenServer; level: LogLevel; source: string; message: string)</a></li>
           </ul></dd>
 <dt><a name="LogCallback" href="#LogCallback"><span>LogCallback:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -270,17 +344,39 @@
                    loglevel = LogLevel.WARN;
                    headerfields: openArray[string] = []): HttpServer</a></li>
           </ul></dd>
+<dt><a name="newWebsocketClient" href="#newWebsocketClient"><span>newWebsocketClient:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocketclient: proc newWebsocketClient(clientele: WebsocketClientele; url: string;
+                   receive: proc (client: WebsocketClient) {.nimcall.}): WebsocketClient" href="guildenstern/websocketclient.html#newWebsocketClient%2CWebsocketClientele%2Cstring%2Cproc%28WebsocketClient%29">websocketclient: proc newWebsocketClient(clientele: WebsocketClientele; url: string;
+                   receive: proc (client: WebsocketClient) {.nimcall.}): WebsocketClient</a></li>
+          </ul></dd>
+<dt><a name="newWebsocketClientele" href="#newWebsocketClientele"><span>newWebsocketClientele:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocketclient: proc newWebsocketClientele(close: OnCloseSocketCallback = nil;
+                      loglevel = LogLevel.WARN; bufferlength = 1000;
+                      bytemask = &quot;\v\x16!,&quot;): WebsocketClientele" href="guildenstern/websocketclient.html#newWebsocketClientele%2COnCloseSocketCallback%2Cint%2Cstring">websocketclient: proc newWebsocketClientele(close: OnCloseSocketCallback = nil;
+                      loglevel = LogLevel.WARN; bufferlength = 1000;
+                      bytemask = &quot;\v\x16!,&quot;): WebsocketClientele</a></li>
+          </ul></dd>
 <dt><a name="newWebsocketServer" href="#newWebsocketServer"><span>newWebsocketServer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="websocketserver: proc newWebsocketServer(upgradecallback: WsUpgradeCallback;
                    afterupgradecallback: WsAfterUpgradeCallback;
                    onwsmessagecallback: WsMessageCallback;
-                   onclosesocketcallback: OnCloseSocketCallback;
-                   loglevel = LogLevel.WARN): WebsocketServer" href="guildenstern/websocketserver.html#newWebsocketServer%2CWsUpgradeCallback%2CWsAfterUpgradeCallback%2CWsMessageCallback%2COnCloseSocketCallback">websocketserver: proc newWebsocketServer(upgradecallback: WsUpgradeCallback;
+    deprecatedOnclosesocketcallback: DeprecatedOnCloseSocketCallback;
+                   loglevel = LogLevel.WARN): WebsocketServer" href="guildenstern/websocketserver.html#newWebsocketServer%2CWsUpgradeCallback%2CWsAfterUpgradeCallback%2CWsMessageCallback%2CDeprecatedOnCloseSocketCallback">websocketserver: proc newWebsocketServer(upgradecallback: WsUpgradeCallback;
                    afterupgradecallback: WsAfterUpgradeCallback;
                    onwsmessagecallback: WsMessageCallback;
-                   onclosesocketcallback: OnCloseSocketCallback;
+    deprecatedOnclosesocketcallback: DeprecatedOnCloseSocketCallback;
                    loglevel = LogLevel.WARN): WebsocketServer</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="websocketserver: proc newWebsocketServer(upgrade: WsUpgradeCallback = nil;
+                   afterupgrade: WsAfterUpgradeCallback = nil;
+                   receive: WsMessageCallback;
+                   close: OnCloseSocketCallback = nil; loglevel = LogLevel.WARN): WebsocketServer" href="guildenstern/websocketserver.html#newWebsocketServer%2CWsUpgradeCallback%2CWsAfterUpgradeCallback%2CWsMessageCallback%2COnCloseSocketCallback">websocketserver: proc newWebsocketServer(upgrade: WsUpgradeCallback = nil;
+                   afterupgrade: WsAfterUpgradeCallback = nil;
+                   receive: WsMessageCallback;
+                   close: OnCloseSocketCallback = nil; loglevel = LogLevel.WARN): WebsocketServer</a></li>
           </ul></dd>
 <dt><a name="NoBody" href="#NoBody"><span>NoBody:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -316,7 +412,7 @@
           </ul></dd>
 <dt><a name="prepareHttpContext" href="#prepareHttpContext"><span>prepareHttpContext:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="httpserver: proc prepareHttpContext(socketdata: ptr SocketData)" href="guildenstern/httpserver.html#prepareHttpContext%2Cptr.SocketData">httpserver: proc prepareHttpContext(socketdata: ptr SocketData)</a></li>
+          data-doc-search-tag="httpserver: proc prepareHttpContext()" href="guildenstern/httpserver.html#prepareHttpContext">httpserver: proc prepareHttpContext()</a></li>
           </ul></dd>
 <dt><a name="Progress" href="#Progress"><span>Progress:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -337,6 +433,16 @@
 <dt><a name="receiveStream" href="#receiveStream"><span>receiveStream:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="httpserver: iterator receiveStream(): (SocketState, string)" href="guildenstern/httpserver.html#receiveStream.i">httpserver: iterator receiveStream(): (SocketState, string)</a></li>
+          </ul></dd>
+<dt><a name="registerSocket" href="#registerSocket"><span>registerSocket:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="dispatcher: proc registerSocket(theserver: GuildenServer; socket: SocketHandle; flags = 0;
+               customdata: pointer = nil): bool" href="guildenstern/dispatcher.html#registerSocket%2CGuildenServer%2CSocketHandle%2Cint%2Cpointer">dispatcher: proc registerSocket(theserver: GuildenServer; socket: SocketHandle; flags = 0;
+               customdata: pointer = nil): bool</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="epolldispatcher: proc registerSocket(server: GuildenServer; socket: SocketHandle; flags = 0;
+               customdata: pointer = nil): bool" href="guildenstern/epolldispatcher.html#registerSocket%2CGuildenServer%2CSocketHandle%2Cint%2Cpointer">epolldispatcher: proc registerSocket(server: GuildenServer; socket: SocketHandle; flags = 0;
+               customdata: pointer = nil): bool</a></li>
           </ul></dd>
 <dt><a name="reply" href="#reply"><span>reply:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -396,27 +502,47 @@
           </ul></dd>
 <dt><a name="send" href="#send"><span>send:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="websocketserver: proc send(server: GuildenServer; socket: posix.SocketHandle; message: string;
-     timeoutsecs = 2; sleepmillisecs = 10): bool" href="guildenstern/websocketserver.html#send%2CGuildenServer%2C%2Cstring%2Cint%2Cint">websocketserver: proc send(server: GuildenServer; socket: posix.SocketHandle; message: string;
-     timeoutsecs = 2; sleepmillisecs = 10): bool</a></li>
+          data-doc-search-tag="websocketclient: proc send(client: WebsocketClient; message: string; timeoutsecs = 10): bool" href="guildenstern/websocketclient.html#send%2CWebsocketClient%2Cstring%2Cint">websocketclient: proc send(client: WebsocketClient; message: string; timeoutsecs = 10): bool</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="websocketserver: proc send(server: GuildenServer; delivery: ptr WsDelivery; timeoutsecs = 10;
-     sleepmillisecs = 10): int" href="guildenstern/websocketserver.html#send%2CGuildenServer%2Cptr.WsDelivery%2Cint%2Cint">websocketserver: proc send(server: GuildenServer; delivery: ptr WsDelivery; timeoutsecs = 10;
+          data-doc-search-tag="websocketserver: proc send(server: WebsocketServer; socket: posix.SocketHandle; message: string;
+     binary = false; timeoutsecs = 2; sleepmillisecs = 10): bool" href="guildenstern/websocketserver.html#send%2CWebsocketServer%2C%2Cstring%2Cint%2Cint">websocketserver: proc send(server: WebsocketServer; socket: posix.SocketHandle; message: string;
+     binary = false; timeoutsecs = 2; sleepmillisecs = 10): bool</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="websocketserver: proc send(server: WebsocketServer; delivery: ptr WsDelivery; timeoutsecs = 10;
+     sleepmillisecs = 10): int" href="guildenstern/websocketserver.html#send%2CWebsocketServer%2Cptr.WsDelivery%2Cint%2Cint">websocketserver: proc send(server: WebsocketServer; delivery: ptr WsDelivery; timeoutsecs = 10;
      sleepmillisecs = 10): int</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="websocketserver: proc send(server: GuildenServer; sockets: seq[posix.SocketHandle]; message: string;
-     timeoutsecs = 10; sleepmillisecs = 10): bool" href="guildenstern/websocketserver.html#send%2CGuildenServer%2Cseq%5B%5D%2Cstring%2Cint%2Cint">websocketserver: proc send(server: GuildenServer; sockets: seq[posix.SocketHandle]; message: string;
-     timeoutsecs = 10; sleepmillisecs = 10): bool</a></li>
+          data-doc-search-tag="websocketserver: proc send(server: WebsocketServer; delivery: ptr WsDelivery;
+     failedsockets: var seq[SocketHandle]; timeoutsecs = 10; sleepmillisecs = 10)" href="guildenstern/websocketserver.html#send%2CWebsocketServer%2Cptr.WsDelivery%2Cseq%5BSocketHandle%5D%2Cint%2Cint">websocketserver: proc send(server: WebsocketServer; delivery: ptr WsDelivery;
+     failedsockets: var seq[SocketHandle]; timeoutsecs = 10; sleepmillisecs = 10)</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="websocketserver: proc send(server: WebsocketServer; sockets: seq[posix.SocketHandle]; message: string;
+     binary = false; timeoutsecs = 10; sleepmillisecs = 10): bool" href="guildenstern/websocketserver.html#send%2CWebsocketServer%2Cseq%5B%5D%2Cstring%2Cint%2Cint">websocketserver: proc send(server: WebsocketServer; sockets: seq[posix.SocketHandle]; message: string;
+     binary = false; timeoutsecs = 10; sleepmillisecs = 10): bool</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="websocketserver: proc send(server: WebsocketServer; sockets: seq[posix.SocketHandle]; message: string;
+     failedsockets: var seq[SocketHandle]; binary = false; timeoutsecs = 10;
+     sleepmillisecs = 10)" href="guildenstern/websocketserver.html#send%2CWebsocketServer%2Cseq%5B%5D%2Cstring%2Cseq%5BSocketHandle%5D%2Cint%2Cint">websocketserver: proc send(server: WebsocketServer; sockets: seq[posix.SocketHandle]; message: string;
+     failedsockets: var seq[SocketHandle]; binary = false; timeoutsecs = 10;
+     sleepmillisecs = 10)</a></li>
           </ul></dd>
 <dt><a name="sendClose" href="#sendClose"><span>sendClose:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="websocketserver: proc sendClose(server: GuildenServer; socket: posix.SocketHandle;
-          statuscode: int16 = 1000.int16; timeoutsecs = 2; sleepmillisecs = 10): bool" href="guildenstern/websocketserver.html#sendClose%2CGuildenServer%2C%2Cint16%2Cint%2Cint">websocketserver: proc sendClose(server: GuildenServer; socket: posix.SocketHandle;
-          statuscode: int16 = 1000.int16; timeoutsecs = 2; sleepmillisecs = 10): bool</a></li>
+          data-doc-search-tag="websocketserver: proc sendClose(server: WebsocketServer; socket: posix.SocketHandle;
+          statuscode: int16 = 1000.int16; timeoutsecs = 1; sleepmillisecs = 10): bool" href="guildenstern/websocketserver.html#sendClose%2CWebsocketServer%2C%2Cint16%2Cint%2Cint">websocketserver: proc sendClose(server: WebsocketServer; socket: posix.SocketHandle;
+          statuscode: int16 = 1000.int16; timeoutsecs = 1; sleepmillisecs = 10): bool</a></li>
           </ul></dd>
 <dt><a name="server" href="#server"><span>server:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="httpserver: template server(): untyped" href="guildenstern/httpserver.html#server.t">httpserver: template server(): untyped</a></li>
+          </ul></dd>
+<dt><a name="setFlags" href="#setFlags"><span>setFlags:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="guildenserver: proc setFlags(server: GuildenServer; socket: posix.SocketHandle; flags: int): bool" href="guildenstern/guildenserver.html#setFlags%2CGuildenServer%2C%2Cint">guildenserver: proc setFlags(server: GuildenServer; socket: posix.SocketHandle; flags: int): bool</a></li>
+          </ul></dd>
+<dt><a name="SetFlagsCallback" href="#SetFlagsCallback"><span>SetFlagsCallback:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="guildenserver: type SetFlagsCallback" href="guildenstern/guildenserver.html#SetFlagsCallback">guildenserver: type SetFlagsCallback</a></li>
           </ul></dd>
 <dt><a name="shortdivider" href="#shortdivider"><span>shortdivider:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -426,9 +552,9 @@
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: proc shutdown()" href="guildenstern/guildenserver.html#shutdown">guildenserver: proc shutdown()</a></li>
           </ul></dd>
-<dt><a name="shutdownevent" href="#shutdownevent"><span>shutdownevent:</span></a></dt><dd><ul class="simple">
+<dt><a name="shutdownCallbacks" href="#shutdownCallbacks"><span>shutdownCallbacks:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="guildenserver: var shutdownevent" href="guildenstern/guildenserver.html#shutdownevent">guildenserver: var shutdownevent</a></li>
+          data-doc-search-tag="guildenserver: var shutdownCallbacks" href="guildenstern/guildenserver.html#shutdownCallbacks">guildenserver: var shutdownCallbacks</a></li>
           </ul></dd>
 <dt><a name="shuttingdown" href="#shuttingdown"><span>shuttingdown:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -450,6 +576,10 @@
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: object SocketData" href="guildenstern/guildenserver.html#SocketData">guildenserver: object SocketData</a></li>
           </ul></dd>
+<dt><a name="socketdata" href="#socketdata"><span>socketdata:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="guildenserver: proc socketdata(sc: SocketContext): SocketContext" href="guildenstern/guildenserver.html#socketdata%2CSocketContext">guildenserver: proc socketdata(sc: SocketContext): SocketContext</a></li>
+          </ul></dd>
 <dt><a name="SocketState" href="#SocketState"><span>SocketState:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="httpserver: enum SocketState" href="guildenstern/httpserver.html#SocketState">httpserver: enum SocketState</a></li>
@@ -457,8 +587,12 @@
 <dt><a name="start" href="#start"><span>start:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="dispatcher: proc start(server: GuildenServer; port: int; threadpoolsize: uint = 0;
-      maxactivethreadcount: uint = 0)" href="guildenstern/dispatcher.html#start%2CGuildenServer%2Cint%2Cuint%2Cuint">dispatcher: proc start(server: GuildenServer; port: int; threadpoolsize: uint = 0;
-      maxactivethreadcount: uint = 0)</a></li>
+      maxactivethreadcount: uint = 0): bool" href="guildenstern/dispatcher.html#start%2CGuildenServer%2Cint%2Cuint%2Cuint">dispatcher: proc start(server: GuildenServer; port: int; threadpoolsize: uint = 0;
+      maxactivethreadcount: uint = 0): bool</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="epolldispatcher: proc start(server: GuildenServer; port: int; threadpoolsize: uint = 0): bool" href="guildenstern/epolldispatcher.html#start%2CGuildenServer%2Cint%2Cuint">epolldispatcher: proc start(server: GuildenServer; port: int; threadpoolsize: uint = 0): bool</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="websocketclient: proc start(clientele: WebsocketClientele; threadpoolsize = 0): bool" href="guildenstern/websocketclient.html#start%2CWebsocketClientele%2Cint">websocketclient: proc start(clientele: WebsocketClientele; threadpoolsize = 0): bool</a></li>
           </ul></dd>
 <dt><a name="startsUri" href="#startsUri"><span>startsUri:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -470,11 +604,21 @@
           </ul></dd>
 <dt><a name="suspend" href="#suspend"><span>suspend:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
+          data-doc-search-tag="guildenserver: proc suspend(server: GuildenServer; sleepmillisecs: int)" href="guildenstern/guildenserver.html#suspend%2CGuildenServer%2Cint">guildenserver: proc suspend(server: GuildenServer; sleepmillisecs: int)</a></li>
+          <li><a class="reference external"
           data-doc-search-tag="guildenserver: proc suspend(sleepmillisecs: int)" href="guildenstern/guildenserver.html#suspend%2Cint">guildenserver: proc suspend(sleepmillisecs: int)</a></li>
           </ul></dd>
 <dt><a name="SuspendCallback" href="#SuspendCallback"><span>SuspendCallback:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: type SuspendCallback" href="guildenstern/guildenserver.html#SuspendCallback">guildenserver: type SuspendCallback</a></li>
+          </ul></dd>
+<dt><a name="thesocket" href="#thesocket"><span>thesocket:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="guildenserver: template thesocket(): untyped" href="guildenstern/guildenserver.html#thesocket.t">guildenserver: template thesocket(): untyped</a></li>
+          </ul></dd>
+<dt><a name="ThreadFinalizerCallback" href="#ThreadFinalizerCallback"><span>ThreadFinalizerCallback:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="guildenserver: type ThreadFinalizerCallback" href="guildenstern/guildenserver.html#ThreadFinalizerCallback">guildenserver: type ThreadFinalizerCallback</a></li>
           </ul></dd>
 <dt><a name="ThreadInitializerCallback" href="#ThreadInitializerCallback"><span>ThreadInitializerCallback:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -495,6 +639,14 @@
 <dt><a name="WARN" href="#WARN"><span>WARN:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: LogLevel.WARN" href="guildenstern/guildenserver.html#WARN">guildenserver: LogLevel.WARN</a></li>
+          </ul></dd>
+<dt><a name="WebsocketClient" href="#WebsocketClient"><span>WebsocketClient:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocketclient: type WebsocketClient" href="guildenstern/websocketclient.html#WebsocketClient">websocketclient: type WebsocketClient</a></li>
+          </ul></dd>
+<dt><a name="WebsocketClientele" href="#WebsocketClientele"><span>WebsocketClientele:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocketclient: type WebsocketClientele" href="guildenstern/websocketclient.html#WebsocketClientele">websocketclient: type WebsocketClientele</a></li>
           </ul></dd>
 <dt><a name="WebsocketServer" href="#WebsocketServer"><span>WebsocketServer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -528,7 +680,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-12-16 11:39:39 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-01-17 11:15:48 UTC</small>
       </div>
     </div>
   </div>

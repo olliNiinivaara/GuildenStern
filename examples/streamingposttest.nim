@@ -5,10 +5,9 @@ var thisisyourdata: string
 
 proc onGet() =
   {.gcsafe.}:
-    let html = """<!doctype html><title></title><body>
+    reply """<!doctype html><title></title><body>
     <form action="http://localhost:5051" method="POST" accept-charset="utf-8">
     <input type="submit" name="post" value="""" & thisisyourdata & """">"""
-  reply(html)
 
 proc onPost() =
   var body: string
@@ -16,7 +15,7 @@ proc onPost() =
   for (state , chunk) in receiveStream():
     case state:
       of TryAgain:
-        suspend(100)
+        server.suspend(100)
         trials += 1
         if trials > 100: (closeSocket() ; break)
       of Fail: discard
@@ -34,6 +33,6 @@ for i in 0 .. 50000: thisisyourdata &= $i
 thisisyourdata &= "finalwords"
 let getserver = newHttpServer(onGet, contenttype = NoBody)
 let postserver = newHttpServer(onPost, contenttype = Streaming)
-getserver.start(5050)
-postserver.start(5051)
+if not getserver.start(5050): quit() 
+if not postserver.start(5051): quit()
 joinThreads(getserver.thread, postserver.thread)
