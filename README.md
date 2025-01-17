@@ -89,7 +89,7 @@ if clientele.start():
   joinThread(server.thread)
 ```
 
-## Release notes, 8.0.0 (2025-01-??)
+## Release notes, 8.0.0 (2025-01-17)
 
 ### breaking changes
 - dispatcher's *start* proc now returns *bool* that has to be handled
