@@ -150,7 +150,7 @@ proc newHttpServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, lo
   ## Constructs a new http server. The essential thing here is to set the onrequestcallback proc.
   ## When it is triggered, the [http] thread-local socket context is accessible.
   ## 
-  ## If you want to tinker with [maxheaderlength], [bufferlength] or [sockettimeoutms], that is best done
+  ## If you want to tinker with [HttpServer.maxheaderlength], [HttpServer.bufferlength] or [HttpServer.sockettimeoutms], that is best done
   ## after the server is constructed but before it is started.
   result = new HttpServer
   result.initHttpServer(loglevel, parserequestline, contenttype, headerfields)

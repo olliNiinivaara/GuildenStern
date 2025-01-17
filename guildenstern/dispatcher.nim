@@ -1,5 +1,6 @@
-## This is the default dispatcher. Use it by importing guildenstern/dispatcher and
-## then starting a server's dispatcher thread by calling [start].
+## This is the default dispatcher (see also: guildenstern/epolldispatcher).
+##
+## Servers are started by using the [start] proc.
 ## 
 ## This dispatcher spawns a thread from a server-specific threadpool for 
 ## every incoming read request. The threadpool size can be set in the start procedure.
@@ -8,18 +9,22 @@
 ## However, if a thread reports itself as inactive (by calling server's suspend procedure),
 ## another thread is allowed to run. This keeps the server serving when there are
 ## more threads suspended than the maxactivethreadcount. This design seems to deliver decent
-## performance without leaning to more complex asynchronous concurrency techniques.    
+## performance by dynamically adjusting number of active threads and thereby
+## avoids excessive context switching.
+##
+# .. importdoc:: epolldispatcher.nim
 
 import net, os, posix, locks, atomics
 from strutils import startsWith
 from nativesockets import accept, setBlocking
 from std/osproc import countProcessors
-import guildenserver, guildenselectors
-
+import guildenserver
+when not defined(nimdoc): import guildenselectors
+else: import std/selectors
 
 const
   QueueSize {.intdefine.} = 200
-  ## Empirically found number. Should be larger than maxactivethreadcount.
+  ## Work queue size, should be larger than maxactivethreadcount.
   MaxServerCount {.intdefine.} = 30
   ## Maximum number of servers
 
@@ -136,10 +141,12 @@ proc workerthreadLoop(server: GuildenServer) {.thread.} =
 
 proc getFlagsImpl(server: GuildenServer, socket: SocketHandle): int {.nimcall, raises: [].} =
   {.gcsafe.}:
-    withLock(workerdatas[server.id].flagLock):
-      let selector = server.getSelectorForSocket(socket)
-      if not selector.isNil: return getSafelyData(emptySocketData, selector, socket.int).flags
-      else: return -1
+    when not defined(nimdoc):
+      withLock(workerdatas[server.id].flagLock):
+        let selector = server.getSelectorForSocket(socket)
+        if not selector.isNil: return getSafelyData(emptySocketData, selector, socket.int).flags
+        else: return -1
+    else: discard
 
 
 proc setFlagsImpl(server: GuildenServer, socket: SocketHandle, flags: int): bool {.nimcall.} =
@@ -147,7 +154,10 @@ proc setFlagsImpl(server: GuildenServer, socket: SocketHandle, flags: int): bool
     withLock(workerdatas[server.id].flagLock):
       let selector = server.getSelectorForSocket(socket)
       if selector.isNil: return false
-      var client = getSafelyData(emptySocketData, selector, socket.int)
+      when not defined(nimdoc):
+        var client = getSafelyData(emptySocketData, selector, socket.int)
+      else:
+        var client = emptySocketData
       if client == emptySocketData: return false
       client.flags = client.flags or flags
       server.log(DEBUG, "Socket " & $socket & " flags set to " & $flags)
@@ -172,7 +182,10 @@ proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].}
     let fd = posix.SocketHandle(event.fd)
     server.log(TRACE, "socket " & $fd & ": " & $event.events)
 
-    var socketdata = getSafelyData(emptySocketData, workerdatas[server.id].gsselector, fd.int)
+    when not defined(nimdoc):
+      var socketdata = getSafelyData(emptySocketData, workerdatas[server.id].gsselector, fd.int)
+    else:
+      var socketdata = emptySocketData
     if unlikely(socketdata == emptySocketData):
       closeSocket(server, fd, NetErrored, "selected socket disappeared")
       return
@@ -259,7 +272,9 @@ proc eventLoop(server: GuildenServer) {.gcsafe, raises: [].} =
   
   while true:
     if unlikely(shuttingdown): break
-    try: event = gsselector.selectFast()
+    try:
+      when not defined(nimdoc): 
+        event = gsselector.selectFast()
     except:
       server.log(ERROR, "selector.select")
       continue
@@ -360,8 +375,11 @@ proc startEventloop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: []
 
 proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0, maxactivethreadcount: uint = 0): bool =
   ## Starts the server.thread loop, which then listens the given port for read requests until shuttingdown == true.
-  ## By default maxactivethreadcount will be set to processor core count, and threadpoolsize twice that.
-  ## If you a running lots of servers, or if this server is not under a heavy load, these numbers can be lowered.
+  ## By default maxactivethreadcount will be set to max(4, countProcessors(), and
+  ## threadpoolsize to maxactivethreadcount * 2.
+  ## If you a running lots of other servers, or if this server is not under a heavy load, these numbers can be lowered.
+  ## If port number 0 is given, the server runs in client mode, where server.thread is not started, and sockets 
+  ## can be added manually using the `registerSocket` proc.
   doAssert(server.id < MaxServerCount)
   doAssert(not server.started)
   doAssert(port != 1)
@@ -372,9 +390,11 @@ proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0, maxactiv
   initLock(workerdatas[server.id].worklock)
   initLock(workerdatas[server.id].flaglock)
   workerdatas[server.id].maxactivethreadcount = maxactivethreadcount.int
-  if workerdatas[server.id].maxactivethreadcount == 0: workerdatas[server.id].maxactivethreadcount = countProcessors()
+  if workerdatas[server.id].maxactivethreadcount == 0: workerdatas[server.id].maxactivethreadcount = max(4, countProcessors())
   workerdatas[server.id].threadpoolsize = threadpoolsize.int
   if workerdatas[server.id].threadpoolsize == 0: workerdatas[server.id].threadpoolsize = workerdatas[server.id].maxactivethreadcount * 2
+  if QueueSize < workerdatas[server.id].maxactivethreadcount:
+    server.log(WARN, "QueueSize smaller than maxactivethreadcount, increase with -d:QueueSize:number compiler switch")
   server.port = port.uint16
   server.suspendCallback = suspend
   server.closeSocketCallback = closeSocketImpl
@@ -393,9 +413,10 @@ proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0, maxactiv
  
 
 proc registerSocket*(theserver: GuildenServer, socket: SocketHandle, flags = 0, customdata: pointer = nil): bool =
+  ## Add a socket whose read events will be then dispatched. Useful for servers operating in client mode.
   try:
     workerdatas[theserver.id].gsselector.registerHandle(socket.int, {Event.Read}, SocketData(isserversocket: false, socket: socket, flags: flags, customdata: customdata))
-    theserver.log(DEBUG, "socket " & $socket & " connected to client-server " & $theserver.id)
+    theserver.log(DEBUG, "socket " & $socket & " registered to server " & $theserver.id)
     return true
   except:
     theserver.log(ERROR, "registerSocket: selector registerHandle error")

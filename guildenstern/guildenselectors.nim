@@ -8,18 +8,6 @@
 #
 #    Modified by Olli
 
-## This module allows high-level and efficient I/O multiplexing.
-##
-## Supported OS primitives: `epoll` and `kqueue`
-##
-## To use threadsafe version of this module, it needs to be compiled
-## with `--threads:on` options.
-##
-## Supported features: files, sockets, pipes, timers, processes, signals
-## and user events.
-##
-## Supported OS: MacOSX, FreeBSD, OpenBSD, NetBSD, Linux (except
-## for Android).
 ##
 ## See std/selectors for documentation
 ##

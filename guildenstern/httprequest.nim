@@ -114,13 +114,13 @@ proc getBodylen*(): int =
 
 
 when compiles((var x = 1; var vx: var int = x)):
-  ## Returns the body without making a string copy.
-  ## Requires --experimental:views compiler switch.
   proc getBodyview*(http: HttpContext): openArray[char] =
+    ## Returns the body without making an expensive string copy.
+    ## Requires --experimental:views compiler switch.
     assert(server.contenttype == Compact)
     if http.bodystart < 1: return http.request.toOpenArray(0, -1)
     else: return http.request.toOpenArray(http.bodystart, http.requestlen - 1)
-
+  
 
 proc getBody*(): string =
   ## Returns the body as a string copy. See also: getBodyView
@@ -217,6 +217,8 @@ proc hasData(): bool =
 
 
 proc readHeader*(): bool {.gcsafe, raises:[].} =
+  ## Reads the header part of an incoming request. If an incoming request is empty (maybe a keep-alive packet),
+  ## ignores the request but keeps the socket open.
   if not hasData(): return false
   if not receiveHeader(): return false
   if server.headerfields.len == 0:
@@ -237,7 +239,6 @@ iterator receiveStream*(): (SocketState , string) {.gcsafe, raises: [].} =
   ## Receives a http request in chunks, yielding the state of operation and a possibly received new chuck on every iteration.
   ## With this, you can receive data incrementally without worries about main memory usage.
   ## See examples/streamingposttest.nim for a concrete working example of how to use this iterator.
-  #let theserver = getServer()
   if http.contentlength == 0: yield (Complete , "")
   else:
     if http.contentreceived == http.contentlength:

@@ -1,9 +1,17 @@
-## TODO: documentation
+## This is an epoll-based dispatcher for platforms that support it, like Linux.
+##
+## Servers are started by using the [start] proc.
+##
+## This dispatcher delegates the thread scheduling to the operating system kernel,
+## making it a rock solid dispatcher alternative. If your platform supports it,
+## it is the recommended choice.
 
 import net, os, posix, locks, atomics
 from nativesockets import accept, setBlocking
 from std/osproc import countProcessors
-import guildenserver, guildenselectors
+import guildenserver
+when not defined(nimdoc): import guildenselectors
+else: import std/selectors
 
 const
   MSG_DONTWAIT = when defined(macosx): 0x80.cint else: 0x40.cint
@@ -70,7 +78,7 @@ proc clientThread(server: GuildenServer) {.thread.} =
     if unlikely(shuttingdown): break
     try:
       {.gcsafe.}:
-        event = servers[server.id].clientselector.selectFast()
+        when not defined(nimdoc): event = servers[server.id].clientselector.selectFast()
 
         if unlikely(Event.User in event.events): break 
         if unlikely(Event.Error in event.events):
@@ -78,7 +86,7 @@ proc clientThread(server: GuildenServer) {.thread.} =
           continue
         socket = SocketHandle(event.fd)
         if unlikely(socket.int in [0, INVALID_SOCKET.int]): continue
-        client = getSafelyData(emptyClient, servers[server.id].clientselector, socket.int)
+        when not defined(nimdoc): client = getSafelyData(emptyClient, servers[server.id].clientselector, socket.int)
         if unlikely(client.flags == -1): continue
     except:
       server.log(INFO, "client selector select failure")
@@ -111,14 +119,19 @@ proc clientThread(server: GuildenServer) {.thread.} =
 
 proc getFlagsImpl(server: GuildenServer, socket: SocketHandle): int {.nimcall.} =
   {.gcsafe.}:
-    withLock(servers[server.id].flagLock):
-      return getSafelyData(emptyClient, servers[server.id].clientselector, socket.int).flags
+    when not defined(nimdoc):
+      withLock(servers[server.id].flagLock):
+        return getSafelyData(emptyClient, servers[server.id].clientselector, socket.int).flags
+    else: discard
 
 
 proc setFlagsImpl(server: GuildenServer, socket: SocketHandle, flags: int): bool {.nimcall.} =
   {.gcsafe.}:
     withLock(servers[server.id].flagLock):
-      let client = getSafelyData(emptyClient, servers[server.id].clientselector, socket.int)
+      when not defined(nimdoc):
+        let client = getSafelyData(emptyClient, servers[server.id].clientselector, socket.int)
+      else:
+        let client = emptyClient
       if client == emptyClient: return false
       client.flags = client.flags or flags
       server.log(DEBUG, "Socket " & $socket & " flags set to " & $flags)
@@ -206,21 +219,22 @@ proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].
 
     when not defined(nimdoc):
       let newsocket = fd.accept()[0]
-    if unlikely(newsocket.int in [0, INVALID_SOCKET.int]):
-      server.log(TRACE, "invalid new socket")
-      continue
-    try:
-      let client = new Client
-      {.gcsafe.}:
-        servers[server.id].clientselector.registerEPOLLETReadHandle(newsocket.int, client)
-    except:
-      server.log(ERROR, "selector registerHandle error for socket " & $newsocket)
-      continue
-    server.log(DEBUG, "New socket " & $newsocket & " connected at port " & $server.port)
+      if unlikely(newsocket.int in [0, INVALID_SOCKET.int]):
+        server.log(TRACE, "invalid new socket")
+        continue
+      try:
+        let client = new Client
+        {.gcsafe.}:
+          servers[server.id].clientselector.registerEPOLLETReadHandle(newsocket.int, client)
+      except:
+        server.log(ERROR, "selector registerHandle error for socket " & $newsocket)
+        continue
+      server.log(DEBUG, "New socket " & $newsocket & " connected at port " & $server.port)
 
   
   {.gcsafe.}:
-    servers[server.id].serversocket.close()
+    try: servers[server.id].serversocket.close()
+    except: server.log(ERROR, "could not close serversocket " & $servers[server.id].serversocket.getFd())
     let waitingtime = 10 # 10 seconds, TODO: make this configurable / larger than socket timeout?
     server.log(DEBUG, "Stopping client threads...")
     var slept = 0
@@ -242,14 +256,17 @@ proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].
 
 proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0): bool =
   ## Starts the server.thread loop, which then listens the given port for read requests until shuttingdown == true.
-  ## By default threadpoolsize will be set to 2 * processor core count.
+  ## Threadpoolsize means number of worker threads, but the name is kept for compatibility with the defautl dispatacher.
+  ## By default threadpoolsize will be set to max(8, 2 * countProcessors()).
+  ## If port number 0 is given, the server runs in client mode, where server.thread is not started, and sockets 
+  ## can be added manually using the `registerSocket` proc.
   doAssert(server.id < MaxServerCount)
   doAssert(not server.started)
   doAssert(not isNil(server.handlerCallback))
   servers[server.id] = Server()
   servers[server.id].flaglock.initLock()
   servers[server.id].threadpoolsize = threadpoolsize.int
-  if servers[server.id].threadpoolsize == 0: servers[server.id].threadpoolsize = 2 * countProcessors()
+  if servers[server.id].threadpoolsize == 0: servers[server.id].threadpoolsize = max(8, 2 * countProcessors())
   server.port = port.uint16
   server.suspendCallback = suspend
   server.closeSocketCallback = closeSocketImpl
@@ -269,12 +286,14 @@ proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0): bool =
 
 
 proc registerSocket*(server: GuildenServer, socket: SocketHandle,  flags = 0,customdata: pointer = nil): bool =
+  ## Add a socket whose read events will be then dispatched. Useful for servers operating in client mode.
   try:
     let client = new Client
     client.flags = flags
     client.customdata = customdata
-    {.gcsafe.}: servers[server.id].clientselector.registerEPOLLETReadHandle(socket.int, client)
-    server.log(DEBUG, "socket " & $socket & " connected to client-server " & $server.id)
+    when not defined(nimdoc):
+      {.gcsafe.}: servers[server.id].clientselector.registerEPOLLETReadHandle(socket.int, client)
+    server.log(DEBUG, "socket " & $socket & " registered to server " & $server.id)
     return true
   except:
     server.log(ERROR, "registerSocket: selector registerHandle error")

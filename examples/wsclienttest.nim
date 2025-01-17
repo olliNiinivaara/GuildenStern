@@ -6,7 +6,7 @@ import std/atomics
 from os import sleep
 import guildenstern/[epolldispatcher, websocketserver, websocketclient]
 
-const ClientCount = 1000 # ulimit -n something more first
+const ClientCount = 2000 # ulimit -n something more first
 const MinRoundTrips = 100000
 var roundtrips: Atomic[int]
 var clientele: WebsocketClientele
@@ -41,7 +41,7 @@ proc clientReceive(client: WebsocketClient) =
 
 proc start() =
   for i in 1..ClientCount:
-    let client = clientele.newWebsocketClient("http://127.0.0.1:5050", clientReceive)
+    let client = clientele.newWebsocketClient("ws://127.0.0.1:5050", clientReceive)
     if not client.connect(): quit("could not connect to server")
     if i mod 100 == 0: echo i, " clients connected"
   echo "All ", ClientCount, " clients connected"

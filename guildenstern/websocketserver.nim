@@ -37,8 +37,8 @@ type
   WsMessageCallback* = proc() {.gcsafe, nimcall, raises: [].}
 
   WebsocketServer* = ref object of HttpServer
-    isclient* = false
-    upgradeCallback*: WsUpgradeCallback ## Optional, return true to accept, false to decline a webosocket upgrade request
+    isclient* = false ## If a `clientmaskkey` is given in initWebsocketServer, this is set to true
+    upgradeCallback*: WsUpgradeCallback ## Optional, return true to accept, false to decline a websocket upgrade request
     afterUpgradeCallback*: WsAfterUpgradeCallback ## Optional, good for sending the very first websocket message to client
     messageCallback*: WsMessageCallback ## Triggered when a message is received. Streaming reads are not supported: message length must be shorter than buffersize.
     clientmaskkey = "\0\0\0\0"
@@ -54,7 +54,7 @@ type
   
 
 const
-  MaxParallelSendingSockets {.intdefine.} = 500
+  MaxParallelSendingSockets {.intdefine.} = 500 ## Id max is reached, operations are ceased temporarily to prevent resource exhaustion
 
 let
   MagicString = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -77,6 +77,7 @@ when not defined(debug):
   {.push checks: off.}
 
 template ws*(): untyped =
+  ## shortcut for HttpContext(socketcontext)
   HttpContext(socketcontext)
 
 template wsserver*(): untyped =
@@ -290,13 +291,16 @@ proc handleWsUpgradehandshake() =
     wsserver.afterUpgradeCallback()
 
 
-proc getMessage*(): string =
-  return ws.request[0 ..< ws.requestlen]
-
-
 when compiles((var x = 1; var vx: var int = x)):
   proc getMessageview*(ws: HttpContext): openArray[char] =
+    ## Returns the message without making an expensive string copy.
+    ## Requires --experimental:views compiler switch.
     return ws.request.toOpenArray(0, ws.requestlen - 1)
+
+
+proc getMessage*(): string =
+  ## Returns the body as a string copy. See also: getMessageView
+  return ws.request[0 ..< ws.requestlen]
 
 
 proc send*(server: WebsocketServer, socket: posix.SocketHandle, message: string, binary = false, timeoutsecs = 2, sleepmillisecs = 10): bool {.gcsafe, discardable, raises:[].}
@@ -433,11 +437,11 @@ let ping = "PING"
 let nostatuscode = ""
 
 proc send*(server: WebsocketServer, delivery: ptr WsDelivery, failedsockets: var seq[SocketHandle], timeoutsecs = 10, sleepmillisecs = 10) =
-  ## Sends message to multiple websockets at once. Uses non-blocking I/O so that slow receivers do not slow down fast receivers.
+  ## Sends a message to multiple websockets at once. Uses non-blocking I/O so that slow receivers do not slow down fast receivers.
   ## | Can be called from multiple threads in parallel.
   ## | `timeoutsecs`: a timeout after which sending is given up and all sockets with messages in-flight are closed
   ## | `sleepmillisecs`: if all in-flight receivers are blocking, will suspend for (sleepmillisecs * in-flight receiver count) milliseconds
-  ## Returns amount of websockets that had to be closed
+  ## Returns sockets that failed and had to be closed in the `failedsockets` parameter.
   server.log(TRACE, "--starts sending websockets--")
   {.gcsafe.}:
     if delivery.message[].len == 0:
@@ -567,7 +571,7 @@ proc send*(server: WebsocketServer, socket: posix.SocketHandle, message: string,
 proc sendClose*(server: WebsocketServer, socket: posix.SocketHandle, statuscode: int16 = 1000.int16, timeoutsecs = 1, sleepmillisecs = 10): bool {.discardable.} =
   ## Sends a close frame to the client, in sync with other possible deliveries going to the same socket from other threads.
   ## | `statuscode`: Available for the client. For semantics, see `https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1 <https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1>`_ 
-  ## Returns whether the sending was succesful (and if not, you may want to just call `closeOtherSocket`)
+  ## Returns whether the sending was succesful (and if not, you may want to just call `closeSocket`)
   {.gcsafe.}:
     var message = MagicClose
   let bytes = cast[array[0..1, char]](statuscode)
@@ -615,6 +619,7 @@ proc newWebsocketServer(upgradecallback: WsUpgradeCallback, afterupgradecallback
 {.warning[Deprecated]:off.}
 proc newWebsocketServer*(upgradecallback: WsUpgradeCallback, afterupgradecallback: WsAfterUpgradeCallback,
  onwsmessagecallback: WsMessageCallback, deprecatedOnclosesocketcallback: DeprecatedOnCloseSocketCallback, loglevel = LogLevel.WARN): WebsocketServer =
+  ## This constructor is going to get deprecated. Please switch to the one that uses the new OnCloseSocketCallback.
   result = newWebsocketServer(upgradecallback, afterupgradecallback, onwsmessagecallback, loglevel)
   result.deprecatedOnclosesocketcallback = deprecatedOnclosesocketcallback
 {.warning[Deprecated]:on.}

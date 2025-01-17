@@ -29,7 +29,7 @@ let clientele = newWebsocketClientele()
 
 proc run() =
   for i in 1..ClientCount:
-    let client = clientele.newWebsocketClient("http://0.0.0.0:8080", clientReceive)
+    let client = clientele.newWebsocketClient("ws://0.0.0.0:8080", clientReceive)
     if not client.connect(): quit()
     client.send("this comes from client " & $client.id)
   sleep(100)

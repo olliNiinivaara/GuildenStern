@@ -150,7 +150,7 @@ template checkFd(s, f) =
       s.fds[i].ident = InvalidIdent
     s.numFD = numFD
 
-proc registerHandle*[T](s: Selector[T], fd: int | SocketHandle,
+proc registerHandle*[T](s: Selector[T], fd: int | posix.SocketHandle,
                         events: set[Event], data: T) =
   let fdi = int(fd)
   s.checkFd(fdi)

@@ -13,25 +13,19 @@ const GuildenSternVersion* = "8.0.0"
 #  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 
-## .. importdoc:: dispatcher.nim, httpserver.nim, websocketserver.nim, multipartserver.nim
-
-## [GuildenServer] is the abstract base class for upstream (app-facing) web servers. The three concrete server implementations that currently ship
-## with GuildenStern are [guildenstern/httpserver], [guildenstern/websocketserver] and [guildenstern/multipartserver].
-## One server is associated with one TCP port.
+# .. importdoc:: httpserver.nim, websocketserver.nim, multipartserver.nim
+## [GuildenServer] is the abstract base class for creating server components. The three concrete server implementations that currently ship
+## with GuildenStern are guildenstern/httpserver, guildenstern/websocketserver and guildenstern/multipartserver.
+## One server is associated with one TCP port, use your internet-facing reverse proxy to route traffic to different servers. 
 ## 
-## GuildenServer mainly acts as the glue between everything else, offering set of callback hooks for others to fill in.
-## In addition to GuildenServer, this module also introduces SocketContext, which is a container for data of
-## one request in flight. SocketContext is inheritable, so concrete servers may add properties to it.
+## GuildenServer itself mainly acts as the glue between everything else, offering set of callback hooks for others to fill in.
+##
+## In addition to GuildenServer, this module also defines SocketContext, which is a container for data of
+## one request in flight, available as the global `socketcontext` threadvar.
+## SocketContext is inheritable, so concrete servers may add properties to it.
 ## 
-## The overall architecture may be something like this: A reverse proxy (like https://caddyserver.com/) routes requests upsteam to multiple ports.
-## Each of these ports is served by one concrete GuildenServer instance. To each server is attached one dispatcher, which listens to the port and
-## triggers handlerCallbacks. The default [guildenstern/dispatcher] uses multithreading so that even requests arriving to the same port are served in parallel.
-## During request handling, the default servers offer an inherited thread local SocketContext variable from which everything else is accessible,
-## most notably the SocketData.server itself and the SocketData.socket that is being serviced.
-## 
-## Guides for writing your very own servers and dispatchers may appear later. For now, just study the source codes...
-## (And if you invent something useful, please share it with us.)
-## 
+## To see how to use GuildenStern in practice, consult the various practical examples in the examples folder.
+##
 
 from std/posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onSignal, `==`
 from std/net import Socket, newSocket
@@ -114,8 +108,9 @@ type
 {.warning[Deprecated]:on.}
 
 var
-  shuttingdown* = false ## Global variable that all code is expected to observe and abide to.
+  shuttingdown* = false ## Global variable that all code is expected to observe and abide to (check this inside your loops every now and then...).
   socketcontext* {.threadvar.}: SocketContext
+  ## Access to data relating to the current socket request. Various servers offer templates to access their own more specialized data, such as the `http` and `ws` templates of the httpserver and websocketserver, respectively.
   nextid: int
   shutdownCallbacks*: seq[proc() {.nimcall, gcsafe, raises: [].}]
 
@@ -136,7 +131,9 @@ onSignal(SIGTERM): shutdown()
 onSignal(SIGINT): shutdown()
 {.hint[XDeclaredButNotUsed]:on.}
 
-template thesocket*(): untyped = socketcontext.socket
+template thesocket*(): untyped =
+  ## Global shortcut for accessing `socketcontext.socket`
+  socketcontext.socket
 
 template log*(theserver: GuildenServer, level: LogLevel, message: string) =
   ## Calls logCallback, if it set. By default, the callback is set to echo the message,
@@ -200,6 +197,7 @@ proc suspend*(sleepmillisecs: int) {.deprecated:"use suspend that takes server a
 
 
 proc suspend*(server: GuildenServer, sleepmillisecs: int) {.inline.} =
+  # If operation gets stalled, use this instead of sleep, so that the dispatcher may also react (and the suspend get logged)
   if not isNil(server.suspendCallback):
     server.suspendCallback(server, sleepmillisecs)
 
@@ -220,7 +218,7 @@ proc closeSocket*(server: GuildenServer, socket: SocketHandle, cause = CloseCall
   logClose(server, socket, cause, msg)
   if not isNil(server.closeSocketCallback):
     server.closeSocketCallback(server, socket, cause, msg)
-  else: socket.close()
+  else: discard posix.close(socket)
 
 
 proc closeOtherSocket*(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause = CloseCalled, msg: string = "") {.deprecated:"just use closeSocket", gcsafe, nimcall, raises: [].} =

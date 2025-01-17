@@ -118,7 +118,7 @@ if not wsServer.start(5050): quit()
 clientele = newWebsocketClientele(bufferlength = 20)
 if not clientele.start(): quit()
 for i in 1 .. ClientCount:
-  let client = clientele.newWebsocketClient("http://127.0.0.1:5050", clientHandler)
+  let client = clientele.newWebsocketClient("ws://127.0.0.1:5050", clientHandler)
   if not client.connect(): quit("could not connect to server")
   let isodd = i mod 2 == 1
   let msg = if isodd: $imodd else: $imeven
