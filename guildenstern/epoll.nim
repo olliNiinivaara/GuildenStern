@@ -556,15 +556,6 @@ proc getSafelyData*[T](default: T, s: Selector[T], fd: SocketHandle|int): T =
   else:
     result = default
 
-#[proc getSafelyData*[T](default: var T, s: Selector[T], fd: SocketHandle|int): var T =
-  let fdi = int(fd)
-  s.checkFd(fdi)
-  if fdi in s:
-    result = s.fds[fdi].data
-  else:
-    result = default]#
-
-
 proc setData*[T](s: Selector[T], fd: SocketHandle|int, data: T): bool =
   let fdi = int(fd)
   s.checkFd(fdi)

@@ -28,7 +28,7 @@ type
     serversocket: Socket
     serverselector: Selector[bool]
     clientselector: Selector[Client]
-    flaglock: Lock 
+    flaglock: Lock
     threadpoolsize: int
     clientthreads: seq[Thread[GuildenServer]]
 
@@ -51,18 +51,22 @@ proc suspend(server: GuildenServer, sleepmillisecs: int) {.gcsafe, nimcall, rais
 
 {.warning[Deprecated]:off.}
 proc closeSocketImpl(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause, msg: string = "") {.gcsafe, nimcall, raises: [].} =
-  try:
-    if socket == INVALID_SOCKET:
-      server.log(DEBUG, "cannot close invalid socket " & $cause & ": " & msg)
-      return
-    server.log(TRACE, "epolldispatcher now closing socket " & $socket)
-    if not isNil(server.onclosesocketcallback):
-      server.onclosesocketcallback(server, socket, cause, msg)
-    elif not isNil(server.deprecatedOnclosesocketcallback):
-      let fakeClient = guildenserver.SocketData(server: server, socket: socket)
-      server.deprecatedOnclosesocketcallback(addr fakeClient, cause, msg)
-  finally:
-    discard posix.close(socket)
+  if socket == INVALID_SOCKET:
+    server.log(DEBUG, "cannot close invalid socket " & $cause & ": " & msg)
+    return
+  server.log(TRACE, "epolldispatcher now closing socket " & $socket)
+  if not isNil(server.onclosesocketcallback):
+    server.onclosesocketcallback(server, socket, cause, msg)
+  elif not isNil(server.deprecatedOnclosesocketcallback):
+    let fakeClient = guildenserver.SocketData(server: server, socket: socket)
+    server.deprecatedOnclosesocketcallback(addr fakeClient, cause, msg)
+  {.gcsafe.}:
+    if servers[server.id].clientselector.contains(socket):
+      try:
+        servers[server.id].clientselector.unregister(socket.int)
+        discard posix.close(socket)
+      except:
+        server.log(TRACE, "error unregistering socket " & $socket)
 {.warning[Deprecated]:on.}
 
 
@@ -241,12 +245,10 @@ proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].
     while slept <= 1000 * waitingtime:
       sleep(200)
       slept += 200
-      for i in 1 .. servers[server.id].threadpoolsize:
-        try: trigger(shutdownevent)
-        except: discard
+      try: trigger(shutdownevent)
+      except: echo getCurrentExceptionMsg()
       if servers[server.id].threadpoolsize < 1: break
-      if slept == 200:
-        server.log(INFO, "waiting for threads to stop...")
+      if slept == 200: server.log(INFO, "waiting for threads to stop...")
     servers[server.id].flaglock.deinitLock()
     if slept > 1000 * waitingtime:
       server.log(NOTICE, "Not all threads stopped after waiting " & $waitingtime & " seconds. Proceeding with shutdown anyway.")
