@@ -235,9 +235,8 @@ proc receiveWs() =
     opcode = WsFail
 
 
-proc maskMessage(mask: string, delivery: ptr WsDelivery) =
-  for i in 0 ..< delivery.message[].len: delivery.message[i] = (delivery.message[i].uint8 xor mask[i mod 4].uint8).char
-
+proc maskMessage(mask: string, delivery: ptr WsDelivery) {.inline.} =
+  for i in 0 ..< delivery.message[].len: delivery.message[i] = cast[char](cast[uint8](delivery.message[i]) xor cast[uint8](mask[i mod 4]))
 
 proc nibbleFromChar(c: char): int =
   case c:
@@ -335,9 +334,10 @@ proc handleWsRequest*() {.gcsafe, nimcall, raises: [].} =
         let statuscode = getMessage()
         let message = MagicClose & statuscode
         if not wsserver.send(thesocket, message, false, 1):
-          wsserver.log(NOTICE, "websocket blocking, could not autoacknowledge close")
-        if statuscode == "": closeSocket(wsserver, thesocket, ClosedbyClient, "1005")
-        else: closeSocket(wsserver, thesocket, ClosedbyClient, $(byte(statuscode[1]) + 256*byte(statuscode[0])))
+          wsserver.log(INFO, "websocket already closed, could not reply to close handshake")
+        else:
+          if statuscode == "": closeSocket(wsserver, thesocket, ClosedbyClient, "1005")
+          else: closeSocket(wsserver, thesocket, ClosedbyClient, $(byte(statuscode[1]) + 256*byte(statuscode[0])))
     of WsFail: 
       server.log(TRACE, "--end receiving websocket--")
       return
@@ -393,7 +393,9 @@ proc createWsHeader(len: int, code: OpCode, isclient: bool, mask: string) =
 
 
 proc sendNonblocking(server: WebsocketServer, socket: posix.SocketHandle, text: ptr string, sent: int = 0): (SendState , int) =
-  server.log(DEBUG, $getThreadId() & " writeToWebSocket " & $socket.int & ": " & text[])
+  let teksti = text[]
+  server.log(DEBUG, "writeToWebSocket " & $socket.int & ": " & text[])
+  server.log(DEBUG, "tekstinä " & $socket.int & ": " & teksti)
   if socket == INVALID_SOCKET: return (Err , 0)
   let len = text[].len
   if sent == len: return (Delivered , 0)
@@ -436,6 +438,7 @@ proc getSafeMonoTime(): MonoTime {.tags: [TimeEffect].} =
 let ping = "PING"
 let nostatuscode = ""
 
+var statuscode {.threadvar.}: string
 proc send*(server: WebsocketServer, delivery: ptr WsDelivery, failedsockets: var seq[SocketHandle], timeoutsecs = 10, sleepmillisecs = 10) =
   ## Sends a message to multiple websockets at once. Uses non-blocking I/O so that slow receivers do not slow down fast receivers.
   ## | Can be called from multiple threads in parallel.
@@ -451,7 +454,7 @@ proc send*(server: WebsocketServer, delivery: ptr WsDelivery, failedsockets: var
       if delivery.message[].len <= MagicClose.len:
         delivery.message = addr nostatuscode
       else:
-        let statuscode = delivery.message[][MagicClose.len ..< delivery.message[].len]
+        statuscode = delivery.message[][MagicClose.len ..< delivery.message[].len]
         delivery.message = addr statuscode
       createWsHeader(delivery.message[].len, Opcode.Close, server.isclient, server.clientmaskkey)
     else:
@@ -567,24 +570,21 @@ proc send*(server: WebsocketServer, socket: posix.SocketHandle, message: string,
   deli.binary = binary
   return send(server, unsafeAddr deli, timeoutsecs, sleepmillisecs) == 0
 
-
 proc sendClose*(server: WebsocketServer, socket: posix.SocketHandle, statuscode: int16 = 1000.int16, timeoutsecs = 1, sleepmillisecs = 10): bool {.discardable.} =
   ## Sends a close frame to the client, in sync with other possible deliveries going to the same socket from other threads.
   ## | `statuscode`: Available for the client. For semantics, see `https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1 <https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1>`_ 
   ## Returns whether the sending was succesful (and if not, you may want to just call `closeSocket`)
-  {.gcsafe.}:
-    var message = MagicClose
+  var closemessage = MagicClose
   let bytes = cast[array[0..1, char]](statuscode)
-  message.add(bytes[1])
-  message.add(bytes[0])
+  closemessage.add(bytes[1])
+  closemessage.add(bytes[0])
   deli.sockets.setLen(1)
   deli.sockets[0] = socket
-  deli.message = addr message
+  deli.message = addr closemessage
   deli.binary = true
   return send(server, unsafeAddr deli, timeoutsecs, sleepmillisecs) == 0
  
 #----------------------------------------
-
 
 proc isMessage*(message: string): bool =
   if ws.requestlen != message.len: return false

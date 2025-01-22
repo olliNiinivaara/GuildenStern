@@ -89,6 +89,11 @@ if clientele.start():
   joinThread(server.thread)
 ```
 
+## Release notes, 8.0.1 (2025-01-22)
+- epolldispatcher bug fix: always unregister sockets on close
+- websocketserver bug fix: do not mess the statuscode of *sendClose*
+- websocketserver improvement: remove a memory allocation bottleneck by casting instead of converting bytes in *maskMessage* proc    
+
 ## Release notes, 8.0.0 (2025-01-17)
 
 ### breaking changes
