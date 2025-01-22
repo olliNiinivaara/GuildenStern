@@ -393,9 +393,7 @@ proc createWsHeader(len: int, code: OpCode, isclient: bool, mask: string) =
 
 
 proc sendNonblocking(server: WebsocketServer, socket: posix.SocketHandle, text: ptr string, sent: int = 0): (SendState , int) =
-  let teksti = text[]
   server.log(DEBUG, "writeToWebSocket " & $socket.int & ": " & text[])
-  server.log(DEBUG, "tekstinä " & $socket.int & ": " & teksti)
   if socket == INVALID_SOCKET: return (Err , 0)
   let len = text[].len
   if sent == len: return (Delivered , 0)
