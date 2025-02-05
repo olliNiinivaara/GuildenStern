@@ -18,10 +18,10 @@ proc onCloseSocket(server: GuildenServer, socket: SocketHandle, cause: SocketClo
   echo "closing socket ", socket, " due to ", cause, " ", msg
 
 echo "Starting at ports 8070, 8071"
-var server0 = newHttpServer(handleHttpRequest, headerfields = ["connection"])
+var server0 = newHttpServer(handleHttpRequest, TRACE, headerfields = ["connection"])
 var server1 = newHttpServer(handleHttpRequest, TRACE, headerfields = ["connection"])
 server0.onCloseSocketCallback = onCloseSocket
 server1.onCloseSocketCallback = onCloseSocket
-if not server0.start(8070): quit()
+if not server0.start(8070, 1): quit()
 if not server1.start(8071, 40): quit()
 joinThreads(server0.thread, server1.thread)

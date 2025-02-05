@@ -89,6 +89,12 @@ if clientele.start():
   joinThread(server.thread)
 ```
 
+## Release notes, 8.1.0 (2025-XX-XX)
+- Servers are `ptr`s instead of `ref`s
+- servers now have a name field, for better logging in multi-server configurations
+- websocketserver regression fix: canceling upgrade by returning false works again   
+
+
 ## Release notes, 8.0.1 (2025-01-22)
 - epolldispatcher bug fix: always unregister sockets on close
 - websocketserver bug fix: do not mess the statuscode of *sendClose*

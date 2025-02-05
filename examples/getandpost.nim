@@ -14,8 +14,8 @@ proc handlePost() =
   echo "client said: ", readData(getBody()).getOrDefault("say")
   reply(Http303, ["location: " & http.headers.getOrDefault("origin")])
   
-let getserver = newHttpServer(handleGet, contenttype = NoBody)
-let postserver = newHttpServer(handlePost, loglevel = INFO, headerfields = ["origin"])
+let getserver = newHttpServer(handleGet, loglevel = INFO, contenttype = NoBody)
+let postserver = newHttpServer(handlePost, headerfields = ["origin"])
 if not dispatcher.start(getserver, 5050): quit()
 if not epolldispatcher.start(postserver, 5051, threadpoolsize = 20): quit()
 joinThreads(getserver.thread, postserver.thread)

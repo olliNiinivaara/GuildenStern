@@ -12,8 +12,8 @@ type Message = enum
   eventoevens = "hello all evens"
 
 const
-  ClientCount = 50
-  MessageCount = 5000
+  ClientCount = 40
+  MessageCount = 20000
 
 doAssert(ClientCount mod 2 == 0)
 

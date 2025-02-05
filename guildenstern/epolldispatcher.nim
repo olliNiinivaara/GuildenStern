@@ -40,7 +40,7 @@ var
 
 proc shutdownImpl() {.nimcall, gcsafe, raises: [].} =
   try: trigger(shutdownevent)
-  except: discard
+  except: echo getCurrentExceptionMsg()
 
 shutdownCallbacks.add(shutdownImpl)
 
@@ -249,6 +249,7 @@ proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].
       except: echo getCurrentExceptionMsg()
       if servers[server.id].threadpoolsize < 1: break
       if slept == 200: server.log(INFO, "waiting for threads to stop...")
+      server.log(TRACE, "threads still running: " & $servers[server.id].threadpoolsize)
     servers[server.id].flaglock.deinitLock()
     if slept > 1000 * waitingtime:
       server.log(NOTICE, "Not all threads stopped after waiting " & $waitingtime & " seconds. Proceeding with shutdown anyway.")
