@@ -24,8 +24,10 @@ when not defined(nimdoc):
       clientele*: WebsocketClientele
       wsmessageCallback: proc(client: WebsocketClient) {.nimcall.}
     
-    WebsocketClientele* = ref object of WebsocketServer
+    WebsocketClienteleObj* = object of WebsocketServerObj
       clients*: seq[WebSocketClient]
+    
+    WebsocketClientele* = ptr WebsocketClienteleObj
 else:
   type
     WebsocketClient* {.inheritable.} = ref object
@@ -35,8 +37,10 @@ else:
       clientele*: WebsocketClientele
       wsmessageCallback: proc(client: WebsocketClient) {.nimcall.}
 
-    WebsocketClientele* = ref object of WebsocketServer
+    WebsocketClienteleObj* = object of WebsocketServerObj
       clients*: seq[WebSocketClient]
+    
+    WebsocketClientele* = ptr WebsocketClienteleObj
 
 
 var emptyClient = WebSocketClient(id: 0)
@@ -73,7 +77,7 @@ proc clienteleReceive() {.nimcall, raises:[].} =
   {.gcsafe.}:
     try:
       var id = cast[int](socketcontext.customdata)
-      let client = WebsocketClientele(wsserver).clients[id]
+      let client = cast[WebsocketClientele](wsserver).clients[id]
       if id > 0: client.wsmessageCallback(client)
     except:
       echo getCurrentExceptionMsg()
@@ -115,7 +119,7 @@ proc newWebsocketClient*(clientele: WebsocketClientele, url: string,
 proc newWebsocketClientele*(close: OnCloseSocketCallback = nil, loglevel = LogLevel.WARN, bufferlength = 1000, bytemask = "\11\22\33\44"): WebsocketClientele =
   ## Makes sense to keep the bufferlength low, if you are running thousands of clients.
   ## According to the spec, the bytemask should be random. 
-  result = new WebsocketClientele
+  result = cast[WebsocketClientele](allocShared0(sizeof(WebsocketClienteleObj)))
   initWebsocketServer(result, nil, nil, clienteleReceive, loglevel, bytemask)
   result.onClosesocketcallback = close
   result.bufferlength = bufferlength

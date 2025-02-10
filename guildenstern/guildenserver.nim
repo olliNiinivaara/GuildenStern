@@ -1,4 +1,4 @@
-const GuildenSternVersion* = "8.0.1"
+const GuildenSternVersion* = "8.1.0"
 
 #   Guildenstern
 #
@@ -70,7 +70,7 @@ type
   SocketData* {.deprecated.} = object
     server*: GuildenServer
     socket*: SocketHandle
-  
+
  
   ThreadInitializerCallback* = proc(theserver: GuildenServer){.nimcall, gcsafe, raises: [].}
   ThreadFinalizerCallback* = proc(){.nimcall, gcsafe, raises: [].}
@@ -83,10 +83,11 @@ type
   SetFlagsCallback* = proc(server: GuildenServer, socket: SocketHandle, newflags: int): bool {.nimcall, gcsafe, raises: [].}
 
 
-  GuildenServer* {.inheritable.} = ref object
+  GuildenServerObj* {.inheritable.} = object
     port*: uint16
     thread*: Thread[GuildenServer]
     id*: int
+    name*: string
     logCallback*: LogCallback
     loglevel*: LogLevel
     started*: bool
@@ -99,7 +100,10 @@ type
     onCloseSocketCallback*: OnCloseSocketCallback
     deprecatedOnCloseSocketCallback*: DeprecatedOnCloseSocketCallback
     getFlagsCallback*: GetFlagsCallback
-    setFlagsCallback*: SetFlagsCallback 
+    setFlagsCallback*: SetFlagsCallback
+
+  GuildenServer* = ptr GuildenServerObj
+
 
   SocketContext* {.inheritable.} = ref object
     server*: GuildenServer
@@ -140,8 +144,8 @@ template log*(theserver: GuildenServer, level: LogLevel, message: string) =
   ## if level is same or higher than server's loglevel.
   if unlikely(int(level) >= int(theserver.loglevel)):
     if likely(not isNil(theserver.logCallback)):
-      var s = if theserver.port == 0: "c" else: "s"
-      s.add($theserver.id & " " & $getThreadId())
+      var s = if theserver.port == 0: "client-" else: ""
+      s.add(theserver.name & " " & $getThreadId())
       theserver.logCallback(level, s, message)
 
 
@@ -176,7 +180,7 @@ proc initializeThread*(server: GuildenServer) =
 
 proc handleRead*(theserver: GuildenServer, socket: SocketHandle, customdata: pointer) =
   {.gcsafe.}:
-    if unlikely(socket == INVALID_SOCKET): return
+    if unlikely(socket == INVALID_SOCKET or shuttingdown): return
     socketcontext.server = theserver
     socketcontext.socket = socket
     socketcontext.customdata = customdata

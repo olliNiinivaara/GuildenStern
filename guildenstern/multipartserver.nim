@@ -189,8 +189,8 @@ proc parseContentDisposition*(): (string , string) {.raises:[].} =
 proc handleMultipartInitialization(gserver: GuildenServer) =
   socketcontext = new MultipartContext
   handleHttpThreadInitialization(gserver)
-  multipart.headercache = newString(HttpServer(gserver).maxheaderlength + 1)
-  multipart.partcache = newString(HttpServer(gserver).bufferlength + 1)
+  multipart.headercache = newString(cast[HttpServer](gserver).maxheaderlength + 1)
+  multipart.partcache = newString(cast[HttpServer](gserver).bufferlength + 1)
 
 
 proc handleMultipartRequest() {.gcsafe, nimcall, raises: [].} =
@@ -209,11 +209,12 @@ proc handleMultipartRequest() {.gcsafe, nimcall, raises: [].} =
 
 proc newMultipartServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, loglevel = LogLevel.WARN, headerfields: openArray[string] = []): HttpServer =
   ## Note: headerfields concern only the whole request, not part headers
-  result = new HttpServer
+  result = cast[HttpServer](allocShared0(sizeof(HttpServerObj)))
   result.internalThreadInitializationCallback = handleMultiPartInitialization
   var fields = newSeq[string](headerfields.len + 1)
   fields.add(headerfields)
   if not fields.contains("content-type"): fields.add("content-type")
   result.initHttpServer(loglevel, true, Streaming, fields)
+  result.name = "MP-" & $result.id
   result.handlerCallback = handleMultipartRequest
   result.requestCallback = onrequestcallback

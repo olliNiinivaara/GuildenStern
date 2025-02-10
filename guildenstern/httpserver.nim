@@ -39,14 +39,16 @@ type
     Progress = 1
     Complete = 2
 
-  HttpServer* = ref object of GuildenServer
+  HttpServerObj* = object of GuildenServer
     contenttype*: ContentType
-    maxheaderlength* = 10000.int64 ## Maximum allowed size for http header part.
-    bufferlength* = 100000.int64 ## Every thread will reserve this much memory, for buffering the incoming request. Must be larger than maxheaderlength.
-    sockettimeoutms* = 5000 ## If socket is unresponsive for longer, it will be closed.
+    maxheaderlength*: int64 ## Maximum allowed size for http header part.
+    bufferlength*: int64 ## Every thread will reserve this much memory, for buffering the incoming request. Must be larger than maxheaderlength.
+    sockettimeoutms*: int ## If socket is unresponsive for longer, it will be closed.
     requestCallback*: proc(){.gcsafe, nimcall, raises: [].}
     parserequestline*: bool ## If you don't need uri or method, but need max perf, set this to false
-    headerfields*: seq[string] ## list of header fields to be parsed 
+    headerfields*: seq[string] ## list of header fields to be parsed
+
+  HttpServer* = ptr HttpServerObj
 
 const
   MSG_DONTWAIT* = when defined(macosx): 0x80.cint else: 0x40.cint
@@ -61,7 +63,7 @@ template http*(): untyped =
   HttpContext(socketcontext)
 
 template server*(): untyped =
-  HttpServer(socketcontext.server)
+  cast[HttpServer](socketcontext.server)
 
 when defined(release):
   {.push checks: off.}
@@ -92,11 +94,12 @@ include httpresponse
 
 proc handleHttpThreadInitialization*(theserver: GuildenServer) =
   if socketcontext.isNil: socketcontext = new HttpContext
-  http.request = newString(HttpServer(theserver).bufferlength + 1)
+  let thisserver = cast[HttpServer](theserver)
+  http.request = newString(thisserver.bufferlength + 1)
   http.probebuffer = newString(1)
-  if HttpServer(theserver).contenttype != NoBody or HttpServer(theserver).headerfields.len > 0:
+  if thisserver.contenttype != NoBody or thisserver.headerfields.len > 0:
     http.headers = newStringTable()
-    for field in HttpServer(theserver).headerfields: http.headers[field] = ""
+    for field in thisserver.headerfields: http.headers[field] = ""
     if not http.headers.contains("content-length"): http.headers["content-length"] = ""
   if not isNil(theserver.threadInitializerCallback): theserver.threadInitializerCallback(theserver)
   
@@ -117,8 +120,13 @@ proc prepareHttpContext*() {.inline.} =
 
 proc initHttpServer*(s: HttpServer, loglevel: LogLevel, parserequestline: bool, contenttype: ContentType, headerfields: openArray[string]) =
   s.initialize(loglevel)
+  s.name = "HTTP-" & $s.id
+  s.maxheaderlength = 10000.int64
+  s.bufferlength = 100000.int64
+  s.sockettimeoutms = 5000
   s.contenttype = contenttype
   s.parserequestline = parserequestline
+  s.headerfields = newSeq[string](headerfields.len)
   s.headerfields.add(headerfields)
   if isNil(s.internalThreadInitializationCallback): s.internalThreadInitializationCallback = handleHttpThreadInitialization
 
@@ -152,9 +160,9 @@ proc newHttpServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, lo
   ## 
   ## If you want to tinker with [HttpServer.maxheaderlength], [HttpServer.bufferlength] or [HttpServer.sockettimeoutms], that is best done
   ## after the server is constructed but before it is started.
-  result = new HttpServer
+  result = cast[HttpServer](allocShared0(sizeof(HttpServerObj)))
   result.initHttpServer(loglevel, parserequestline, contenttype, headerfields)
-  for field in headerfields:
+  for field in result[].headerfields:
     for c in field:
       if c != '-' and not isLowerAscii(c):
         result.log(ERROR, "Header field not in lower case: " & field)
