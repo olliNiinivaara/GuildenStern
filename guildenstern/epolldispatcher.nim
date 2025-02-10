@@ -60,13 +60,15 @@ proc closeSocketImpl(server: GuildenServer, socket: posix.SocketHandle, cause: S
   elif not isNil(server.deprecatedOnclosesocketcallback):
     let fakeClient = guildenserver.SocketData(server: server, socket: socket)
     server.deprecatedOnclosesocketcallback(addr fakeClient, cause, msg)
-  {.gcsafe.}:
-    if servers[server.id].clientselector.contains(socket):
-      try:
-        servers[server.id].clientselector.unregister(socket.int)
-        discard posix.close(socket)
-      except:
-        server.log(TRACE, "error unregistering socket " & $socket)
+  
+  when not defined(nimdoc):
+    {.gcsafe.}:
+      if servers[server.id].clientselector.contains(socket):
+        try:
+          servers[server.id].clientselector.unregister(socket.int)
+          discard posix.close(socket)
+        except:
+          server.log(TRACE, "error unregistering socket " & $socket)
 {.warning[Deprecated]:on.}
 
 
@@ -184,9 +186,10 @@ proc startClientthreads(server: GuildenServer): bool =
 
 proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].} =
   var eventbuffer: array[1, ReadyKey]
-  {.gcsafe.}:
-    server.log(INFO, "epolldispatcher " & $server.id & " now listening at port " & $server.port &
-     " with socket " & $servers[server.id].serversocket.getFd() & " using " & $servers[server.id].threadpoolsize & " threads")
+  when not defined(nimdoc):
+    {.gcsafe.}:
+      server.log(INFO, "epolldispatcher " & $server.id & " now listening at port " & $server.port &
+      " with socket " & $servers[server.id].serversocket.getFd() & " using " & $servers[server.id].threadpoolsize & " threads")
   server.started = true
   while true:
     try:
@@ -237,8 +240,9 @@ proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].
 
   
   {.gcsafe.}:
-    try: servers[server.id].serversocket.close()
-    except: server.log(ERROR, "could not close serversocket " & $servers[server.id].serversocket.getFd())
+    when not defined(nimdoc):
+      try: servers[server.id].serversocket.close()
+      except: server.log(ERROR, "could not close serversocket " & $servers[server.id].serversocket.getFd())
     let waitingtime = 10 # 10 seconds, TODO: make this configurable / larger than socket timeout?
     server.log(DEBUG, "Stopping client threads...")
     var slept = 0

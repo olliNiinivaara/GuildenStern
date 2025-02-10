@@ -1,12 +1,10 @@
-# nim r --mm:atomicArc -d:release wsclienttest
-
-# import segfaults
+# nim r -d:release wsclienttest
 
 import std/atomics
 from os import sleep
 import guildenstern/[epolldispatcher, websocketserver, websocketclient]
 
-const ClientCount = 2000 # ulimit -n something more first
+const ClientCount = 10000 # ulimit -n something more first
 const MinRoundTrips = 100000
 var roundtrips: Atomic[int]
 var clientele: WebsocketClientele

@@ -16,10 +16,10 @@
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAA3XAAAN1wFCKJt4AAAAB3RJTUUH4QQQEwksSS9ZWwAAAk1JREFUWMPtll2ITVEUx39nn/O7Y5qR8f05wtCUUr6ZIS++8pEnkZInPImneaCQ5METNdOkeFBKUhMPRIkHKfEuUZSUlGlKPN2TrgfncpvmnntnmlEyq1Z7t89/rf9a6+y99oZxGZf/XeIq61EdtgKXgdXA0xrYAvBjOIF1AI9zvjcC74BSpndrJPkBWDScTF8Aa4E3wDlgHbASaANmVqlcCnwHvgDvgVfAJ+AikAAvgfVZwLnSVZHZaOuKoQi3ZOMi4NkYkpe1p4J7A8BpYAD49hfIy/oqG0+hLomiKP2L5L+1ubn5115S+3OAn4EnwBlgMzCjyt6ZAnQCJ4A7wOs88iRJHvw50HoujuPBoCKwHWiosy8MdfZnAdcHk8dxXFJ3VQbQlCTJvRBCGdRbD4M6uc5glpY3eAihpN5S5w12diSEcCCEcKUO4ljdr15T76ur1FDDLIQQ3qv71EdDOe3Kxj3leRXyk+pxdWnFWod6Wt2bY3de3aSuUHcPBVimHs7mK9WrmeOF6lR1o9qnzskh2ar2qm1qizpfXaPeVGdlmGN5pb09qMxz1Xb1kLqgzn1RyH7JUXW52lr5e/Kqi9qpto7V1atuUzfnARrV7jEib1T76gG2qxdGmXyiekkt1GswPTtek0aBfJp6YySGBfWg2tPQ0FAYgf1stUfdmdcjarbYJEniKIq6gY/Aw+zWHAC+p2labGpqiorFYgGYCEzN7oQdQClN07O1/EfDyGgC0ALMBdYAi4FyK+4H3gLPsxfR1zRNi+NP7nH5J+QntnXe5B5mpfQAAAAASUVORK5CYII=">
 
 <!-- CSS -->
-<link rel="stylesheet" type="text/css" href="nimdoc.out.css?v=2.2.2">
+<link rel="stylesheet" type="text/css" href="nimdoc.out.css?v=2.2.0">
 
 <!-- JS -->
-<script type="text/javascript" src="dochack.js?v=2.2.2"></script>
+<script type="text/javascript" src="dochack.js?v=2.2.0"></script>
 </head>
 <body>
   <div class="document" id="documentId">
@@ -196,10 +196,6 @@
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: type GuildenServer" href="guildenstern/guildenserver.html#GuildenServer">guildenserver: type GuildenServer</a></li>
           </ul></dd>
-<dt><a name="GuildenServerObj" href="#GuildenServerObj"><span>GuildenServerObj:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="guildenserver: object GuildenServerObj" href="guildenstern/guildenserver.html#GuildenServerObj">guildenserver: object GuildenServerObj</a></li>
-          </ul></dd>
 <dt><a name="GuildenSternVersion" href="#GuildenSternVersion"><span>GuildenSternVersion:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: const GuildenSternVersion" href="guildenstern/guildenserver.html#GuildenSternVersion">guildenserver: const GuildenSternVersion</a></li>
@@ -222,7 +218,7 @@
           </ul></dd>
 <dt><a name="handleWsThreadInitialization" href="#handleWsThreadInitialization"><span>handleWsThreadInitialization:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="websocketserver: proc handleWsThreadInitialization(theserver: GuildenServer)" href="guildenstern/websocketserver.html#handleWsThreadInitialization%2CGuildenServer">websocketserver: proc handleWsThreadInitialization(theserver: GuildenServer)</a></li>
+          data-doc-search-tag="websocketserver: proc handleWsThreadInitialization(gserver: GuildenServer)" href="guildenstern/websocketserver.html#handleWsThreadInitialization%2CGuildenServer">websocketserver: proc handleWsThreadInitialization(gserver: GuildenServer)</a></li>
           </ul></dd>
 <dt><a name="HeaderReady" href="#HeaderReady"><span>HeaderReady:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -239,10 +235,6 @@
 <dt><a name="HttpServer" href="#HttpServer"><span>HttpServer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="httpserver: type HttpServer" href="guildenstern/httpserver.html#HttpServer">httpserver: type HttpServer</a></li>
-          </ul></dd>
-<dt><a name="HttpServerObj" href="#HttpServerObj"><span>HttpServerObj:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="httpserver: object HttpServerObj" href="guildenstern/httpserver.html#HttpServerObj">httpserver: object HttpServerObj</a></li>
           </ul></dd>
 <dt><a name="INFO" href="#INFO"><span>INFO:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -268,11 +260,11 @@
           </ul></dd>
 <dt><a name="initWebsocketServer" href="#initWebsocketServer"><span>initWebsocketServer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="websocketserver: proc initWebsocketServer(theserver: WebsocketServer;
+          data-doc-search-tag="websocketserver: proc initWebsocketServer(wsserver: WebsocketServer;
                     upgradecallback: WsUpgradeCallback;
                     afterupgradecallback: WsAfterUpgradeCallback;
                     onwsmessagecallback: WsMessageCallback;
-                    loglevel = LogLevel.WARN; clientmaskkey = &quot;\x00\x00\x00\x00&quot;)" href="guildenstern/websocketserver.html#initWebsocketServer%2CWebsocketServer%2CWsUpgradeCallback%2CWsAfterUpgradeCallback%2CWsMessageCallback%2Cstring">websocketserver: proc initWebsocketServer(theserver: WebsocketServer;
+                    loglevel = LogLevel.WARN; clientmaskkey = &quot;\x00\x00\x00\x00&quot;)" href="guildenstern/websocketserver.html#initWebsocketServer%2CWebsocketServer%2CWsUpgradeCallback%2CWsAfterUpgradeCallback%2CWsMessageCallback%2Cstring">websocketserver: proc initWebsocketServer(wsserver: WebsocketServer;
                     upgradecallback: WsUpgradeCallback;
                     afterupgradecallback: WsAfterUpgradeCallback;
                     onwsmessagecallback: WsMessageCallback;
@@ -512,32 +504,32 @@
 <li><a class="reference external"
           data-doc-search-tag="websocketclient: proc send(client: WebsocketClient; message: string; timeoutsecs = 10): bool" href="guildenstern/websocketclient.html#send%2CWebsocketClient%2Cstring%2Cint">websocketclient: proc send(client: WebsocketClient; message: string; timeoutsecs = 10): bool</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="websocketserver: proc send(theserver: WebsocketServer; socket: posix.SocketHandle; message: string;
-     binary = false; timeoutsecs = 2; sleepmillisecs = 10): bool" href="guildenstern/websocketserver.html#send%2CWebsocketServer%2C%2Cstring%2Cint%2Cint">websocketserver: proc send(theserver: WebsocketServer; socket: posix.SocketHandle; message: string;
+          data-doc-search-tag="websocketserver: proc send(server: WebsocketServer; socket: posix.SocketHandle; message: string;
+     binary = false; timeoutsecs = 2; sleepmillisecs = 10): bool" href="guildenstern/websocketserver.html#send%2CWebsocketServer%2C%2Cstring%2Cint%2Cint">websocketserver: proc send(server: WebsocketServer; socket: posix.SocketHandle; message: string;
      binary = false; timeoutsecs = 2; sleepmillisecs = 10): bool</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="websocketserver: proc send(theserver: WebsocketServer; delivery: ptr WsDelivery; timeoutsecs = 10;
-     sleepmillisecs = 10): int" href="guildenstern/websocketserver.html#send%2CWebsocketServer%2Cptr.WsDelivery%2Cint%2Cint">websocketserver: proc send(theserver: WebsocketServer; delivery: ptr WsDelivery; timeoutsecs = 10;
+          data-doc-search-tag="websocketserver: proc send(server: WebsocketServer; delivery: ptr WsDelivery; timeoutsecs = 10;
+     sleepmillisecs = 10): int" href="guildenstern/websocketserver.html#send%2CWebsocketServer%2Cptr.WsDelivery%2Cint%2Cint">websocketserver: proc send(server: WebsocketServer; delivery: ptr WsDelivery; timeoutsecs = 10;
      sleepmillisecs = 10): int</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="websocketserver: proc send(theserver: WebsocketServer; delivery: ptr WsDelivery;
-     failedsockets: var seq[SocketHandle]; timeoutsecs = 10; sleepmillisecs = 10)" href="guildenstern/websocketserver.html#send%2CWebsocketServer%2Cptr.WsDelivery%2Cseq%5BSocketHandle%5D%2Cint%2Cint">websocketserver: proc send(theserver: WebsocketServer; delivery: ptr WsDelivery;
+          data-doc-search-tag="websocketserver: proc send(server: WebsocketServer; delivery: ptr WsDelivery;
+     failedsockets: var seq[SocketHandle]; timeoutsecs = 10; sleepmillisecs = 10)" href="guildenstern/websocketserver.html#send%2CWebsocketServer%2Cptr.WsDelivery%2Cseq%5BSocketHandle%5D%2Cint%2Cint">websocketserver: proc send(server: WebsocketServer; delivery: ptr WsDelivery;
      failedsockets: var seq[SocketHandle]; timeoutsecs = 10; sleepmillisecs = 10)</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="websocketserver: proc send(theserver: WebsocketServer; sockets: seq[posix.SocketHandle];
-     message: string; binary = false; timeoutsecs = 10; sleepmillisecs = 10): bool" href="guildenstern/websocketserver.html#send%2CWebsocketServer%2Cseq%5B%5D%2Cstring%2Cint%2Cint">websocketserver: proc send(theserver: WebsocketServer; sockets: seq[posix.SocketHandle];
-     message: string; binary = false; timeoutsecs = 10; sleepmillisecs = 10): bool</a></li>
+          data-doc-search-tag="websocketserver: proc send(server: WebsocketServer; sockets: seq[posix.SocketHandle]; message: string;
+     binary = false; timeoutsecs = 10; sleepmillisecs = 10): bool" href="guildenstern/websocketserver.html#send%2CWebsocketServer%2Cseq%5B%5D%2Cstring%2Cint%2Cint">websocketserver: proc send(server: WebsocketServer; sockets: seq[posix.SocketHandle]; message: string;
+     binary = false; timeoutsecs = 10; sleepmillisecs = 10): bool</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="websocketserver: proc send(theserver: WebsocketServer; sockets: seq[posix.SocketHandle];
-     message: string; failedsockets: var seq[SocketHandle]; binary = false;
-     timeoutsecs = 10; sleepmillisecs = 10)" href="guildenstern/websocketserver.html#send%2CWebsocketServer%2Cseq%5B%5D%2Cstring%2Cseq%5BSocketHandle%5D%2Cint%2Cint">websocketserver: proc send(theserver: WebsocketServer; sockets: seq[posix.SocketHandle];
-     message: string; failedsockets: var seq[SocketHandle]; binary = false;
-     timeoutsecs = 10; sleepmillisecs = 10)</a></li>
+          data-doc-search-tag="websocketserver: proc send(server: WebsocketServer; sockets: seq[posix.SocketHandle]; message: string;
+     failedsockets: var seq[SocketHandle]; binary = false; timeoutsecs = 10;
+     sleepmillisecs = 10)" href="guildenstern/websocketserver.html#send%2CWebsocketServer%2Cseq%5B%5D%2Cstring%2Cseq%5BSocketHandle%5D%2Cint%2Cint">websocketserver: proc send(server: WebsocketServer; sockets: seq[posix.SocketHandle]; message: string;
+     failedsockets: var seq[SocketHandle]; binary = false; timeoutsecs = 10;
+     sleepmillisecs = 10)</a></li>
           </ul></dd>
 <dt><a name="sendClose" href="#sendClose"><span>sendClose:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="websocketserver: proc sendClose(theserver: WebsocketServer; socket: posix.SocketHandle;
-          statuscode: int16 = 1000.int16; timeoutsecs = 1; sleepmillisecs = 10): bool" href="guildenstern/websocketserver.html#sendClose%2CWebsocketServer%2C%2Cint16%2Cint%2Cint">websocketserver: proc sendClose(theserver: WebsocketServer; socket: posix.SocketHandle;
+          data-doc-search-tag="websocketserver: proc sendClose(server: WebsocketServer; socket: posix.SocketHandle;
+          statuscode: int16 = 1000.int16; timeoutsecs = 1; sleepmillisecs = 10): bool" href="guildenstern/websocketserver.html#sendClose%2CWebsocketServer%2C%2Cint16%2Cint%2Cint">websocketserver: proc sendClose(server: WebsocketServer; socket: posix.SocketHandle;
           statuscode: int16 = 1000.int16; timeoutsecs = 1; sleepmillisecs = 10): bool</a></li>
           </ul></dd>
 <dt><a name="server" href="#server"><span>server:</span></a></dt><dd><ul class="simple">
@@ -656,17 +648,9 @@
 <li><a class="reference external"
           data-doc-search-tag="websocketclient: type WebsocketClientele" href="guildenstern/websocketclient.html#WebsocketClientele">websocketclient: type WebsocketClientele</a></li>
           </ul></dd>
-<dt><a name="WebsocketClienteleObj" href="#WebsocketClienteleObj"><span>WebsocketClienteleObj:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="websocketclient: object WebsocketClienteleObj" href="guildenstern/websocketclient.html#WebsocketClienteleObj">websocketclient: object WebsocketClienteleObj</a></li>
-          </ul></dd>
 <dt><a name="WebsocketServer" href="#WebsocketServer"><span>WebsocketServer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="websocketserver: type WebsocketServer" href="guildenstern/websocketserver.html#WebsocketServer">websocketserver: type WebsocketServer</a></li>
-          </ul></dd>
-<dt><a name="WebsocketServerObj" href="#WebsocketServerObj"><span>WebsocketServerObj:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="websocketserver: object WebsocketServerObj" href="guildenstern/websocketserver.html#WebsocketServerObj">websocketserver: object WebsocketServerObj</a></li>
           </ul></dd>
 <dt><a name="ws" href="#ws"><span>ws:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -696,7 +680,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-10 12:11:38 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-01-17 11:15:48 UTC</small>
       </div>
     </div>
   </div>

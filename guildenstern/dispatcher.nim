@@ -101,7 +101,8 @@ proc closeSocketImpl(server: GuildenServer, socket: posix.SocketHandle, cause: S
 
 
 proc restoreRead(server: GuildenServer, selector: Selector[SocketData], socketdata: SocketData) {.inline.} =
-  if unlikely(shuttingdown or socketdata.socket == INVALID_SOCKET) or not selector.contains(socketdata.socket): return
+  when not defined(nimdoc):
+    if unlikely(shuttingdown or socketdata.socket == INVALID_SOCKET) or not selector.contains(socketdata.socket): return
   try:
     fence(moSequentiallyConsistent)
     selector.updateHandle(socketdata.socket.int, {Event.Read})

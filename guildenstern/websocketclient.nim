@@ -50,7 +50,7 @@ proc close*(client: WebsocketClient, handshake = true) =
   ## if you want to bypass the websocket close handshake dance, set the `handhake` to false.
   if client == emptyClient: return
   when not defined(nimdoc): client.httpclient.close()
-  cast[GuildenServer](client.clientele).closeSocket(client.socket)
+  client.clientele.closeSocket(client.socket)
   client.socket = INVALID_SOCKET
 
 
@@ -67,7 +67,7 @@ proc connect*(client: WebsocketClient, key = "dGhlIHNhbXBsZSBub25jZQ=="): bool =
     return false
   when not defined(nimdoc):
     client.socket = client.httpclient.getSocket().getFd()
-  if not cast[GuildenServer](client.clientele).registerSocket(client.socket, 1, cast[pointer](client.id)):
+  if not client.clientele.registerSocket(client.socket, 1, cast[pointer](client.id)):
     client.close()
     return false
   return true
@@ -86,7 +86,7 @@ proc clienteleReceive() {.nimcall, raises:[].} =
 proc send*(client: WebSocketClient, message: string, timeoutsecs = 10): bool {.discardable.} =
   ## If sending fails, closes the client automatically
   if client == emptyClient: return
-  if not cast[WebsocketServer](client.clientele).send(client.socket, message, false, timeoutsecs):
+  if not client.clientele.send(client.socket, message, false, timeoutsecs):
     client.close()
     return false
   return true
@@ -120,11 +120,11 @@ proc newWebsocketClientele*(close: OnCloseSocketCallback = nil, loglevel = LogLe
   ## Makes sense to keep the bufferlength low, if you are running thousands of clients.
   ## According to the spec, the bytemask should be random. 
   result = cast[WebsocketClientele](allocShared0(sizeof(WebsocketClienteleObj)))
-  initWebsocketServer(cast[WebsocketServer](result), nil, nil, clienteleReceive, loglevel, bytemask)
+  initWebsocketServer(result, nil, nil, clienteleReceive, loglevel, bytemask)
   result.onClosesocketcallback = close
   result.bufferlength = bufferlength
   result.clients.add(emptyClient)
 
 
 proc start*(clientele: WebsocketClientele, threadpoolsize = 0): bool =
-  return cast[GuildenServer](clientele).start(port = 0, threadpoolsize = threadpoolsize.uint)
+  return clientele.start(port = 0, threadpoolsize = threadpoolsize.uint)
