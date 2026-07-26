@@ -1,10 +1,10 @@
-const GuildenSternVersion* = "8.1.0"
+const GuildenSternVersion* = "9.0.0"
 
 #   Guildenstern
 #
 #  Modular multithreading HTTP/1.1 + WebSocket upstream server framework
 #
-#  (c) Copyright 2020-2025 Olli Niinivaara
+#  (c) Copyright 2020-2026 Olli Niinivaara
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 #
@@ -27,12 +27,13 @@ const GuildenSternVersion* = "8.1.0"
 ## To see how to use GuildenStern in practice, consult the various practical examples in the examples folder.
 ##
 
+import std/logging # Level
 from std/posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onSignal, `==`
 from std/net import Socket, newSocket
 from std/nativesockets import close
 from std/strutils import replace
 from os import sleep
-export SocketHandle, INVALID_SOCKET, posix.`==`
+export SocketHandle, INVALID_SOCKET, posix.`==`, Level
 
 
 static: doAssert(compileOption("threads"))
@@ -44,11 +45,10 @@ func epollSupported*(): bool =
       when nimIoselector == "epoll": return true
     
 const LogColors = ["\e[90m", "\e[36m", "\e[32m", "\e[34m", "\e[33m", "\e[31m", "\e[35m", "\e[35m"]
-
+template LogLevel*(thelevel: untyped): untyped = Level {.deprecated: "use Level (std/logging) instead of LogLevel".}
+const lvlTRACE* = lvlAll
 
 type
-  LogLevel* = enum TRACE, DEBUG, INFO, NOTICE, WARN, ERROR, FATAL, NONE
-
   SocketCloseCause* = enum
     ## Parameter in close callbacks.
     EFault = -10000 ## Memory corruption bug
@@ -63,25 +63,17 @@ type
     SecurityThreatened ## Use this, when you decide to close socket for security reasons 
     DontClose ## Internal flag
 
-  LogCallback* = proc(loglevel: LogLevel, source: string, message: string) {.gcsafe, nimcall, raises: [].}
+  LogCallback* = proc(loglevel: Level, source: string, message: string) {.gcsafe, nimcall, raises: [].}
 
-{.warning[Deprecated]:off.}
-type
-  SocketData* {.deprecated.} = object
-    server*: GuildenServer
-    socket*: SocketHandle
-
- 
+type 
   ThreadInitializerCallback* = proc(theserver: GuildenServer){.nimcall, gcsafe, raises: [].}
   ThreadFinalizerCallback* = proc(){.nimcall, gcsafe, raises: [].}
   HandlerCallback* = proc(){.nimcall, gcsafe, raises: [].}
   SuspendCallback* = proc(server: GuildenServer, sleepmillisecs: int){.nimcall, gcsafe, raises: [].}
   CloseSocketCallback* = proc(server: GuildenServer, socket: SocketHandle, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
   OnCloseSocketCallback* = proc(server: GuildenServer, socket: SocketHandle, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].} ## The `msg` parameter may contain furher info about the cause. For example, in case of websocket ClosedByClient, `msg` contains the status code.]#
-  DeprecatedOnCloseSocketCallback* {.deprecated:"use OnCloseSocketCallback".} = proc(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
   GetFlagsCallback* = proc(server: GuildenServer, socket: SocketHandle): int {.nimcall, gcsafe, raises: [].}
   SetFlagsCallback* = proc(server: GuildenServer, socket: SocketHandle, newflags: int): bool {.nimcall, gcsafe, raises: [].}
-
 
   GuildenServerObj* {.inheritable.} = object
     port*: uint16
@@ -89,7 +81,7 @@ type
     id*: int
     name*: string
     logCallback*: LogCallback
-    loglevel*: LogLevel
+    loglevel*: Level
     started*: bool
     internalThreadInitializationCallback*: ThreadInitializerCallback
     threadInitializerCallback*: ThreadInitializerCallback
@@ -98,18 +90,16 @@ type
     suspendCallback*: SuspendCallback
     closeSocketCallback*: CloseSocketCallback
     onCloseSocketCallback*: OnCloseSocketCallback
-    deprecatedOnCloseSocketCallback*: DeprecatedOnCloseSocketCallback
     getFlagsCallback*: GetFlagsCallback
     setFlagsCallback*: SetFlagsCallback
 
   GuildenServer* = ptr GuildenServerObj
 
-
   SocketContext* {.inheritable.} = ref object
     server*: GuildenServer
     socket*: SocketHandle
     customdata*: pointer
-{.warning[Deprecated]:on.}
+
 
 var
   shuttingdown* = false ## Global variable that all code is expected to observe and abide to (check this inside your loops every now and then...).
@@ -139,7 +129,7 @@ template thesocket*(): untyped =
   ## Global shortcut for accessing `socketcontext.socket`
   socketcontext.socket
 
-template log*(theserver: GuildenServer, level: LogLevel, message: string) =
+template log*(theserver: GuildenServer, level: Level, message: string) =
   ## Calls logCallback, if it set. By default, the callback is set to echo the message,
   ## if level is same or higher than server's loglevel.
   if unlikely(int(level) >= int(theserver.loglevel)):
@@ -149,7 +139,7 @@ template log*(theserver: GuildenServer, level: LogLevel, message: string) =
       theserver.logCallback(level, s, message)
 
 
-template log*(theserver: GuildenServer, level: LogLevel, source: string, message: string) =
+template log*(theserver: GuildenServer, level: Level, source: string, message: string) =
   ## Calls logCallback, if it set. By default, the callback is set to echo the message,
   ## if level is same or higher than server's loglevel.
   if unlikely(int(level) >= int(theserver.loglevel)):
@@ -157,18 +147,18 @@ template log*(theserver: GuildenServer, level: LogLevel, source: string, message
       theserver.logCallback(level, source, message)
 
 
-proc initialize*(server: GuildenServer, loglevel: LogLevel) =
+proc initialize*(server: GuildenServer, loglevel: Level) =
   server.id = nextid
   nextid += 1
   server.loglevel = loglevel
-  if isNil(server.logCallback): server.logCallback = proc(loglevel: LogLevel, source: string, message: string) {.nimcall.} = (
+  if isNil(server.logCallback): server.logCallback = proc(level: Level, source: string, message: string) {.nimcall.} = (
     block:
       if unlikely(not isNil(getCurrentException())):
-        echo LogColors[loglevel.int], loglevel, "\e[0m ", source, " ", message, ": ", getCurrentExceptionMsg()
-      elif message.len < 200: echo LogColors[loglevel.int], loglevel, "\e[0m ", source, " ", message
+        echo LogColors[level.int], level, "\e[0m ", source, " ", message, ": ", getCurrentExceptionMsg()
+      elif message.len < 200: echo LogColors[level.int], level, "\e[0m ", source, " ", message
       else:
         let excerpt = message[0 .. 49] & " ... (" & $(message.len - 100) & " chars omitted) ... " & message[(message.len - 50) .. (message.len - 1)]
-        echo LogColors[loglevel.int], loglevel, "\e[0m ", source, " ", excerpt.replace("\n", "\\n ")
+        echo LogColors[level.int], level, "\e[0m ", source, " ", excerpt.replace("\n", "\\n ")
   )
 
 
@@ -207,13 +197,13 @@ proc suspend*(server: GuildenServer, sleepmillisecs: int) {.inline.} =
 
 
 proc logClose(server: GuildenServer, socket: SocketHandle, cause = CloseCalled, msg: string) =
-  let loglevel =
-    if cause in [CloseCalled, AlreadyClosed, ClosedbyClient]: DEBUG
-    elif cause in [ConnectionLost, TimedOut]: INFO
-    elif cause in [ProtocolViolated, NetErrored]: NOTICE
-    elif cause  == SecurityThreatened: WARN
-    else: ERROR
-  server.log(loglevel, "socket " & $socket & " " & $cause & ": " & msg) 
+  let level =
+    if cause in [CloseCalled, AlreadyClosed, ClosedbyClient]: lvlDebug
+    elif cause in [ConnectionLost, TimedOut]: lvlInfo
+    elif cause in [ProtocolViolated, NetErrored]: lvlNotice
+    elif cause  == SecurityThreatened: lvlWarn
+    else: lvlError
+  server.log(level, "socket " & $socket & " " & $cause & ": " & msg) 
 
 
 proc closeSocket*(server: GuildenServer, socket: SocketHandle, cause = CloseCalled, msg = "") {.gcsafe, nimcall, raises: [].} =

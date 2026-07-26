@@ -1,10 +1,9 @@
 # nim r -d:release wsclienttest
 
 import std/atomics
-from os import sleep
 import guildenstern/[epolldispatcher, websocketserver, websocketclient]
 
-const ClientCount = 10000 # ulimit -n something more first
+const ClientCount = 10000 # set ulimit -n something more, like so: sudo prlimit --pid=$$ --nofile=25000
 const MinRoundTrips = 100000
 var roundtrips: Atomic[int]
 var clientele: WebsocketClientele
@@ -20,14 +19,11 @@ proc doShutdown(msg: string) =
     if closing: return
     closing = true
     echo "Shutting down, because ", msg, "..."
-    sleep(2000)
-    for client in clientele.connectedClients():
-      # echo "closing ", client.id
-      client.close(true)
+    for client in clientele.connectedClients(): client.close(true)
     shutdown()
-    echo "Total round trips: ", roundtrips.load
 
 proc clientReceive(client: WebsocketClient) =
+  if closing: return
   let r = 1 + roundtrips.fetchAdd(1)
   if r mod 1000 == 0: echo "round trips: ", r
   if r >= MinRoundTrips:
@@ -52,8 +48,8 @@ proc start() =
 
 
 let wsServer = newWebSocketServer(receive = serverReceive)
-if not wsServer.start(5050, 10): quit 1
+wsServer.start(5050, 10)
 clientele = newWebsocketClientele(bufferlength = 20)
-if not clientele.start(threadpoolsize = 10): quit 2 
+clientele.start(threadpoolsize = 10)
 start()
 joinThread(wsServer.thread)

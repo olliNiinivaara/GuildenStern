@@ -39,7 +39,7 @@ proc writeToSocket(text: ptr string, length: int, flags = intermediateflags): So
     if likely(ret > 0):
       bytessent.inc(ret)
       if bytessent == length:
-        server.log(DEBUG, "writeToSocket " & $thesocket & ": " & text[0 ..< length])
+        server.log(lvlDebug, "writeToSocket " & $thesocket & ": " & text[0 ..< length])
         return Complete
       continue
     result = checkSocketState(ret)
@@ -137,8 +137,8 @@ proc replyStart*(code: HttpCode, contentlength: int, headers: ptr string = nil):
 
 proc reply*(code: HttpCode, body: ptr string, headers: ptr string) {.inline, gcsafe, raises: [].} =
   let length = if isNil(body): 0 else: body[].len
-  if likely(reply(code, body, $length, length, headers, false) == Complete): server.log(TRACE, "reply ok")
-  else: server.log(INFO, $thesocket & ": reply failed")
+  if likely(reply(code, body, $length, length, headers, false) == Complete): server.log(lvlAll, "reply ok")
+  else: server.log(lvlInfo, $thesocket & ": reply failed")
 
 proc reply*(code: HttpCode, body: ptr string, headers: openArray[string]) {.inline, gcsafe, raises: [].} =
   let joinedheaders = headers.join("\c\L")

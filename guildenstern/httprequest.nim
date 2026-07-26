@@ -31,7 +31,7 @@ proc parseRequestLine*(): bool {.gcsafe, raises: [].} =
   if unlikely(http.request[http.uristart + http.urilen + 1] != 'H' or http.request[http.uristart + http.urilen + 8] != '1'):
     closeSocket(ProtocolViolated, "request not HTTP/1.1: " & http.request[http.uristart + http.urilen + 1 .. http.uristart + http.urilen + 8])
     return false
-  server.log(DEBUG, $server.port & "/" & $thesocket &  ": " & http.request[0 .. http.uristart + http.urilen + 8])
+  server.log(lvlDebug, $server.port & "/" & $thesocket &  ": " & http.request[0 .. http.uristart + http.urilen + 8])
   true
 
 
@@ -125,7 +125,7 @@ when compiles((var x = 1; var vx: var int = x)):
 proc getBody*(): string =
   ## Returns the body as a string copy. See also: getBodyView
   if unlikely(server.contenttype != Compact):
-    server.log(ERROR, "getBody is available only when server.contenttype == Compact")
+    server.log(lvlError, "getBody is available only when server.contenttype == Compact")
     return
   if http.bodystart < 1: return ""
   return http.request[http.bodystart ..< http.requestlen]
@@ -134,7 +134,7 @@ proc getBody*(): string =
 proc isBody*(body: string): bool =
   ## Compares the body without making a string copy
   if unlikely(server.contenttype != Compact):
-    server.log(ERROR, "isBody is available only when server.contenttype == Compact")
+    server.log(lvlError, "isBody is available only when server.contenttype == Compact")
     return
   let len = http.requestlen - http.bodystart
   if  len != body.len: return false

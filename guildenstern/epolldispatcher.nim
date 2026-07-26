@@ -45,21 +45,17 @@ proc shutdownImpl() {.nimcall, gcsafe, raises: [].} =
 shutdownCallbacks.add(shutdownImpl)
 
 proc suspend(server: GuildenServer, sleepmillisecs: int) {.gcsafe, nimcall, raises: [].} =
-  server.log(TRACE, "suspending thread " & $getThreadId() & " for " & $sleepmillisecs & " millisecs") 
+  server.log(lvlAll, "suspending thread " & $getThreadId() & " for " & $sleepmillisecs & " millisecs") 
   sleep(sleepmillisecs)
     
 
-{.warning[Deprecated]:off.}
 proc closeSocketImpl(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause, msg: string = "") {.gcsafe, nimcall, raises: [].} =
   if socket == INVALID_SOCKET:
-    server.log(DEBUG, "cannot close invalid socket " & $cause & ": " & msg)
+    server.log(lvlDebug, "cannot close invalid socket " & $cause & ": " & msg)
     return
-  server.log(TRACE, "epolldispatcher now closing socket " & $socket)
+  server.log(lvlAll, "epolldispatcher now closing socket " & $socket)
   if not isNil(server.onclosesocketcallback):
     server.onclosesocketcallback(server, socket, cause, msg)
-  elif not isNil(server.deprecatedOnclosesocketcallback):
-    let fakeClient = guildenserver.SocketData(server: server, socket: socket)
-    server.deprecatedOnclosesocketcallback(addr fakeClient, cause, msg)
   
   when not defined(nimdoc):
     {.gcsafe.}:
@@ -68,8 +64,7 @@ proc closeSocketImpl(server: GuildenServer, socket: posix.SocketHandle, cause: S
           servers[server.id].clientselector.unregister(socket.int)
           discard posix.close(socket)
         except:
-          server.log(TRACE, "error unregistering socket " & $socket)
-{.warning[Deprecated]:on.}
+          server.log(lvlAll, "error unregistering socket " & $socket)
 
 
 proc clientThread(server: GuildenServer) {.thread.} =
@@ -95,14 +90,14 @@ proc clientThread(server: GuildenServer) {.thread.} =
         when not defined(nimdoc): client = getSafelyData(emptyClient, servers[server.id].clientselector, socket.int)
         if unlikely(client.flags == -1): continue
     except:
-      server.log(INFO, "client selector select failure")
+      server.log(lvlInfo, "client selector select failure")
       continue
     if unlikely(shuttingdown): break
 
     let alreadybeingprocessed = exchange(client.processing, true)
     if alreadybeingprocessed == true: continue
   
-    server.log(TRACE, "handleRead starts for socket " & $socket & " at thread " & $getThreadId())
+    server.log(lvlAll, "handleRead starts for socket " & $socket & " at thread " & $getThreadId())
 
     while true:
       handleRead(server, socket, client.customdata)
@@ -117,7 +112,7 @@ proc clientThread(server: GuildenServer) {.thread.} =
       else: continue
 
     store(client.processing, false)
-    server.log(TRACE, "handleRead finished for socket " & $socket)
+    server.log(lvlAll, "handleRead finished for socket " & $socket)
 
   if not isNil(server.threadFinalizerCallback): server.threadFinalizerCallback()
   {.gcsafe.}: discard servers[server.id].threadpoolsize.atomicDec()
@@ -140,11 +135,11 @@ proc setFlagsImpl(server: GuildenServer, socket: SocketHandle, flags: int): bool
         let client = emptyClient
       if client == emptyClient: return false
       client.flags = client.flags or flags
-      server.log(DEBUG, "Socket " & $socket & " flags set to " & $flags)
+      server.log(lvlDebug, "Socket " & $socket & " flags set to " & $flags)
       return true
 
 
-proc createSelector(server: GuildenServer): bool =
+proc createSelector(server: GuildenServer) =
   when not defined(nimdoc):
     var linger = TLinger(l_onoff: 1, l_linger: 0)
     signal(SIG_PIPE, SIG_IGN)
@@ -156,95 +151,93 @@ proc createSelector(server: GuildenServer): bool =
       discard setsockopt(servers[server.id].serversocket.getFd(), cint(SOL_SOCKET), cint(SO_LINGER), addr linger, SockLen(sizeof(TLinger)))
       servers[server.id].serversocket.setSockOpt(OptNoDelay, true, level = cint(Protocol.IPPROTO_TCP))
     servers[server.id].serversocket.listen()
-  except:
-    server.log(FATAL, "Could not open port " & $server.port)
-    return false
+  except Defect as e:
+    server.log(lvlFatal, "Could not open port " & $server.port)
+    raise e
   
   {.gcsafe.}:
     try:
       servers[server.id].serverselector = newSelector[bool]()
       servers[server.id].serverselector.registerEvent(shutdownevent, true)
       servers[server.id].serverselector.registerHandle(servers[server.id].serversocket.getFd(), {Event.Read}, true)
-      return true
-    except:
-      server.log(FATAL, "Could not create selectors for port " & $server.port)
-      return false
+    except Exception as e:
+      server.log(lvlFatal, "Could not create selectors for port " & $server.port)
+      raise e
 
 
-proc startClientthreads(server: GuildenServer): bool =
+proc startClientthreads(server: GuildenServer) =
   try:
     servers[server.id].clientselector = newSelector[Client]()
     servers[server.id].clientselector.registerEvent(shutdownevent, Client())
     for i in 0 ..< servers[server.id].threadpoolsize:
       servers[server.id].clientthreads.add(Thread[GuildenServer]())
       createThread(servers[server.id].clientthreads[i], clientThread, server)
-    return true
-  except:
-    server.log(FATAL, "Could not create client threads")
-    return false
+  except Exception as e:
+    server.log(lvlFatal, "Could not create client threads")
+    raise e
 
 
 proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].} =
   var eventbuffer: array[1, ReadyKey]
   when not defined(nimdoc):
     {.gcsafe.}:
-      server.log(INFO, "epolldispatcher " & $server.id & " now listening at port " & $server.port &
+      server.log(lvlInfo, "epolldispatcher " & $server.id & " now listening at port " & $server.port &
       " with socket " & $servers[server.id].serversocket.getFd() & " using " & $servers[server.id].threadpoolsize & " threads")
   server.started = true
   while true:
     try:
       {.gcsafe.}: discard servers[server.id].serverselector.selectInto(-1, eventbuffer)
     except:
-      server.log(FATAL, "server select failed")
+      server.log(lvlFatal, "server select failed")
 
     if unlikely(shuttingdown): break
 
     let event = eventbuffer[0]
 
     if unlikely(event.events.len == 0):
-      server.log(TRACE, "no events in event")
+      server.log(lvlAll, "no events in event")
       continue
 
     if unlikely(Event.Signal in event.events):
-      server.log(INFO, "Signal event detected...")
+      server.log(lvlInfo, "Signal event detected...")
       continue
 
     if unlikely(Event.Process in event.events):
-      server.log(INFO, "Process event detected...")
+      server.log(lvlInfo, "Process event detected...")
       continue
     
     if unlikely(Event.Error in event.events):
-      server.log(ERROR, "server selector thread error: " & osErrorMsg(event.errorCode))
+      server.log(lvlError, "server selector thread error: " & osErrorMsg(event.errorCode))
       continue
  
     if unlikely(Event.Read notin event.events):
-      server.log(TRACE, "skipping event: " & $event.events)
+      server.log(lvlAll, "skipping event: " & $event.events)
       continue
 
     let fd = posix.SocketHandle(event.fd)
-    server.log(TRACE, "Serversocket: " & $event.events)
+    server.log(lvlAll, "Serversocket: " & $event.events)
 
     when not defined(nimdoc):
       let newsocket = fd.accept()[0]
       if unlikely(newsocket.int in [0, INVALID_SOCKET.int]):
-        server.log(TRACE, "invalid new socket")
+        server.log(lvlAll, "invalid new socket")
         continue
       try:
         let client = new Client
         {.gcsafe.}:
           servers[server.id].clientselector.registerEPOLLETReadHandle(newsocket.int, client)
       except:
-        server.log(ERROR, "selector registerHandle error for socket " & $newsocket)
+        server.log(lvlError, "selector registerHandle error for socket " & $newsocket)
         continue
-      server.log(DEBUG, "New socket " & $newsocket & " connected at port " & $server.port)
+      server.log(lvlDebug, "New socket " & $newsocket & " connected at port " & $server.port)
 
   
   {.gcsafe.}:
     when not defined(nimdoc):
       try: servers[server.id].serversocket.close()
-      except: server.log(ERROR, "could not close serversocket " & $servers[server.id].serversocket.getFd())
+      except: server.log(lvlError, "could not close serversocket " & $servers[server.id].serversocket.getFd())
     let waitingtime = 10 # 10 seconds, TODO: make this configurable / larger than socket timeout?
-    server.log(DEBUG, "Stopping client threads...")
+    server.log(lvlDebug, "Stopping client threads...")
     var slept = 0
     while slept <= 1000 * waitingtime:
       sleep(200)
@@ -252,24 +245,26 @@ proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].
       try: trigger(shutdownevent)
       except: echo getCurrentExceptionMsg()
       if servers[server.id].threadpoolsize < 1: break
-      if slept == 200: server.log(INFO, "waiting for threads to stop...")
-      server.log(TRACE, "threads still running: " & $servers[server.id].threadpoolsize)
+      if slept == 200: server.log(lvlInfo, "waiting for threads to stop...")
+      server.log(lvlAll, "threads still running: " & $servers[server.id].threadpoolsize)
     servers[server.id].flaglock.deinitLock()
     if slept > 1000 * waitingtime:
-      server.log(NOTICE, "Not all threads stopped after waiting " & $waitingtime & " seconds. Proceeding with shutdown anyway.")
-    else: server.log(DEBUG, "threads stopped.\n")
+      server.log(lvlNotice, "Not all threads stopped after waiting " & $waitingtime & " seconds. Proceeding with shutdown anyway.")
+    else: server.log(lvlDebug, "threads stopped.\n")
     sleep(200) # wait for OS
 
 
-proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0): bool =
+proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0): bool {.discardable.} =
   ## Starts the server.thread loop, which then listens the given port for read requests until shuttingdown == true.
   ## Threadpoolsize means number of worker threads, but the name is kept for compatibility with the defautl dispatacher.
   ## By default threadpoolsize will be set to max(8, 2 * countProcessors()).
   ## If port number 0 is given, the server runs in client mode, where server.thread is not started, and sockets 
   ## can be added manually using the `registerSocket` proc.
+  ## Throws exception if server could not be started. Returning a bool will be deprecated, do not use it (always returns true...).
   doAssert(server.id < MaxServerCount)
   doAssert(not server.started)
   doAssert(not isNil(server.handlerCallback))
+  doAssert(port > -1)
   servers[server.id] = Server()
   servers[server.id].flaglock.initLock()
   servers[server.id].threadpoolsize = threadpoolsize.int
@@ -279,17 +274,18 @@ proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0): bool =
   server.closeSocketCallback = closeSocketImpl
   server.getFlagsCallback = getFlagsImpl
   server.setFlagsCallback = setFlagsImpl
-  if port > 0 and not createSelector(server): return false
-  if not startClientthreads(server): return false
+  if port > 0: createSelector(server)
+  startClientthreads(server)
   if port > 0:
     createThread(server.thread, listeningLoop, server)
+    var sleeptime = 0
     while not server.started:
       sleep(50)
-      if shuttingdown: return false
+      sleeptime += 50
+      if sleeptime > 5000: raise newException(Exception, "could not start server")
+      if shuttingdown: raise newException(Exception, "shuttingdown during server start")
   sleep(200) # wait for OS
-  if port == 0:
-    server.log(INFO, "epolldispatcher client-server " & $server.id & " now serving, using " & $servers[server.id].threadpoolsize & " threads")
-  return not shuttingdown
+  return true # returing bool will be deprecated
 
 
 proc registerSocket*(server: GuildenServer, socket: SocketHandle,  flags = 0,customdata: pointer = nil): bool =
@@ -300,8 +296,8 @@ proc registerSocket*(server: GuildenServer, socket: SocketHandle,  flags = 0,cus
     client.customdata = customdata
     when not defined(nimdoc):
       {.gcsafe.}: servers[server.id].clientselector.registerEPOLLETReadHandle(socket.int, client)
-    server.log(DEBUG, "socket " & $socket & " registered to server " & $server.id)
+    server.log(lvlDebug, "socket " & $socket & " registered to server " & $server.id)
     return true
   except:
-    server.log(ERROR, "registerSocket: selector registerHandle error")
+    server.log(lvlError, "registerSocket: selector registerHandle error")
     return false

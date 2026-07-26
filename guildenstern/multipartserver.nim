@@ -202,12 +202,12 @@ proc handleMultipartRequest() {.gcsafe, nimcall, raises: [].} =
     closeSocket(ProtocolViolated, "Multipart request with wrong content-type (" & contenttype & ") received from socket " & $thesocket)
     return
   multipart.boundary = "--" & contenttype[30 .. ^1] # last boundary's extra -- is just ignored
-  if unlikely(multipart.boundary.len > server.bufferlength - 1): server.log(ERROR, "bufferlength too small, even part boundary does not fit")
-  server.log(DEBUG, "Started multipart streaming with chunk of length " & $http.requestlen & " from socket " & $thesocket)
+  if unlikely(multipart.boundary.len > server.bufferlength - 1): server.log(lvlError, "bufferlength too small, even part boundary does not fit")
+  server.log(lvlDebug, "Started multipart streaming with chunk of length " & $http.requestlen & " from socket " & $thesocket)
   {.gcsafe.}: server.requestCallback()
 
 
-proc newMultipartServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, loglevel = LogLevel.WARN, headerfields: openArray[string] = []): HttpServer =
+proc newMultipartServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, loglevel = lvlWarn, headerfields: openArray[string] = []): HttpServer =
   ## Note: headerfields concern only the whole request, not part headers
   result = cast[HttpServer](allocShared0(sizeof(HttpServerObj)))
   result.internalThreadInitializationCallback = handleMultiPartInitialization

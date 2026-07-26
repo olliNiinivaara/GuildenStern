@@ -116,15 +116,16 @@ proc newWebsocketClient*(clientele: WebsocketClientele, url: string,
   clientele.clients.add(result)
  
 
-proc newWebsocketClientele*(close: OnCloseSocketCallback = nil, loglevel = LogLevel.WARN, bufferlength = 1000, bytemask = "\11\22\33\44"): WebsocketClientele =
+proc newWebsocketClientele*(close: OnCloseSocketCallback = nil, loglevel = lvlWarn, bufferlength = 1000): WebsocketClientele =
   ## Makes sense to keep the bufferlength low, if you are running thousands of clients.
-  ## According to the spec, the bytemask should be random. 
   result = cast[WebsocketClientele](allocShared0(sizeof(WebsocketClienteleObj)))
-  initWebsocketServer(result, nil, nil, clienteleReceive, loglevel, bytemask)
+  initWebsocketClientServer(result, clienteleReceive, loglevel)
   result.onClosesocketcallback = close
   result.bufferlength = bufferlength
   result.clients.add(emptyClient)
 
 
-proc start*(clientele: WebsocketClientele, threadpoolsize = 0): bool =
-  return clientele.start(port = 0, threadpoolsize = threadpoolsize.uint)
+proc start*(clientele: WebsocketClientele, threadpoolsize = 0): bool {.discardable.} =
+  ## Returning bool is deprecated (always return true). Instread, throws Exception when cannot start.
+  clientele.start(port = 0, threadpoolsize = threadpoolsize.uint)
+  return true

@@ -118,7 +118,7 @@ proc prepareHttpContext*() {.inline.} =
       echo "header key error, should never happen"
 
 
-proc initHttpServer*(s: HttpServer, loglevel: LogLevel, parserequestline: bool, contenttype: ContentType, headerfields: openArray[string]) =
+proc initHttpServer*(s: HttpServer, loglevel: Level, parserequestline: bool, contenttype: ContentType, headerfields: openArray[string]) =
   s.initialize(loglevel)
   s.name = "HTTP-" & $s.id
   s.maxheaderlength = 10000.int64
@@ -137,16 +137,16 @@ proc handleRequest() {.gcsafe, nimcall, raises: [].} =
   if server.parserequestline and not parseRequestLine(): return
   case server.contenttype:
     of NoBody:
-        server.log(DEBUG, "Nobody request of length " & $http.requestlen & " read from socket " & $thesocket)
+        server.log(lvlDebug, "Nobody request of length " & $http.requestlen & " read from socket " & $thesocket)
     of Compact:
       if http.contentlength > server.bufferlength:
           closeSocket(ProtocolViolated, "content-length larger than bufferlength")
           return
       if not receiveToSingleBuffer():
-        server.log(DEBUG, "Receiving request to single buffer failed from socket " & $thesocket)
+        server.log(lvlDebug, "Receiving request to single buffer failed from socket " & $thesocket)
         return
     of Streaming:
-      server.log(DEBUG, "Started request streaming with chunk of length " & $http.requestlen & " from socket " & $thesocket)
+      server.log(lvlDebug, "Started request streaming with chunk of length " & $http.requestlen & " from socket " & $thesocket)
   {.gcsafe.}:
     if likely(not isNil(server.requestCallback)): server.requestCallback()
 
@@ -154,7 +154,7 @@ when defined(release):
   {.pop.}
 
 
-proc newHttpServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, loglevel = LogLevel.WARN, parserequestline = true, contenttype = Compact, headerfields: openArray[string] = []): HttpServer =
+proc newHttpServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, loglevel = Level.lvlWarn, parserequestline = true, contenttype = Compact, headerfields: openArray[string] = []): HttpServer =
   ## Constructs a new http server. The essential thing here is to set the onrequestcallback proc.
   ## When it is triggered, the [http] thread-local socket context is accessible.
   ## 
@@ -165,6 +165,6 @@ proc newHttpServer*(onrequestcallback: proc(){.gcsafe, nimcall, raises: [].}, lo
   for field in result[].headerfields:
     for c in field:
       if c != '-' and not isLowerAscii(c):
-        result.log(ERROR, "Header field not in lower case: " & field)
+        result.log(lvlError, "Header field not in lower case: " & field)
   result.handlerCallback = handleRequest
   result.requestCallback = onrequestcallback

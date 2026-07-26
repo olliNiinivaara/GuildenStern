@@ -60,9 +60,9 @@ proc onRequest() =
   """
 
 initLock(lock)
-let server = newHttpServer(onRequest, NONE, false, NoBody)
-if not server.start(5050): quit 1
-let wsserver = newWebsocketServer(onUpgradeRequest, afterUpgradeRequest, onMessage, onLost, TRACE)
-if not wsserver.start(5051, 2): quit 2
+let server = newHttpServer(onRequest, lvlNone, false, NoBody)
+server.start(5050)
+let wsserver = newWebsocketServer(onUpgradeRequest, afterUpgradeRequest, onMessage, onLost, lvlAll)
+wsserver.start(5051, 2)
 joinThreads(server.thread, wsserver.thread)
 deinitLock(lock)

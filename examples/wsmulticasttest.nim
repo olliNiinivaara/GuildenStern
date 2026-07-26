@@ -69,7 +69,7 @@ proc serverHandler() =
         sendcount.atomicInc(evenclients.len - failedsockets.len)
       Aim.atomicDec(failedsockets.len)
       if msg notin [imodd, imeven]:
-        if sendcount.load mod 10000 == 0:
+        if sendcount.load mod 10000 == 0 or (sendcount.load > Aim - 10000 and sendcount.load mod 100 == 0):
           echo sendcount.load, " messages sent"
     except:
       echo "Server failed: ", getCurrentExceptionMsg()
@@ -89,9 +89,9 @@ proc serverHandler() =
 
 proc clientHandler(client: WebsocketClient) =
   receivecount.atomicInc()
-  if receivecount.load mod 10000 == 0:
+  if receivecount.load mod 10000 == 0 or (receivecount.load > Aim - 10000 and receivecount.load mod 100 == 0):
     echo receivecount.load, " messages received"
-  if receivecount.load >= Aim:
+  if receivecount.load >= Aim and not closing:
     echo "Done: ", receivecount.load
     doShutdown() 
   
@@ -99,8 +99,9 @@ proc clientHandler(client: WebsocketClient) =
 proc sendStarters() =
   {.gcsafe.}:
     for i in 1 .. MessageCount:
+    #while true:
       if shuttingdown: return
-      sleep(1) # let's cheat a little, otherwise we are DDoS:ing the server
+      sleep(2) # let's cheat a little, otherwise we are DDoS:ing the server side
       withlock(clientlock):
         let clientid = rand(ClientCount - 1) + 1
         let client = clientele.clients[clientid]
@@ -110,13 +111,14 @@ proc sendStarters() =
           if not closing and client.isConnected():
             echo "System overload for socket ", client.socket
           if IAmOdd: Aim.atomicDec(oddclients.len)
-          else: Aim.atomicDec(evenclients.len)    
+          else: Aim.atomicDec(evenclients.len)   
+    echo "all starters sent (" & $MessageCount & ")" 
 
 
 let wsServer = newWebSocketServer(receive = serverHandler)
-if not wsServer.start(5050): quit()
+wsServer.start(5050)
 clientele = newWebsocketClientele(bufferlength = 20)
-if not clientele.start(): quit()
+clientele.start()
 for i in 1 .. ClientCount:
   let client = clientele.newWebsocketClient("ws://127.0.0.1:5050", clientHandler)
   if not client.connect(): quit("could not connect to server")
@@ -128,5 +130,6 @@ for i in 1 .. ClientCount:
   if i mod 100 == 0: echo i, "/", ClientCount, " clients connected"  
 while reports.load < ClientCount: sleep(10)
 echo "Aiming to ", Aim
+sleep(1000)
 sendStarters()
 joinThread(wsserver.thread)

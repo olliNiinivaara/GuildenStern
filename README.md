@@ -1,6 +1,9 @@
 # GuildenStern
 
-Modular multithreading HTTP/1.1 + WebSocket upstream server framework for POSIXy OSs (Linux, BSD, MacOS).
+Modular multithreading HTTP/1.1 + WebSocket upstream server ecosystem for POSIXy OSs (Linux, BSD, MacOS).
+Allows concurrently running multiple servers, making your application more efficient, configurable, and fault-tolerant than sticking to a single web server.
+Splitting work to many servers supports the [modular monolith](https://arxiv.org/pdf/2401.11867) architecture style.
+Out-of-the-box includes two dispatcher implementations and following servers: http, multi-part/form-data, websocket, and websocket client, where the http server has optimized configurations for receiving bodyless, compact and streaming data and for sending in normal and chunked mode.
 
 ## Documentation
 
@@ -11,14 +14,13 @@ https://olliniinivaara.github.io/GuildenStern/theindex.html
 ```nim
 import guildenstern/[dispatcher, httpserver]
 let server = newHttpServer(proc() = reply "hello world")
-if server.start(8080): joinThread(server.thread)
+server.start(8080)
+joinThread(server.thread)
 ```
 
 ## Example 2: Partitioning work to fine-tuned servers
 
 ```nim
-# nim r --d:release --mm:atomicArc thisexample
-
 import cgi, guildenstern/[dispatcher, epolldispatcher, httpserver]
      
 proc handleGet() =
@@ -35,10 +37,10 @@ proc handlePost() =
   echo "client said: ", readData(getBody()).getOrDefault("say")
   reply(Http303, ["location: " & http.headers.getOrDefault("origin")])
   
-let getserver = newHttpServer(handleGet, contenttype = NoBody)
-let postserver = newHttpServer(handlePost, loglevel = INFO, headerfields = ["origin"])
-if not dispatcher.start(getserver, 5050): quit()
-if not epolldispatcher.start(postserver, 5051, threadpoolsize = 20): quit()
+let getserver = newHttpServer(handleGet, loglevel = lvlInfo, contenttype = NoBody)
+let postserver = newHttpServer(handlePost, headerfields = ["origin"])
+dispatcher.start(getserver, 5050)
+epolldispatcher.start(postserver, 5051, threadpoolsize = 20)
 joinThreads(getserver.thread, postserver.thread)
 ```
 
@@ -61,7 +63,7 @@ proc serverReceive() =
   else: wsserver.send(thesocket, "Ok!")
 
 let server = newWebsocketServer(receive = serverReceive)
-if not server.start(8080): quit()
+server.start(8080)
 
 #-----------------
 
@@ -84,10 +86,21 @@ proc run() =
 
 #-----------------
 
-if clientele.start():
-  run()
-  joinThread(server.thread)
+clientele.start()
+run()
+joinThread(server.thread)
 ```
+
+## Release notes, 9.0.0 (2026-07-26)
+
+### breaking changes
+- instead of custom LogLevel type, the Level type from std/logging module is used, to achieve compatibility with other logging solutions (such as [Bigsister](https://codeberg.org/olliNiinivaara/Bigsister)). Migrate your code by adding the string "lvl" to all log levels. TRACE becomes lvlTRACE, DEBUG becomes lvlDEBUG, INFO becomes lvlINFO, and so on.
+- websocketserver has new initWebsocketClientServer proc for initializing a server in client mode. Previously client mode was inferred from initWebsocketServer proc containing a maskkey argument. That parameter has been removed, and initWebsocketClientServer generates the random mask key automatically
+
+### other
+- starting a server (dispatchers and websocketclientele) always returns true, and all error handling is delegated to throwing an exception. The boolean return value is discardable and deprecated
+- epolldispatcher robustness improvement, especially concerning the shutdown choreography
+- removal of old deprecated features
 
 ## Release notes, 8.1.0 (2025-02-10)
 - Servers are now pointers to objects instead of references, as a workaround to a race condition inside Nim's default memory manager

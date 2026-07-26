@@ -199,8 +199,9 @@ proc unregister*[T](s: Selector[T], fd: int|SocketHandle) =
   let fdi = int(fd)
   s.checkFd(fdi)
   var pkey = addr(s.fds[fdi])
-  doAssert(pkey.ident != InvalidIdent,
-           "Descriptor $# is not registered in the selector!" % $fdi)
+  if unlikely(pkey.ident == InvalidIdent):
+    if not shuttingdown: raiseIOSelectorsError("Descriptor $# is not registered in the selector!" % $fdi)
+    else: return
   if pkey.events != {}:
     when not defined(android):
       if Event.Read in pkey.events or Event.Write in pkey.events or Event.User in pkey.events:
@@ -411,8 +412,10 @@ proc selectInto*[T](s: Selector[T], timeout: int,
     while i < count:
       let fdi = int(resTable[i].data.u64)
       let pevents = resTable[i].events
+      if shuttingdown: return 0
       var pkey = addr(s.fds[fdi])
-      doAssert(pkey.ident != InvalidIdent)
+      if unlikely(pkey.ident == InvalidIdent):
+        raiseIOSelectorsError("invalid event detected")
       var rkey = ReadyKey(fd: fdi, events: {})
 
       if (pevents and EPOLLERR) != 0 or (pevents and EPOLLHUP) != 0:

@@ -3,8 +3,7 @@
 #            Nim's Runtime Library
 #        (c) Copyright 2016 Eugene Kabanov
 #
-#    See the file "copying.txt", included in this
-#    distribution, for details about the copyright.
+# [ MIT license: https://www.opensource.org/licenses/mit-license.php ]
 #
 #    Modified by Olli
 

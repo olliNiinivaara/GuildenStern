@@ -79,8 +79,8 @@ proc onRequest() =
   <input type="submit">"""
   reply(Http200, html)
 
-let getserver = newHttpServer(onRequest, NOTICE, false, NoBody)
-if not getserver.start(5050): quit()
+let getserver = newHttpServer(onRequest, lvlNotice, false, NoBody)
+getserver.start(5050)
 let uploadserver = newMultipartServer(handleUpload)
-if not uploadserver.start(5051): quit()
+uploadserver.start(5051)
 joinThreads(getserver.thread, uploadserver.thread)

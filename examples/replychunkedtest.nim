@@ -16,5 +16,5 @@ proc onRequest() =
     replyFinishChunked()
 
 let s = newHttpServer(onRequest)
-if not s.start(5050): quit()
+s.start(5050)
 joinThread(s.thread)

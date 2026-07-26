@@ -14,7 +14,7 @@ proc serverReceive() =
   else: wsserver.send(thesocket, "Ok!")
 
 let server = newWebsocketServer(receive = serverReceive)
-if not server.start(8080): quit()
+server.start(8080)
 
 #-----------------
 
@@ -37,6 +37,6 @@ proc run() =
 
 #-----------------
 
-if clientele.start():
-  run()
-  joinThread(server.thread)
+clientele.start()
+run()
+joinThread(server.thread)

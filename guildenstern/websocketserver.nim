@@ -311,45 +311,45 @@ proc send*(theserver: WebsocketServer, socket: posix.SocketHandle, message: stri
 
 
 proc handleWsRequest*() {.gcsafe, nimcall, raises: [].} =
-  server.log(TRACE, "--starts receiving websocket--")
+  server.log(lvlAll, "--starts receiving websocket--")
   prepareHttpContext()
   let flags = getFlags(server, thesocket)
   if unlikely(flags == -1):
-    socketcontext.server.log(DEBUG, "websocket " & $thesocket & " disappeared")
-    server.log(TRACE, "--end receiving websocket--")
+    socketcontext.server.log(lvlDebug, "websocket " & $thesocket & " disappeared")
+    server.log(lvlAll, "--end receiving websocket--")
     return
   elif unlikely(flags == 0):
     if wsserver.isclient:
       if not readHeader(): closeSocket(server, thesocket, NetErrored, "Websocket header read failed")
       if not setFlags(server, thesocket, 1):
         closeSocket(server, thesocket, NetErrored, " websocket disappeared at hanshake")
-        server.log(TRACE, "--end receiving websocket--")
+        server.log(lvlAll, "--end receiving websocket--")
         return
     else: handleWsUpgradehandshake()
-    server.log(TRACE, "--end receiving websocket--")
+    server.log(lvlAll, "--end receiving websocket--")
     return
   receiveWs()
   case opcode:
     of Ping:
       let pingmsg = ""
       if not wsserver.send(thesocket, pingmsg, false, 5):
-        server.log(NOTICE, "websocket " & $thesocket & " blocking, could not autoreply to Ping")
+        server.log(lvlNotice, "websocket " & $thesocket & " blocking, could not autoreply to Ping")
     of Close:
       {.gcsafe.}:
         if shuttingdown: return
         let statuscode = getMessage()
         let message = MagicClose & statuscode
         if not wsserver.send(thesocket, message, false, 1):
-          server.log(INFO, "websocket already closed, could not reply to close handshake")
+          server.log(lvlInfo, "websocket already closed, could not reply to close handshake")
         else:
           if statuscode == "": closeSocket(server, thesocket, ClosedbyClient, "1005")
           else: closeSocket(server, thesocket, ClosedbyClient, $(byte(statuscode[1]) + 256*byte(statuscode[0])))
     of WsFail: 
-      server.log(TRACE, "--end receiving websocket--")
+      server.log(lvlAll, "--end receiving websocket--")
       return
     else: {.gcsafe.}:
       if likely(ws.requestlen > 0 and not isNil(wsserver.messageCallback)): wsserver.messageCallback()
-      server.log(TRACE, "--end receiving websocket--")
+      server.log(lvlAll, "--end receiving websocket--")
 
 # receive
 #-------------------------------
@@ -399,7 +399,7 @@ proc createWsHeader(len: int, code: OpCode, isclient: bool, mask: string) =
 
 
 proc sendNonblocking(theserver: GuildenServer, socket: posix.SocketHandle, text: ptr string, sent: int = 0): (SendState , int) =
-  theserver.log(DEBUG, "writeToWebSocket " & $socket.int & ": " & text[])
+  theserver.log(lvlDebug, "writeToWebSocket " & $socket.int & ": " & text[])
   if socket == INVALID_SOCKET or shuttingdown: return (Err , 0)
   let len = text[].len
   if sent == len: return (Delivered , 0)
@@ -449,7 +449,7 @@ proc send*(theserver: WebsocketServer, delivery: ptr WsDelivery, failedsockets: 
   ## | `timeoutsecs`: a timeout after which sending is given up and all sockets with messages in-flight are closed
   ## | `sleepmillisecs`: if all in-flight receivers are blocking, will suspend for (sleepmillisecs * in-flight receiver count) milliseconds
   ## Returns sockets that failed and had to be closed in the `failedsockets` parameter.
-  gserver.log(TRACE, "--starts sending websockets--")
+  gserver.log(lvlAll, "--starts sending websockets--")
   {.gcsafe.}:
     if delivery.message[].len == 0:
       delivery.message = addr ping
@@ -481,7 +481,7 @@ proc send*(theserver: WebsocketServer, delivery: ptr WsDelivery, failedsockets: 
     let elapsed = getSafeMonoTime() - start
     if elapsed > timeout:
       gserver.closeSocketsInFlight(delivery.sockets, delivery.states, failedsockets)
-      gserver.log(NOTICE, "send timed out")
+      gserver.log(lvlNotice, "send timed out")
       return
 
     s.inc
@@ -495,7 +495,7 @@ proc send*(theserver: WebsocketServer, delivery: ptr WsDelivery, failedsockets: 
       {.gcsafe.}:
         withLock(sendlock):
           if sendingsockets.len == MaxParallelSendingSockets:
-            gserver.log(INFO, "MaxParallelSendingSockets reached, sleeping for " & $(parallelsleep) & " ms")
+            gserver.log(lvlInfo, "MaxParallelSendingSockets reached, sleeping for " & $(parallelsleep) & " ms")
             gserver.suspend(parallelsleep)
             parallelsleep *= 2 
             continue
@@ -513,7 +513,7 @@ proc send*(theserver: WebsocketServer, delivery: ptr WsDelivery, failedsockets: 
             sendingsockets.excl(delivery.sockets[s])
         if headerstate == Continue: theserver.closeSocket(delivery.sockets[s], TimedOut)
         handled.inc
-        gserver.log(TRACE, "wsockets processed: " & $handled & "/" & $delivery.sockets.len)
+        gserver.log(lvlAll, "wsockets processed: " & $handled & "/" & $delivery.sockets.len)
         if handled == delivery.sockets.len: break
       continue
       
@@ -523,7 +523,7 @@ proc send*(theserver: WebsocketServer, delivery: ptr WsDelivery, failedsockets: 
       delivery.states[s].sent += ret      
       blockedsockets.inc
       if blockedsockets >= delivery.sockets.len - handled:           
-        gserver.log(DEBUG, "all remaining websockets are blocking, suspending for " & $(blockedsockets * sleepmillisecs) & " ms")
+        gserver.log(lvlDebug, "all remaining websockets are blocking, suspending for " & $(blockedsockets * sleepmillisecs) & " ms")
         gserver.suspend(blockedsockets * sleepmillisecs)
         blockedsockets = 0
     else:
@@ -532,9 +532,9 @@ proc send*(theserver: WebsocketServer, delivery: ptr WsDelivery, failedsockets: 
           if delivery.states[s].sendstate == Err: failedsockets.add(delivery.sockets[s])
           sendingsockets.excl(delivery.sockets[s])
       handled.inc
-      gserver.log(TRACE, "wsockets processed: " & $handled & "/" & $delivery.sockets.len)
+      gserver.log(lvlAll, "wsockets processed: " & $handled & "/" & $delivery.sockets.len)
       if handled >= delivery.sockets.len: break
-  gserver.log(TRACE, "--ends sending websockets--")
+  gserver.log(lvlAll, "--ends sending websockets--")
 
 
 proc send*(theserver: WebsocketServer, sockets: seq[posix.SocketHandle], message: string, failedsockets: var seq[SocketHandle], binary = false, timeoutsecs = 10, sleepmillisecs = 10) =
@@ -544,7 +544,7 @@ proc send*(theserver: WebsocketServer, sockets: seq[posix.SocketHandle], message
   deli.message = unsafeAddr(message)
   deli.binary = binary
   send(theserver, unsafeAddr deli, failedsockets, timeoutsecs, sleepmillisecs)
-  if unlikely(failedsockets.len > 0): gserver.log(INFO, "websocket multisend failed for " & $failedsockets.len & " sockets")
+  if unlikely(failedsockets.len > 0): gserver.log(lvlNotice, "websocket multisend failed for " & $failedsockets.len & " sockets")
 
 
 proc send*(theserver: WebsocketServer, delivery: ptr WsDelivery, timeoutsecs = 10, sleepmillisecs = 10): int {.discardable.} =
@@ -561,7 +561,7 @@ proc send*(theserver: WebsocketServer, sockets: seq[posix.SocketHandle], message
   deli.binary = binary
   let fails = send(theserver, unsafeAddr deli, timeoutsecs, sleepmillisecs)
   if likely(fails < 1): return true
-  gserver.log(NOTICE, "websocket multisend failed for " & $fails & " sockets")
+  gserver.log(lvlNotice, "websocket multisend failed for " & $fails & " sockets")
   return false
   
 
@@ -602,8 +602,16 @@ proc handleWsThreadInitialization*(theserver: GuildenServer) =
   maskkey = newString(4)
 
 
+proc generateMaskkey(): string =
+  let t = int(epochTime() * 1_000_000)
+  result.add char((t shr 0) and 255)
+  result.add char((t shr 8) and 255)
+  result.add char((t shr 16) and 255)
+  result.add char((t shr 24) and 255)
+
+
 proc initWebsocketServer*(theserver: WebsocketServer, upgradecallback: WsUpgradeCallback, afterupgradecallback: WsAfterUpgradeCallback,
- onwsmessagecallback: WsMessageCallback, loglevel = LogLevel.WARN, clientmaskkey = "\0\0\0\0") =
+ onwsmessagecallback: WsMessageCallback, loglevel = lvlWarn) =
   initHttpServer(cast[HttpServer](theserver), loglevel, true, Compact, ["sec-websocket-key"])
   theserver.name = "WS-" & $theserver.id
   theserver.handlerCallback = handleWsRequest
@@ -611,26 +619,23 @@ proc initWebsocketServer*(theserver: WebsocketServer, upgradecallback: WsUpgrade
   theserver.afterUpgradeCallback = afterupgradecallback
   theserver.messageCallback = onwsmessagecallback
   theserver.internalThreadInitializationCallback = handleWsThreadInitialization
-  doAssert(clientmaskkey.len == 4)
-  theserver.clientmaskkey = clientmaskkey
-  theserver.isclient = clientmaskkey != "\0\0\0\0"
+
+
+proc initWebsocketClientServer*(theserver: WebsocketServer, onwsmessagecallback: WsMessageCallback, loglevel = lvlWarn) =
+  initWebsocketServer(theserver, nil, nil, onwsmessagecallback, loglevel)
+  theserver.isclient = true
+  theserver.name = "WSC-" & $theserver.id
+  theserver.clientmaskkey = $generateMaskkey()
  
 
 proc newWebsocketServer(upgradecallback: WsUpgradeCallback, afterupgradecallback: WsAfterUpgradeCallback,
- onwsmessagecallback: WsMessageCallback, loglevel = LogLevel.WARN): WebsocketServer =
+ onwsmessagecallback: WsMessageCallback, loglevel = lvlWarn): WebsocketServer =
   result = cast[WebsocketServer](allocShared0(sizeof(WebsocketServerObj)))
   initWebsocketServer(result, upgradecallback, afterupgradecallback, onwsmessagecallback, loglevel)
   
-{.warning[Deprecated]:off.}
-proc newWebsocketServer*(upgradecallback: WsUpgradeCallback, afterupgradecallback: WsAfterUpgradeCallback,
- onwsmessagecallback: WsMessageCallback, deprecatedOnclosesocketcallback: DeprecatedOnCloseSocketCallback, loglevel = LogLevel.WARN): WebsocketServer =
-  ## This constructor is going to get deprecated. Please switch to the one that uses the new OnCloseSocketCallback.
-  result = newWebsocketServer(upgradecallback, afterupgradecallback, onwsmessagecallback, loglevel)
-  result.deprecatedOnclosesocketcallback = deprecatedOnclosesocketcallback
-{.warning[Deprecated]:on.}
 
 proc newWebsocketServer*(upgrade: WsUpgradeCallback = nil, afterupgrade: WsAfterUpgradeCallback = nil,
- receive: WsMessageCallback, close: OnCloseSocketCallback = nil, loglevel = LogLevel.WARN): WebsocketServer =
+ receive: WsMessageCallback, close: OnCloseSocketCallback = nil, loglevel = lvlWarn): WebsocketServer =
   result = newWebsocketServer(upgrade, afterupgrade, receive, loglevel)
   result.onClosesocketcallback = close
 
