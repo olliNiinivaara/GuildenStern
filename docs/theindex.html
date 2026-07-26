@@ -16,13 +16,16 @@
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAA3XAAAN1wFCKJt4AAAAB3RJTUUH4QQQEwksSS9ZWwAAAk1JREFUWMPtll2ITVEUx39nn/O7Y5qR8f05wtCUUr6ZIS++8pEnkZInPImneaCQ5METNdOkeFBKUhMPRIkHKfEuUZSUlGlKPN2TrgfncpvmnntnmlEyq1Z7t89/rf9a6+y99oZxGZf/XeIq61EdtgKXgdXA0xrYAvBjOIF1AI9zvjcC74BSpndrJPkBWDScTF8Aa4E3wDlgHbASaANmVqlcCnwHvgDvgVfAJ+AikAAvgfVZwLnSVZHZaOuKoQi3ZOMi4NkYkpe1p4J7A8BpYAD49hfIy/oqG0+hLomiKP2L5L+1ubn5115S+3OAn4EnwBlgMzCjyt6ZAnQCJ4A7wOs88iRJHvw50HoujuPBoCKwHWiosy8MdfZnAdcHk8dxXFJ3VQbQlCTJvRBCGdRbD4M6uc5glpY3eAihpN5S5w12diSEcCCEcKUO4ljdr15T76ur1FDDLIQQ3qv71EdDOe3Kxj3leRXyk+pxdWnFWod6Wt2bY3de3aSuUHcPBVimHs7mK9WrmeOF6lR1o9qnzskh2ar2qm1qizpfXaPeVGdlmGN5pb09qMxz1Xb1kLqgzn1RyH7JUXW52lr5e/Kqi9qpto7V1atuUzfnARrV7jEib1T76gG2qxdGmXyiekkt1GswPTtek0aBfJp6YySGBfWg2tPQ0FAYgf1stUfdmdcjarbYJEniKIq6gY/Aw+zWHAC+p2labGpqiorFYgGYCEzN7oQdQClN07O1/EfDyGgC0ALMBdYAi4FyK+4H3gLPsxfR1zRNi+NP7nH5J+QntnXe5B5mpfQAAAAASUVORK5CYII=">
 
 <!-- CSS -->
-<link rel="stylesheet" type="text/css" href="nimdoc.out.css?v=2.2.2">
+<link rel="stylesheet" type="text/css" href="nimdoc.out.css?v=2.2.10">
 
 <!-- JS -->
-<script type="text/javascript" src="dochack.js?v=2.2.2"></script>
+<script type="text/javascript" src="dochack.js?v=2.2.10"></script>
 </head>
 <body>
   <div class="document" id="documentId">
+    <input type="checkbox" id="nav-toggle" hidden>
+    <label for="nav-toggle" id="nav-burger">&#9776;</label>
+    <label for="nav-toggle" id="nav-overlay"></label>
     <div class="container">
       <h1 class="title">Index</h1>
       Modules: <a href="guildenstern/dispatcher.html">guildenstern/dispatcher</a>, <a href="guildenstern/epolldispatcher.html">guildenstern/epolldispatcher</a>, <a href="guildenstern/guildenserver.html">guildenstern/guildenserver</a>, <a href="guildenstern/httpserver.html">guildenstern/httpserver</a>, <a href="guildenstern/multipartserver.html">guildenstern/multipartserver</a>, <a href="guildenstern/websocketclient.html">guildenstern/websocketclient</a>, <a href="guildenstern/websocketserver.html">guildenstern/websocketserver</a>.<br/><p /><h2>API symbols</h2>
@@ -104,14 +107,6 @@
 <li><a class="reference external"
           data-doc-search-tag="httpserver: enum ContentType" href="guildenstern/httpserver.html#ContentType">httpserver: enum ContentType</a></li>
           </ul></dd>
-<dt><a name="DEBUG" href="#DEBUG"><span>DEBUG:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="guildenserver: LogLevel.DEBUG" href="guildenstern/guildenserver.html#DEBUG">guildenserver: LogLevel.DEBUG</a></li>
-          </ul></dd>
-<dt><a name="DeprecatedOnCloseSocketCallback" href="#DeprecatedOnCloseSocketCallback"><span>DeprecatedOnCloseSocketCallback:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="guildenserver: type DeprecatedOnCloseSocketCallback" href="guildenstern/guildenserver.html#DeprecatedOnCloseSocketCallback">guildenserver: type DeprecatedOnCloseSocketCallback</a></li>
-          </ul></dd>
 <dt><a name="DontClose" href="#DontClose"><span>DontClose:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: SocketCloseCause.DontClose" href="guildenstern/guildenserver.html#DontClose">guildenserver: SocketCloseCause.DontClose</a></li>
@@ -123,10 +118,6 @@
 <dt><a name="epollSupported" href="#epollSupported"><span>epollSupported:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: proc epollSupported(): bool" href="guildenstern/guildenserver.html#epollSupported">guildenserver: proc epollSupported(): bool</a></li>
-          </ul></dd>
-<dt><a name="ERROR" href="#ERROR"><span>ERROR:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="guildenserver: LogLevel.ERROR" href="guildenstern/guildenserver.html#ERROR">guildenserver: LogLevel.ERROR</a></li>
           </ul></dd>
 <dt><a name="Excepted" href="#Excepted"><span>Excepted:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -140,10 +131,6 @@
 <li><a class="reference external"
           data-doc-search-tag="multipartserver: PartState.Failed" href="guildenstern/multipartserver.html#Failed">multipartserver: PartState.Failed</a></li>
           </ul></dd>
-<dt><a name="FATAL" href="#FATAL"><span>FATAL:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="guildenserver: LogLevel.FATAL" href="guildenstern/guildenserver.html#FATAL">guildenserver: LogLevel.FATAL</a></li>
-          </ul></dd>
 <dt><a name="findClient" href="#findClient"><span>findClient:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="websocketclient: proc findClient(clientele: WebsocketClientele; socket: SocketHandle): WebsocketClient" href="guildenstern/websocketclient.html#findClient%2CWebsocketClientele%2CSocketHandle">websocketclient: proc findClient(clientele: WebsocketClientele; socket: SocketHandle): WebsocketClient</a></li>
@@ -155,10 +142,6 @@
 <dt><a name="getBodylen" href="#getBodylen"><span>getBodylen:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="httpserver: proc getBodylen(): int" href="guildenstern/httpserver.html#getBodylen">httpserver: proc getBodylen(): int</a></li>
-          </ul></dd>
-<dt><a name="getBodyview" href="#getBodyview"><span>getBodyview:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="httpserver: proc getBodyview(http: HttpContext): openArray[char]" href="guildenstern/httpserver.html#getBodyview%2CHttpContext">httpserver: proc getBodyview(http: HttpContext): openArray[char]</a></li>
           </ul></dd>
 <dt><a name="getContentLength" href="#getContentLength"><span>getContentLength:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -175,10 +158,6 @@
 <dt><a name="getMessage" href="#getMessage"><span>getMessage:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="websocketserver: proc getMessage(): string" href="guildenstern/websocketserver.html#getMessage">websocketserver: proc getMessage(): string</a></li>
-          </ul></dd>
-<dt><a name="getMessageview" href="#getMessageview"><span>getMessageview:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="websocketserver: proc getMessageview(ws: HttpContext): openArray[char]" href="guildenstern/websocketserver.html#getMessageview%2CHttpContext">websocketserver: proc getMessageview(ws: HttpContext): openArray[char]</a></li>
           </ul></dd>
 <dt><a name="getMethod" href="#getMethod"><span>getMethod:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -244,14 +223,10 @@
 <li><a class="reference external"
           data-doc-search-tag="httpserver: object HttpServerObj" href="guildenstern/httpserver.html#HttpServerObj">httpserver: object HttpServerObj</a></li>
           </ul></dd>
-<dt><a name="INFO" href="#INFO"><span>INFO:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="guildenserver: LogLevel.INFO" href="guildenstern/guildenserver.html#INFO">guildenserver: LogLevel.INFO</a></li>
-          </ul></dd>
 <dt><a name="initHttpServer" href="#initHttpServer"><span>initHttpServer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="httpserver: proc initHttpServer(s: HttpServer; loglevel: LogLevel; parserequestline: bool;
-               contenttype: ContentType; headerfields: openArray[string])" href="guildenstern/httpserver.html#initHttpServer%2CHttpServer%2CLogLevel%2Cbool%2CContentType%2CopenArray%5Bstring%5D">httpserver: proc initHttpServer(s: HttpServer; loglevel: LogLevel; parserequestline: bool;
+          data-doc-search-tag="httpserver: proc initHttpServer(s: HttpServer; loglevel: Level; parserequestline: bool;
+               contenttype: ContentType; headerfields: openArray[string])" href="guildenstern/httpserver.html#initHttpServer%2CHttpServer%2CLevel%2Cbool%2CContentType%2CopenArray%5Bstring%5D">httpserver: proc initHttpServer(s: HttpServer; loglevel: Level; parserequestline: bool;
                contenttype: ContentType; headerfields: openArray[string])</a></li>
           </ul></dd>
 <dt><a name="initialbackoff" href="#initialbackoff"><span>initialbackoff:</span></a></dt><dd><ul class="simple">
@@ -260,23 +235,29 @@
           </ul></dd>
 <dt><a name="initialize" href="#initialize"><span>initialize:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="guildenserver: proc initialize(server: GuildenServer; loglevel: LogLevel)" href="guildenstern/guildenserver.html#initialize%2CGuildenServer%2CLogLevel">guildenserver: proc initialize(server: GuildenServer; loglevel: LogLevel)</a></li>
+          data-doc-search-tag="guildenserver: proc initialize(server: GuildenServer; loglevel: Level)" href="guildenstern/guildenserver.html#initialize%2CGuildenServer%2CLevel">guildenserver: proc initialize(server: GuildenServer; loglevel: Level)</a></li>
           </ul></dd>
 <dt><a name="initializeThread" href="#initializeThread"><span>initializeThread:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: proc initializeThread(server: GuildenServer)" href="guildenstern/guildenserver.html#initializeThread%2CGuildenServer">guildenserver: proc initializeThread(server: GuildenServer)</a></li>
+          </ul></dd>
+<dt><a name="initWebsocketClientServer" href="#initWebsocketClientServer"><span>initWebsocketClientServer:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocketserver: proc initWebsocketClientServer(theserver: WebsocketServer;
+                          onwsmessagecallback: WsMessageCallback;
+                          loglevel = lvlWarn)" href="guildenstern/websocketserver.html#initWebsocketClientServer%2CWebsocketServer%2CWsMessageCallback">websocketserver: proc initWebsocketClientServer(theserver: WebsocketServer;
+                          onwsmessagecallback: WsMessageCallback;
+                          loglevel = lvlWarn)</a></li>
           </ul></dd>
 <dt><a name="initWebsocketServer" href="#initWebsocketServer"><span>initWebsocketServer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="websocketserver: proc initWebsocketServer(theserver: WebsocketServer;
                     upgradecallback: WsUpgradeCallback;
                     afterupgradecallback: WsAfterUpgradeCallback;
-                    onwsmessagecallback: WsMessageCallback;
-                    loglevel = LogLevel.WARN; clientmaskkey = &quot;\x00\x00\x00\x00&quot;)" href="guildenstern/websocketserver.html#initWebsocketServer%2CWebsocketServer%2CWsUpgradeCallback%2CWsAfterUpgradeCallback%2CWsMessageCallback%2Cstring">websocketserver: proc initWebsocketServer(theserver: WebsocketServer;
+                    onwsmessagecallback: WsMessageCallback; loglevel = lvlWarn)" href="guildenstern/websocketserver.html#initWebsocketServer%2CWebsocketServer%2CWsUpgradeCallback%2CWsAfterUpgradeCallback%2CWsMessageCallback">websocketserver: proc initWebsocketServer(theserver: WebsocketServer;
                     upgradecallback: WsUpgradeCallback;
                     afterupgradecallback: WsAfterUpgradeCallback;
-                    onwsmessagecallback: WsMessageCallback;
-                    loglevel = LogLevel.WARN; clientmaskkey = &quot;\x00\x00\x00\x00&quot;)</a></li>
+                    onwsmessagecallback: WsMessageCallback; loglevel = lvlWarn)</a></li>
           </ul></dd>
 <dt><a name="isBody" href="#isBody"><span>isBody:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -308,9 +289,9 @@
           </ul></dd>
 <dt><a name="log" href="#log"><span>log:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="guildenserver: template log(theserver: GuildenServer; level: LogLevel; message: string)" href="guildenstern/guildenserver.html#log.t%2CGuildenServer%2CLogLevel%2Cstring">guildenserver: template log(theserver: GuildenServer; level: LogLevel; message: string)</a></li>
+          data-doc-search-tag="guildenserver: template log(theserver: GuildenServer; level: Level; message: string)" href="guildenstern/guildenserver.html#log.t%2CGuildenServer%2CLevel%2Cstring">guildenserver: template log(theserver: GuildenServer; level: Level; message: string)</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="guildenserver: template log(theserver: GuildenServer; level: LogLevel; source: string; message: string)" href="guildenstern/guildenserver.html#log.t%2CGuildenServer%2CLogLevel%2Cstring%2Cstring">guildenserver: template log(theserver: GuildenServer; level: LogLevel; source: string; message: string)</a></li>
+          data-doc-search-tag="guildenserver: template log(theserver: GuildenServer; level: Level; source: string; message: string)" href="guildenstern/guildenserver.html#log.t%2CGuildenServer%2CLevel%2Cstring%2Cstring">guildenserver: template log(theserver: GuildenServer; level: Level; source: string; message: string)</a></li>
           </ul></dd>
 <dt><a name="LogCallback" href="#LogCallback"><span>LogCallback:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -318,11 +299,15 @@
           </ul></dd>
 <dt><a name="LogLevel" href="#LogLevel"><span>LogLevel:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="guildenserver: enum LogLevel" href="guildenstern/guildenserver.html#LogLevel">guildenserver: enum LogLevel</a></li>
+          data-doc-search-tag="guildenserver: template LogLevel(thelevel: untyped): untyped" href="guildenstern/guildenserver.html#LogLevel.t%2Cuntyped">guildenserver: template LogLevel(thelevel: untyped): untyped</a></li>
           </ul></dd>
 <dt><a name="longdivider" href="#longdivider"><span>longdivider:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="httpserver: let longdivider" href="guildenstern/httpserver.html#longdivider">httpserver: let longdivider</a></li>
+          </ul></dd>
+<dt><a name="lvlTRACE" href="#lvlTRACE"><span>lvlTRACE:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="guildenserver: const lvlTRACE" href="guildenstern/guildenserver.html#lvlTRACE">guildenserver: const lvlTRACE</a></li>
           </ul></dd>
 <dt><a name="MSG_DONTWAIT" href="#MSG_DONTWAIT"><span>MSG_DONTWAIT:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -339,18 +324,16 @@
 <dt><a name="newHttpServer" href="#newHttpServer"><span>newHttpServer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="httpserver: proc newHttpServer(onrequestcallback: proc () {.gcsafe, nimcall, raises: [].};
-              loglevel = LogLevel.WARN; parserequestline = true;
+              loglevel = Level.lvlWarn; parserequestline = true;
               contenttype = Compact; headerfields: openArray[string] = []): HttpServer" href="guildenstern/httpserver.html#newHttpServer%2Cproc%29%2CopenArray%5Bstring%5D">httpserver: proc newHttpServer(onrequestcallback: proc () {.gcsafe, nimcall, raises: [].};
-              loglevel = LogLevel.WARN; parserequestline = true;
+              loglevel = Level.lvlWarn; parserequestline = true;
               contenttype = Compact; headerfields: openArray[string] = []): HttpServer</a></li>
           </ul></dd>
 <dt><a name="newMultipartServer" href="#newMultipartServer"><span>newMultipartServer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="multipartserver: proc newMultipartServer(onrequestcallback: proc () {.gcsafe, nimcall, raises: [].};
-                   loglevel = LogLevel.WARN;
-                   headerfields: openArray[string] = []): HttpServer" href="guildenstern/multipartserver.html#newMultipartServer%2Cproc%29%2CopenArray%5Bstring%5D">multipartserver: proc newMultipartServer(onrequestcallback: proc () {.gcsafe, nimcall, raises: [].};
-                   loglevel = LogLevel.WARN;
-                   headerfields: openArray[string] = []): HttpServer</a></li>
+                   loglevel = lvlWarn; headerfields: openArray[string] = []): HttpServer" href="guildenstern/multipartserver.html#newMultipartServer%2Cproc%29%2CopenArray%5Bstring%5D">multipartserver: proc newMultipartServer(onrequestcallback: proc () {.gcsafe, nimcall, raises: [].};
+                   loglevel = lvlWarn; headerfields: openArray[string] = []): HttpServer</a></li>
           </ul></dd>
 <dt><a name="newWebsocketClient" href="#newWebsocketClient"><span>newWebsocketClient:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -360,43 +343,23 @@
           </ul></dd>
 <dt><a name="newWebsocketClientele" href="#newWebsocketClientele"><span>newWebsocketClientele:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="websocketclient: proc newWebsocketClientele(close: OnCloseSocketCallback = nil;
-                      loglevel = LogLevel.WARN; bufferlength = 1000;
-                      bytemask = &quot;\v\x16!,&quot;): WebsocketClientele" href="guildenstern/websocketclient.html#newWebsocketClientele%2COnCloseSocketCallback%2Cint%2Cstring">websocketclient: proc newWebsocketClientele(close: OnCloseSocketCallback = nil;
-                      loglevel = LogLevel.WARN; bufferlength = 1000;
-                      bytemask = &quot;\v\x16!,&quot;): WebsocketClientele</a></li>
+          data-doc-search-tag="websocketclient: proc newWebsocketClientele(close: OnCloseSocketCallback = nil; loglevel = lvlWarn;
+                      bufferlength = 1000): WebsocketClientele" href="guildenstern/websocketclient.html#newWebsocketClientele%2COnCloseSocketCallback%2Cint">websocketclient: proc newWebsocketClientele(close: OnCloseSocketCallback = nil; loglevel = lvlWarn;
+                      bufferlength = 1000): WebsocketClientele</a></li>
           </ul></dd>
 <dt><a name="newWebsocketServer" href="#newWebsocketServer"><span>newWebsocketServer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="websocketserver: proc newWebsocketServer(upgradecallback: WsUpgradeCallback;
-                   afterupgradecallback: WsAfterUpgradeCallback;
-                   onwsmessagecallback: WsMessageCallback;
-    deprecatedOnclosesocketcallback: DeprecatedOnCloseSocketCallback;
-                   loglevel = LogLevel.WARN): WebsocketServer" href="guildenstern/websocketserver.html#newWebsocketServer%2CWsUpgradeCallback%2CWsAfterUpgradeCallback%2CWsMessageCallback%2CDeprecatedOnCloseSocketCallback">websocketserver: proc newWebsocketServer(upgradecallback: WsUpgradeCallback;
-                   afterupgradecallback: WsAfterUpgradeCallback;
-                   onwsmessagecallback: WsMessageCallback;
-    deprecatedOnclosesocketcallback: DeprecatedOnCloseSocketCallback;
-                   loglevel = LogLevel.WARN): WebsocketServer</a></li>
-          <li><a class="reference external"
           data-doc-search-tag="websocketserver: proc newWebsocketServer(upgrade: WsUpgradeCallback = nil;
                    afterupgrade: WsAfterUpgradeCallback = nil;
                    receive: WsMessageCallback;
-                   close: OnCloseSocketCallback = nil; loglevel = LogLevel.WARN): WebsocketServer" href="guildenstern/websocketserver.html#newWebsocketServer%2CWsUpgradeCallback%2CWsAfterUpgradeCallback%2CWsMessageCallback%2COnCloseSocketCallback">websocketserver: proc newWebsocketServer(upgrade: WsUpgradeCallback = nil;
+                   close: OnCloseSocketCallback = nil; loglevel = lvlWarn): WebsocketServer" href="guildenstern/websocketserver.html#newWebsocketServer%2CWsUpgradeCallback%2CWsAfterUpgradeCallback%2CWsMessageCallback%2COnCloseSocketCallback">websocketserver: proc newWebsocketServer(upgrade: WsUpgradeCallback = nil;
                    afterupgrade: WsAfterUpgradeCallback = nil;
                    receive: WsMessageCallback;
-                   close: OnCloseSocketCallback = nil; loglevel = LogLevel.WARN): WebsocketServer</a></li>
+                   close: OnCloseSocketCallback = nil; loglevel = lvlWarn): WebsocketServer</a></li>
           </ul></dd>
 <dt><a name="NoBody" href="#NoBody"><span>NoBody:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="httpserver: ContentType.NoBody" href="guildenstern/httpserver.html#NoBody">httpserver: ContentType.NoBody</a></li>
-          </ul></dd>
-<dt><a name="NONE" href="#NONE"><span>NONE:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="guildenserver: LogLevel.NONE" href="guildenstern/guildenserver.html#NONE">guildenserver: LogLevel.NONE</a></li>
-          </ul></dd>
-<dt><a name="NOTICE" href="#NOTICE"><span>NOTICE:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="guildenserver: LogLevel.NOTICE" href="guildenstern/guildenserver.html#NOTICE">guildenserver: LogLevel.NOTICE</a></li>
           </ul></dd>
 <dt><a name="OnCloseSocketCallback" href="#OnCloseSocketCallback"><span>OnCloseSocketCallback:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -580,10 +543,6 @@
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: var socketcontext" href="guildenstern/guildenserver.html#socketcontext_2">guildenserver: var socketcontext</a></li>
           </ul></dd>
-<dt><a name="SocketData" href="#SocketData"><span>SocketData:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="guildenserver: object SocketData" href="guildenstern/guildenserver.html#SocketData">guildenserver: object SocketData</a></li>
-          </ul></dd>
 <dt><a name="socketdata" href="#socketdata"><span>socketdata:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: proc socketdata(sc: SocketContext): SocketContext" href="guildenstern/guildenserver.html#socketdata%2CSocketContext">guildenserver: proc socketdata(sc: SocketContext): SocketContext</a></li>
@@ -636,17 +595,9 @@
 <li><a class="reference external"
           data-doc-search-tag="guildenserver: SocketCloseCause.TimedOut" href="guildenstern/guildenserver.html#TimedOut">guildenserver: SocketCloseCause.TimedOut</a></li>
           </ul></dd>
-<dt><a name="TRACE" href="#TRACE"><span>TRACE:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="guildenserver: LogLevel.TRACE" href="guildenstern/guildenserver.html#TRACE">guildenserver: LogLevel.TRACE</a></li>
-          </ul></dd>
 <dt><a name="TryAgain" href="#TryAgain"><span>TryAgain:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="httpserver: SocketState.TryAgain" href="guildenstern/httpserver.html#TryAgain">httpserver: SocketState.TryAgain</a></li>
-          </ul></dd>
-<dt><a name="WARN" href="#WARN"><span>WARN:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="guildenserver: LogLevel.WARN" href="guildenstern/guildenserver.html#WARN">guildenserver: LogLevel.WARN</a></li>
           </ul></dd>
 <dt><a name="WebsocketClient" href="#WebsocketClient"><span>WebsocketClient:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -696,7 +647,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-10 12:11:38 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-26 14:03:55 UTC</small>
       </div>
     </div>
   </div>
