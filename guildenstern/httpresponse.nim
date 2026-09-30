@@ -219,7 +219,10 @@ proc replyContinueChunked*(chunk: string): bool {.gcsafe.} =
       closeSocket()
       return false
     let (state , len) = tryWriteToSocket(addr chunk, delivered, chunk.len - delivered)
-    delivered += len
+    # `len` is tryWriteToSocket's raw send() return value, which is a negative errno-shaped sentinel
+    # (not a byte count) whenever state is TryAgain or Fail. Adding it to `delivered` unconditionally
+    # corrupts the offset on every EAGAIN retry, which a slow/rate-limited reader triggers repeatedly.
+    if state in [Progress, Complete]: delivered += len
     if state == Fail: return false
     elif state == TryAgain:
       server.suspend(backoff)
