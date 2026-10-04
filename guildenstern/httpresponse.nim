@@ -219,11 +219,8 @@ proc replyContinueChunked*(chunk: string): bool {.gcsafe.} =
       closeSocket()
       return false
     let (state , len) = tryWriteToSocket(addr chunk, delivered, chunk.len - delivered)
-    # `len` is tryWriteToSocket's raw send() return value, which is a negative errno-shaped sentinel
-    # (not a byte count) whenever state is TryAgain or Fail. Adding it to `delivered` unconditionally
-    # corrupts the offset on every EAGAIN retry, which a slow/rate-limited reader triggers repeatedly.
     if state in [Progress, Complete]: delivered += len
-    if state == Fail: return false
+    elif state == Fail: return false
     elif state == TryAgain:
       server.suspend(backoff)
       totalbackoff += backoff
@@ -232,7 +229,7 @@ proc replyContinueChunked*(chunk: string): bool {.gcsafe.} =
         return false
       backoff *= 2
       continue
-    elif state == Complete or delivered == chunk.len:
+    if state == Complete or delivered == chunk.len:
       {.gcsafe.}:
         if writeToSocket(addr shortdivider, shortdivider.len) == Fail: return false
       return true
@@ -241,12 +238,6 @@ proc replyContinueChunked*(chunk: string): bool {.gcsafe.} =
 proc replyFinishChunked*(): bool {.gcsafe, discardable.} =
   {.gcsafe.}:
     let delimiter = "0" & longdivider
-  # This terminator carries real bytes and is genuinely the last thing sent, but was going out with the
-  # default (MSG_MORE / corked) flags. replyFinish()'s own send() is a zero-length lastflags call, which
-  # cannot uncork anything (there is nothing to piggyback the flush onto), so the whole corked response -
-  # this segment and every prior MSG_MORE'd chunk - sat in the kernel until Linux's own cork timeout
-  # (~200ms) released it, on every request. Sending this last real segment with lastflags uncorks it
-  # immediately.
   if writeToSocket(addr delimiter, delimiter.len, lastflags) == Fail: return false
   return replyFinish() != Fail
 

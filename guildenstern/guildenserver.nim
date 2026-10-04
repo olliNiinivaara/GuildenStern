@@ -1,4 +1,4 @@
-const GuildenSternVersion* = "9.0.0"
+const GuildenSternVersion* = "9.0.1"
 
 #   Guildenstern
 #
