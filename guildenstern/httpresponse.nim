@@ -219,8 +219,8 @@ proc replyContinueChunked*(chunk: string): bool {.gcsafe.} =
       closeSocket()
       return false
     let (state , len) = tryWriteToSocket(addr chunk, delivered, chunk.len - delivered)
-    delivered += len
-    if state == Fail: return false
+    if state in [Progress, Complete]: delivered += len
+    elif state == Fail: return false
     elif state == TryAgain:
       server.suspend(backoff)
       totalbackoff += backoff
@@ -229,7 +229,7 @@ proc replyContinueChunked*(chunk: string): bool {.gcsafe.} =
         return false
       backoff *= 2
       continue
-    elif state == Complete or delivered == chunk.len:
+    if state == Complete or delivered == chunk.len:
       {.gcsafe.}:
         if writeToSocket(addr shortdivider, shortdivider.len) == Fail: return false
       return true
@@ -238,6 +238,6 @@ proc replyContinueChunked*(chunk: string): bool {.gcsafe.} =
 proc replyFinishChunked*(): bool {.gcsafe, discardable.} =
   {.gcsafe.}:
     let delimiter = "0" & longdivider
-  if writeToSocket(addr delimiter, delimiter.len) == Fail: return false
+  if writeToSocket(addr delimiter, delimiter.len, lastflags) == Fail: return false
   return replyFinish() != Fail
 

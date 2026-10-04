@@ -27,7 +27,11 @@ const
   ## Work queue size, should be larger than maxactivethreadcount.
   MaxServerCount {.intdefine.} = 30
   ## Maximum number of servers
+  Socklength = SockLen(sizeof(cint))
 
+let
+  nodelay = 1.cint
+  addrnodelay = addr nodelay
 
 type
   SocketData = ref object 
@@ -214,6 +218,7 @@ proc processEvent(server: GuildenServer, event: ReadyKey) {.gcsafe, raises: [].}
         if unlikely(fd.int in [0, INVALID_SOCKET.int]):
           server.log(lvlDebug, "invalid new socket")
           return
+        discard setsockopt(fd, cint(IPPROTO_TCP), TCP_NODELAY, addrnodelay, Socklength)
         workerdatas[server.id].gsselector.registerHandle(fd.int, {Event.Read}, SocketData(isserversocket: false, socket: fd))
         server.log(lvlDebug, "socket " & $fd & " connected to thread " & $getThreadId())
       except:

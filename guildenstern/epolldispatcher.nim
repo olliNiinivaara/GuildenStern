@@ -13,11 +13,6 @@ import guildenserver
 when not defined(nimdoc): import guildenselectors
 else: import std/selectors
 
-const
-  MSG_DONTWAIT = when defined(macosx): 0x80.cint else: 0x40.cint
-  MaxServerCount {.intdefine.} = 30
-  ## Maximum number of servers for this dispatcher
-
 type
   Client = ref object
     flags: int
@@ -31,6 +26,16 @@ type
     flaglock: Lock
     threadpoolsize: int
     clientthreads: seq[Thread[GuildenServer]]
+
+const
+  MSG_DONTWAIT = when defined(macosx): 0x80.cint else: 0x40.cint
+  MaxServerCount {.intdefine.} = 30
+  ## Maximum number of servers for this dispatcher
+  Socklength = SockLen(sizeof(cint))
+
+let
+  nodelay = 1.cint
+  addrnodelay = addr nodelay
 
 var
   servers: array[MaxServerCount, Server]
@@ -225,6 +230,7 @@ proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].
       try:
         let client = new Client
         {.gcsafe.}:
+          discard setsockopt(fd, cint(IPPROTO_TCP), TCP_NODELAY, addrnodelay, Socklength)
           servers[server.id].clientselector.registerEPOLLETReadHandle(newsocket.int, client)
       except:
         server.log(lvlError, "selector registerHandle error for socket " & $newsocket)
