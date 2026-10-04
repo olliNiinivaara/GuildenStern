@@ -238,6 +238,12 @@ proc replyContinueChunked*(chunk: string): bool {.gcsafe.} =
 proc replyFinishChunked*(): bool {.gcsafe, discardable.} =
   {.gcsafe.}:
     let delimiter = "0" & longdivider
-  if writeToSocket(addr delimiter, delimiter.len) == Fail: return false
+  # This terminator carries real bytes and is genuinely the last thing sent, but was going out with the
+  # default (MSG_MORE / corked) flags. replyFinish()'s own send() is a zero-length lastflags call, which
+  # cannot uncork anything (there is nothing to piggyback the flush onto), so the whole corked response -
+  # this segment and every prior MSG_MORE'd chunk - sat in the kernel until Linux's own cork timeout
+  # (~200ms) released it, on every request. Sending this last real segment with lastflags uncorks it
+  # immediately.
+  if writeToSocket(addr delimiter, delimiter.len, lastflags) == Fail: return false
   return replyFinish() != Fail
 
