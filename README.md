@@ -92,7 +92,7 @@ joinThread(server.thread)
 ```
 
 ## Release notes, 9.0.1 (2026-10-04)
-- HTTP chunked response bug fix: if a receiver is slow (causing EAGAIN), dor not send corrupted data, but repl(a)y as required
+- HTTP chunked response bug fix: if a receiver is slow (causing EAGAIN), do not send corrupted data, but repl(a)y as required
 - HTTP chunked response performance fix: send final terminator without MSG_MORE flag
 - networking fix in dispatchers: set the NODELAY flag to socket connections
 
