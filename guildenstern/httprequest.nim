@@ -37,8 +37,11 @@ proc parseRequestLine*(): bool {.gcsafe, raises: [].} =
 
 proc getContentLength*(): bool {.raises: [].} =
   const length  = "content-length: ".len
-  var start = http.request.find("content-length: ")
-  if start == -1: start = http.request.find("Content-Length: ")
+  # The buffer is reused from request to request, so only the header part of the current request may be searched: behind it lies what earlier requests left there.
+  let last = if http.bodystart > 0: http.bodystart - 1 else: http.requestlen - 1
+  if last < length: return true
+  var start = http.request.find("content-length: ", 0, last)
+  if start == -1: start = http.request.find("Content-Length: ", 0, last)
   if start == -1: return true
   var i = start + length
   while i < http.requestlen and http.request[i] != '\c': i += 1
