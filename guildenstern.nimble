@@ -1,4 +1,4 @@
-version       = "9.0.1"
+version       = "9.0.2"
 author        = "Olli"
 description   = "Modular multithreading HTTP/1.1 + WebSocket upstream server framework"
 license       = "MIT"

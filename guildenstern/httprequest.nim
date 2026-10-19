@@ -35,19 +35,47 @@ proc parseRequestLine*(): bool {.gcsafe, raises: [].} =
   true
 
 
+const
+  ContentLength = "content-length: "
+  ContentLengthLength = ContentLength.len
+  BadCharShift = block:
+    var result: array[high(char), int]
+    for c in low(char)..high(char): result[c] = ContentLengthLength  
+    for i in 0 ..< ContentLengthLength - 1:
+      let c = ContentLength[i]
+      result[c] = ContentLengthLength - 1 - i
+      if c == 'c': result['C'] = ContentLengthLength - 1 - i
+      elif c == 'l': result['L'] = ContentLengthLength - 1 - i
+    result
+
+proc findContentLength(last: int): int =
+  # Boyer-Moore-Horspool
+  var shift = 0
+  let maxShift = last - ContentLengthLength
+  while shift <= maxShift:
+    var j = ContentLengthLength - 1
+    while j >= 0:
+      let tChar = http.request[shift + j]
+      let pChar = ContentLength[j]
+      if pChar == tChar: dec j
+      elif pChar == 'c' and tChar == 'C': dec j
+      elif pChar == 'l' and tChar == 'L': dec j
+      else: break    
+    if j < 0: return shift
+    let lastCharInWindow = http.request[shift + ContentLengthLength - 1]
+    shift += BadCharShift[lastCharInWindow]
+  return -1
+
 proc getContentLength*(): bool {.raises: [].} =
-  const length  = "content-length: ".len
-  # The buffer is reused from request to request, so only the header part of the current request may be searched: behind it lies what earlier requests left there.
   let last = if http.bodystart > 0: http.bodystart - 1 else: http.requestlen - 1
-  if last < length: return true
-  var start = http.request.find("content-length: ", 0, last)
-  if start == -1: start = http.request.find("Content-Length: ", 0, last)
+  if last < ContentLengthLength: return true
+  let start = findContentLength(last)
   if start == -1: return true
-  var i = start + length
+  var i = start + ContentLengthLength
   while i < http.requestlen and http.request[i] != '\c': i += 1
   if i == http.requestlen: return true
   try:
-    http.contentlength = parseInt(http.request[start + length ..< i])
+    http.contentlength = parseInt(http.request[start + ContentLengthLength ..< i])
     return true
   except:
     closeSocket(ProtocolViolated, "could not parse content-length")

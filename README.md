@@ -91,6 +91,11 @@ run()
 joinThread(server.thread)
 ```
 
+## Release notes, 9.0.2 (2026-10-19)
+- content-length buffer over-read bug fix: do not use use stale content-length data if content-length header is missing
+- content-length header read performance optimization: use customized Boyer-Moore-Horspool for finding the header
+
+
 ## Release notes, 9.0.1 (2026-10-04)
 - HTTP chunked response bug fix: if a receiver is slow (causing EAGAIN), do not send corrupted data, but repl(a)y as required
 - HTTP chunked response performance fix: send final terminator without MSG_MORE flag
